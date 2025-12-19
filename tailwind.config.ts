@@ -22,6 +22,8 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          soft: "hsl(var(--primary-soft))",
+          "soft-foreground": "hsl(var(--primary-soft-foreground))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -80,10 +82,34 @@ export default {
             height: "0",
           },
         },
+        "card-fade-up": {
+          "0%": { opacity: "0", transform: "translateY(8px) scale(0.98)" },
+          "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
+        },
+        "pulse-soft": {
+          "0%, 100%": { boxShadow: "0 0 0 0 hsl(var(--ring) / 0.45)" },
+          "50%": { boxShadow: "0 0 0 6px hsl(var(--ring) / 0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "card-fade-up": "card-fade-up 0.35s ease-out",
+        "pulse-soft": "pulse-soft 1.6s ease-out infinite",
+      },
+      boxShadow: {
+        soft: "0 18px 45px 0 hsl(var(--shadow-soft))",
+        strong: "0 24px 70px 0 hsl(var(--shadow-strong))",
+      },
+      fontFamily: {
+        sans: [
+          "system-ui",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "SF Pro Text",
+          "Segoe UI",
+          "sans-serif",
+        ],
       },
     },
   },
