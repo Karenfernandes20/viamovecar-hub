@@ -41,6 +41,25 @@ app.get("/api/health", async (_req, res) => {
   }
 });
 
+
+// Serve static files from the React app
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const distPath = path.join(__dirname, "../dist");
+app.use(express.static(distPath));
+
+// Catch-all handler for any request that doesn't match the API or static files
+app.use("*", (req, res, next) => {
+  if (req.originalUrl.startsWith("/api")) {
+    return next();
+  }
+  res.sendFile(path.join(distPath, "index.html"));
+});
+
 app.listen(port, () => {
   console.log(`Server rodando na porta ${port}`);
 });
