@@ -52,18 +52,19 @@ const __dirname = path.dirname(__filename);
 const distPath = path.join(__dirname, "../dist");
 app.use(express.static(distPath));
 
-// Handle 404 for API routes specifically
-app.use("/api", (_req, res) => {
-  res.status(404).json({ error: "Route not found" });
-});
-
-// Catch-all handler for SPA (only for GET requests)
+// 404 para rotas de API não encontradas + fallback da SPA
 app.use((req, res, next) => {
-  if (req.method === "GET") {
-    res.sendFile(path.join(distPath, "index.html"));
-  } else {
-    next();
+  // Se começar com /api e nenhuma rota respondeu até aqui, é 404 de API
+  if (req.path.startsWith("/api")) {
+    return res.status(404).json({ error: "Route not found" });
   }
+
+  // Para qualquer outra rota GET, devolve o index.html da SPA
+  if (req.method === "GET") {
+    return res.sendFile(path.join(distPath, "index.html"));
+  }
+
+  return next();
 });
 
 app.listen(port, () => {
