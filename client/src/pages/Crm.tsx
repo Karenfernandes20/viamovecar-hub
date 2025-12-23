@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -21,33 +21,28 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { KanbanSquare, Plus, GripVertical } from "lucide-react";
+import { KanbanSquare } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { Button } from "../components/ui/button";
+// import { Button } from "../components/ui/button"; // Not using buttons for now as requested
 import { cn } from "../lib/utils";
 
 // Tipos
 type Lead = {
   id: string; // Phone number or UUID
   name: string;
+  phone: string;
   city: string;
   state: string;
-  source: string;
-  columnId: string;
+  origin: string;
+  stage_id: number;
+  columnId?: string; // Mapped from stage_id for frontend logic
 };
 
-type Column = {
-  id: string;
-  title: string;
-  color: string;
+type Stage = {
+  id: number;
+  name: string;
+  position: number;
 };
-
-const initialColumns: Column[] = [
-  { id: "novo", title: "Novos", color: "border-primary-soft bg-primary-soft/40" },
-  { id: "contato", title: "Em contato", color: "border-muted bg-muted/70" },
-  { id: "convertido", title: "Convertidos", color: "border-accent bg-accent/30" },
-  { id: "followup", title: "Follow-up", color: "border-blue-200 bg-blue-50" }, // Added based on user request
-];
 
 // Componente Sortable Item (Card)
 function SortableLeadCard({ lead }: { lead: Lead }) {
@@ -91,51 +86,75 @@ function SortableLeadCard({ lead }: { lead: Lead }) {
     >
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-[13px] font-medium text-foreground">{lead.name}</p>
+          <p className="text-[13px] font-medium text-foreground">{lead.name || lead.phone}</p>
           <div className="mt-1 flex items-center gap-1">
             <span className="h-1.5 w-1.5 rounded-full bg-primary" />
             <p className="text-[11px] text-muted-foreground">
-              {lead.city}/{lead.state}
+              {lead.city && lead.state ? `${lead.city}/${lead.state}` : lead.phone}
             </p>
           </div>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">Origem: {lead.source}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">Origem: {lead.origin}</p>
         </div>
-        <GripVertical className="h-4 w-4 text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100" />
       </div>
     </div>
   );
 }
 
 const CrmPage = () => {
-  // Estado local para Leads (Inicializado vazio como solicitado)
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      const [stagesRes, leadsRes] = await Promise.all([
+        fetch('/api/crm/stages'),
+        fetch('/api/crm/leads')
+      ]);
+
+      if (stagesRes.ok && leadsRes.ok) {
+        const stagesData = await stagesRes.json();
+        const leadsData = await leadsRes.json();
+        setStages(stagesData);
+        // Map backend leads to frontend includes columnId for ease
+        setLeads(leadsData.map((l: any) => ({
+          ...l,
+          id: l.id.toString(), // ensure string for dnd-kit
+          columnId: l.stage_id.toString()
+        })));
+      }
+    } catch (error) {
+      console.error("Failed to fetch CRM data", error);
+    }
+  };
+
+  const updateLeadStage = async (leadId: string, stageId: number) => {
+    try {
+      await fetch(`/api/crm/leads/${leadId}/move`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stageId })
+      });
+    } catch (error) {
+      console.error("Failed to update lead stage", error);
+    }
+  };
 
   // Sensores para Drag & Drop
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5, // Previne cliques acidentais
+        distance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
-
-  // Ajudante para adicionar um lead de teste (já que a lista começa vazia)
-  const addTestLead = () => {
-    const id = Math.random().toString(36).substr(2, 9);
-    const newLead: Lead = {
-      id: `38999${Math.floor(Math.random() * 1000000)}`, // Exemplo de número
-      name: `Contato Teste ${leads.length + 1}`,
-      city: "Montes Claros",
-      state: "MG",
-      source: "Manual",
-      columnId: "novo",
-    };
-    setLeads([...leads, newLead]);
-  };
 
   // Drag & Drop Handlers
   const handleDragStart = (event: DragStartEvent) => {
@@ -156,38 +175,35 @@ const CrmPage = () => {
 
     if (!isActiveALead) return;
 
-    // Cenário 1: Arrastando sobre outro Lead
     if (isActiveALead && isOverALead) {
       setLeads((leads) => {
         const activeIndex = leads.findIndex((l) => l.id === activeId);
         const overIndex = leads.findIndex((l) => l.id === overId);
 
         if (leads[activeIndex].columnId !== leads[overIndex].columnId) {
-          // Moveu para outra coluna visualmente
           leads[activeIndex].columnId = leads[overIndex].columnId;
-          return arrayMove(leads, activeIndex, overIndex - 1); // simples ajuste visual
+          return arrayMove(leads, activeIndex, overIndex - 1);
         }
 
         return arrayMove(leads, activeIndex, overIndex);
       });
     }
 
-    // Cenário 2: Arrastando sobre uma Coluna vazia
-    const isOverAColumn = initialColumns.some((col) => col.id === overId);
+    const isOverAColumn = stages.some((col) => col.id.toString() === overId);
     if (isActiveALead && isOverAColumn) {
       setLeads((leads) => {
         const activeIndex = leads.findIndex((l) => l.id === activeId);
         if (leads[activeIndex].columnId !== overId) {
           const newLeads = [...leads];
           newLeads[activeIndex].columnId = overId as string;
-          return arrayMove(newLeads, activeIndex, activeIndex); // Force update
+          return arrayMove(newLeads, activeIndex, activeIndex);
         }
         return leads;
       });
     }
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     setActiveDragId(null);
     const { active, over } = event;
     if (!over) return;
@@ -198,16 +214,25 @@ const CrmPage = () => {
     const activeLead = leads.find(l => l.id === activeId);
     if (!activeLead) return;
 
+    let newStageId: string | undefined;
+
     // Se soltou em uma coluna
-    if (initialColumns.some(c => c.id === overId)) {
-      setLeads(leads.map(l => l.id === activeId ? { ...l, columnId: overId } : l));
+    if (stages.some(c => c.id.toString() === overId)) {
+      newStageId = overId;
     }
     // Se soltou sobre outro lead
     else {
       const overLead = leads.find(l => l.id === overId);
       if (overLead) {
-        setLeads(leads.map(l => l.id === activeId ? { ...l, columnId: overLead.columnId } : l));
+        newStageId = overLead.columnId;
       }
+    }
+
+    if (newStageId && newStageId !== activeLead.stage_id.toString()) {
+      // Optimistic update
+      setLeads(leads.map(l => l.id === activeId ? { ...l, columnId: newStageId, stage_id: Number(newStageId) } : l));
+      // Backend update
+      await updateLeadStage(activeId, Number(newStageId));
     }
   };
 
@@ -225,18 +250,10 @@ const CrmPage = () => {
     <div className="space-y-4 max-w-full overflow-x-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold tracking-tight">Funil de relacionamento</h2>
+          <h2 className="text-base font-semibold tracking-tight">Funil Leads</h2>
           <p className="text-xs text-muted-foreground">
-            Arraste os cards para mover entre as fases.
+            Gerencie seus leads vindos do WhatsApp.
           </p>
-        </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={addTestLead} className="gap-1 text-[11px]">
-            <Plus className="h-3.5 w-3.5" /> Adicionar Teste
-          </Button>
-          <Button size="sm" className="gap-1 text-[11px]">
-            <Plus className="h-3.5 w-3.5" /> Nova fase
-          </Button>
         </div>
       </div>
 
@@ -248,13 +265,13 @@ const CrmPage = () => {
         onDragEnd={handleDragEnd}
       >
         <div className="grid gap-3 md:grid-cols-4 items-start">
-          {initialColumns.map((column) => (
-            <Card key={column.id} className={cn("min-h-[300px] border-dashed flex flex-col", column.color)}>
+          {stages.map((column) => (
+            <Card key={column.id} className={cn("min-h-[300px] border-dashed flex flex-col transition-colors hover:bg-muted/10")}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm">
-                  {column.title}
+                  {column.name}
                   <span className="ml-2 text-[11px] font-normal text-muted-foreground">
-                    {leads.filter((l) => l.columnId === column.id).length}
+                    {leads.filter((l) => l.columnId === column.id.toString()).length}
                   </span>
                 </CardTitle>
                 <KanbanSquare className="h-4 w-4 text-primary" />
@@ -262,20 +279,20 @@ const CrmPage = () => {
 
               <CardContent className="space-y-2 text-xs flex-1 p-2">
                 <SortableContext
-                  id={column.id}
-                  items={leads.filter((l) => l.columnId === column.id).map((l) => l.id)}
+                  id={column.id.toString()}
+                  items={leads.filter((l) => l.columnId === column.id.toString()).map((l) => l.id)}
                   strategy={verticalListSortingStrategy}
                 >
                   <div className="flex flex-col gap-2 min-h-[100px]">
                     {leads
-                      .filter((l) => l.columnId === column.id)
+                      .filter((l) => l.columnId === column.id.toString())
                       .map((lead) => (
                         <SortableLeadCard key={lead.id} lead={lead} />
                       ))}
                   </div>
                 </SortableContext>
 
-                {leads.filter((l) => l.columnId === column.id).length === 0 && (
+                {leads.filter((l) => l.columnId === column.id.toString()).length === 0 && (
                   <div className="text-center p-4 text-muted-foreground/50 border-2 border-dashed border-transparent hover:border-muted-foreground/20 rounded transition-all">
                     Arraste aqui
                   </div>
@@ -288,7 +305,7 @@ const CrmPage = () => {
         <DragOverlay dropAnimation={dropAnimation}>
           {activeDragId ? (
             <div className="bg-background border rounded-lg shadow-xl p-3 w-[250px] rotate-3 cursor-grabbing">
-              <p className="font-medium">{leads.find(l => l.id === activeDragId)?.name}</p>
+              <p className="font-medium">{leads.find(l => l.id === activeDragId)?.name || leads.find(l => l.id === activeDragId)?.phone}</p>
             </div>
           ) : null}
         </DragOverlay>

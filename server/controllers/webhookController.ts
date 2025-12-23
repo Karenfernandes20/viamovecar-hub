@@ -79,6 +79,27 @@ export const handleWebhook = async (req: Request, res: Response) => {
             );
 
             console.log(`Message saved for conversation ${conversationId}: ${content}`);
+
+            // 3. Integração com CRM: Criar/Atualizar Lead
+            // Verifica se o lead existe pelo telefone
+            const checkLead = await pool.query('SELECT id FROM crm_leads WHERE phone = $1', [phone]);
+            if (checkLead.rows.length === 0) {
+                // Encontrar o stage "Leads" (position 1) ou o primeiro disponível
+                const stageRes = await pool.query('SELECT id FROM crm_stages ORDER BY position ASC LIMIT 1');
+                if (stageRes.rows.length > 0) {
+                    const stageId = stageRes.rows[0].id;
+                    await pool.query(
+                        'INSERT INTO crm_leads (name, phone, origin, stage_id, created_at, updated_at) VALUES ($1, $2, $3, $4, NOW(), NOW())',
+                        [name, phone, 'WhatsApp', stageId]
+                    );
+                    console.log(`Created new CRM Lead for ${name} (${phone})`);
+                } else {
+                    console.warn('No CRM stages found. Skipping Lead creation.');
+                }
+            } else {
+                // Atualiza o timestamp do lead existente
+                await pool.query('UPDATE crm_leads SET updated_at = NOW() WHERE phone = $1', [phone]);
+            }
         }
 
         return res.status(200).json({ status: 'success' });

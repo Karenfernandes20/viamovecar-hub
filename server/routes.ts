@@ -6,6 +6,7 @@ import {
   deleteUser,
   clearUsers,
 } from './controllers/userController';
+import { getStages, getLeads, updateLeadStage } from './controllers/crmController';
 import { getEvolutionQrCode, deleteEvolutionInstance } from './controllers/evolutionController';
 import { handleWebhook, getConversations, getMessages } from './controllers/webhookController';
 
@@ -28,7 +29,9 @@ router.get('/evolution/messages/:conversationId', getMessages);
 // Placeholder for other routes
 router.get('/cities', (req, res) => res.json({ message: 'Cities endpoint' }));
 router.get('/rides', (req, res) => res.json({ message: 'Rides endpoint' }));
-router.get('/crm', (req, res) => res.json({ message: 'CRM endpoint' }));
+router.get('/crm/stages', getStages);
+router.get('/crm/leads', getLeads);
+router.put('/crm/leads/:id/move', updateLeadStage);
 router.get('/financial', (req, res) => res.json({ message: 'Financial endpoint' }));
 router.get('/whatsapp', (req, res) => res.json({ message: 'WhatsApp endpoint' }));
 
