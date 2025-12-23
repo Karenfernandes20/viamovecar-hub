@@ -4,7 +4,7 @@ import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { FormEvent } from "react";
 import { cn } from "../lib/utils";
 
@@ -38,6 +38,7 @@ const AtendimentoPage = () => {
   const [activeTab, setActiveTab] = useState<"conversas" | "contatos">("conversas");
   const [newContactName, setNewContactName] = useState("");
   const [newContactPhone, setNewContactPhone] = useState("");
+  const newContactFormRef = useRef<HTMLFormElement | null>(null);
 
   const handleAddContact = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -133,12 +134,12 @@ const AtendimentoPage = () => {
 
   const formatTime = (dateString: string) => {
     if (!dateString) return "";
-    return new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return new Date(dateString).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.6fr)] h-[calc(100vh-140px)] min-h-[500px]">
-      {/* Lista de Conversas */}
+      {/* Lista de Conversas / Contatos */}
       <Card className="flex flex-col overflow-hidden border-dashed bg-background/70">
         <Tabs
           value={activeTab}
@@ -148,9 +149,7 @@ const AtendimentoPage = () => {
           <CardHeader className="flex-none flex-row items-center justify-between pb-3">
             <div>
               <CardTitle className="text-sm">Atendimento</CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Histórico e nova conversa do WhatsApp
-              </p>
+              <p className="text-xs text-muted-foreground">Histórico e nova conversa do WhatsApp</p>
             </div>
             <div className="flex items-center gap-2">
               <TabsList className="grid grid-cols-2 h-8">
@@ -164,7 +163,9 @@ const AtendimentoPage = () => {
               <MessageCircleMore className="h-4 w-4 text-primary" />
             </div>
           </CardHeader>
+
           <CardContent className="flex-1 overflow-hidden p-0">
+            {/* Aba CONVERSAS */}
             <TabsContent value="conversas" className="h-full flex flex-col">
               <div className="px-4 pb-2">
                 <Input placeholder="Buscar..." className="h-8 text-xs" />
@@ -205,8 +206,10 @@ const AtendimentoPage = () => {
               </ScrollArea>
             </TabsContent>
 
+            {/* Aba NOVA CONVERSA / CONTATOS */}
             <TabsContent value="contatos" className="h-full flex flex-col">
               <form
+                ref={newContactFormRef}
                 onSubmit={handleAddContact}
                 className="px-4 pb-2 flex flex-wrap gap-2 items-center"
               >
@@ -230,10 +233,19 @@ const AtendimentoPage = () => {
               <ScrollArea className="h-full">
                 <div className="flex flex-col gap-1 p-2">
                   {contacts.length === 0 && (
-                    <div className="text-center text-xs text-muted-foreground p-4">
-                      Nenhum contato salvo.
+                    <div className="flex flex-col items-center gap-2 text-center text-xs text-muted-foreground p-4">
+                      <span>Nenhum contato salvo.</span>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          newContactFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }}
+                      >
+                        Incluir novo contato
+                      </Button>
                     </div>
                   )}
+
                   {contacts.map((contact) => (
                     <div
                       key={contact.id}
@@ -243,10 +255,7 @@ const AtendimentoPage = () => {
                         <span className="font-semibold">{contact.name}</span>
                         <span className="text-xs text-muted-foreground">{contact.phone}</span>
                       </div>
-                      <Button
-                        size="sm"
-                        onClick={() => handleStartConversationFromContact(contact)}
-                      >
+                      <Button size="sm" onClick={() => handleStartConversationFromContact(contact)}>
                         Iniciar conversa
                       </Button>
                     </div>
@@ -269,7 +278,9 @@ const AtendimentoPage = () => {
           <>
             <CardHeader className="flex-none flex-row items-center justify-between pb-3 bg-muted/20">
               <div>
-                <CardTitle className="text-sm">{selectedConversation.contact_name || selectedConversation.phone}</CardTitle>
+                <CardTitle className="text-sm">
+                  {selectedConversation.contact_name || selectedConversation.phone}
+                </CardTitle>
                 <p className="text-xs text-muted-foreground">
                   {selectedConversation.phone} · via WhatsApp
                 </p>
@@ -290,7 +301,14 @@ const AtendimentoPage = () => {
                       )}
                     >
                       {msg.content}
-                      <span className={cn("text-[10px]", msg.direction === 'outbound' ? "text-primary-foreground/70" : "text-muted-foreground")}>
+                      <span
+                        className={cn(
+                          "text-[10px]",
+                          msg.direction === "outbound"
+                            ? "text-primary-foreground/70"
+                            : "text-muted-foreground"
+                        )}
+                      >
                         {formatTime(msg.sent_at)}
                       </span>
                     </div>
@@ -305,10 +323,7 @@ const AtendimentoPage = () => {
 
               <div className="p-4 bg-background border-t">
                 <form className="flex items-center gap-2">
-                  <Input
-                    className="flex-1"
-                    placeholder="Digite a mensagem..."
-                  />
+                  <Input className="flex-1" placeholder="Digite a mensagem..." />
                   <Button type="submit" size="icon">
                     <Send className="h-4 w-4" />
                   </Button>
