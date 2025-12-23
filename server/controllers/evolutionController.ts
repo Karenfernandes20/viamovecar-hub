@@ -64,3 +64,41 @@ export const getEvolutionQrCode = async (_req: Request, res: Response) => {
     return res.status(500).json({ error: "Internal server error while fetching Evolution QR code" });
   }
 };
+
+export const deleteEvolutionInstance = async (_req: Request, res: Response) => {
+  try {
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+      return res.status(500).json({ error: "Evolution API not configured" });
+    }
+
+    const url = `${EVOLUTION_API_URL.replace(/\/$/, "")}/instance/logout/${EVOLUTION_INSTANCE}`;
+
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: EVOLUTION_API_KEY,
+      },
+    });
+
+    if (!response.ok) {
+      // Se der erro 404, pode ser que já esteja desconectado, então tratamos como sucesso ou erro leve
+      if (response.status === 404) {
+        return res.status(200).json({ message: "Instance was already disconnected" });
+      }
+
+      const text = await response.text().catch(() => undefined);
+      return res.status(response.status).json({
+        error: "Failed to disconnect instance",
+        status: response.status,
+        body: text,
+      });
+    }
+
+    const data = await response.json();
+    return res.status(200).json(data);
+  } catch (error) {
+    console.error("Erro ao desconectar instância Evolution:", error);
+    return res.status(500).json({ error: "Internal server error while disconnecting instance" });
+  }
+};

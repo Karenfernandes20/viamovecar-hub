@@ -6,7 +6,7 @@ import {
   deleteUser,
   clearUsers,
 } from './controllers/userController';
-import { getEvolutionQrCode } from './controllers/evolutionController';
+import { getEvolutionQrCode, deleteEvolutionInstance } from './controllers/evolutionController';
 
 const router = express.Router();
 
@@ -19,6 +19,7 @@ router.delete('/users', clearUsers);
 
 // Evolution routes
 router.get('/evolution/qrcode', getEvolutionQrCode);
+router.delete('/evolution/disconnect', deleteEvolutionInstance);
 
 // Placeholder for other routes
 router.get('/cities', (req, res) => res.json({ message: 'Cities endpoint' }));

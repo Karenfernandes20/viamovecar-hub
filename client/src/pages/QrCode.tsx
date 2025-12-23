@@ -42,6 +42,33 @@ const QrCodePage = () => {
     }
   };
 
+  const handleDisconnect = async () => {
+    try {
+      if (!confirm("Tem certeza que deseja desconectar o WhatsApp?")) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      const response = await fetch("/api/evolution/disconnect", {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        throw new Error(body || `Erro ${response.status} ao desconectar`);
+      }
+
+      // Após desconectar, recarrega o QR code
+      setQrCode(null);
+      setDebugData(null);
+      fetchQrCode();
+
+    } catch (err: any) {
+      setError(err?.message || "Erro ao desconectar");
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchQrCode();
   }, []);
@@ -117,6 +144,15 @@ const QrCodePage = () => {
                     A instância <strong>{debugData.instance.instanceName}</strong> já está ativa (state: open).
                     Você não precisa escanear o QR Code novamente.
                   </p>
+                  <Button
+                    onClick={handleDisconnect}
+                    variant="destructive"
+                    size="sm"
+                    className="mt-2 text-xs"
+                    disabled={isLoading}
+                  >
+                    Desconectar WhatsApp
+                  </Button>
                 </div>
               )}
 
