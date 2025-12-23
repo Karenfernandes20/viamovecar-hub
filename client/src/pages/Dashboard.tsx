@@ -1,14 +1,15 @@
 import { ArrowUpRight, MapPin, Users, Wallet2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "../components/ui/chart";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "../components/ui/chart";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 
-const chartData = [
-  { name: "MG", corridas: 820 },
-  { name: "BA", corridas: 650 },
-  { name: "GO", corridas: 430 },
-  { name: "SP", corridas: 1120 },
-];
+// Dados reais serão preenchidos pela API futuramente
+const chartData: Array<{ name: string; corridas: number }> = [];
 
 const chartConfig = {
   corridas: {
@@ -20,6 +21,7 @@ const chartConfig = {
 const DashboardPage = () => {
   return (
     <div className="space-y-5 sm:space-y-6">
+      {/* Indicadores principais sem números fictícios */}
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="elevated-card animate-card-fade-up border-none bg-card/90">
           <CardHeader className="flex flex-row items-center justify-between pb-1.5 sm:pb-2">
@@ -29,9 +31,9 @@ const DashboardPage = () => {
             <Users className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent className="pb-3 sm:pb-4">
-            <p className="text-xl font-semibold sm:text-2xl">18.245</p>
+            <p className="text-xl font-semibold sm:text-2xl">—</p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Base consolidada em todas as cidades ativas.
+              Os dados reais serão exibidos aqui assim que a integração estiver ativa.
             </p>
           </CardContent>
         </Card>
@@ -44,8 +46,10 @@ const DashboardPage = () => {
             <Users className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent className="pb-3 sm:pb-4">
-            <p className="text-xl font-semibold sm:text-2xl">4.392</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">Inclui ativos, pendentes e bloqueados.</p>
+            <p className="text-xl font-semibold sm:text-2xl">—</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Os dados serão carregados automaticamente a partir do backend.
+            </p>
           </CardContent>
         </Card>
 
@@ -57,8 +61,10 @@ const DashboardPage = () => {
             <ArrowUpRight className="h-4 w-4 text-accent" />
           </CardHeader>
           <CardContent className="pb-3 sm:pb-4">
-            <p className="text-xl font-semibold sm:text-2xl">37</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">Monitoramento em tempo real via app.</p>
+            <p className="text-xl font-semibold sm:text-2xl">—</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Este indicador será alimentado em tempo real quando a integração estiver pronta.
+            </p>
           </CardContent>
         </Card>
 
@@ -70,19 +76,22 @@ const DashboardPage = () => {
             <MapPin className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent className="pb-3 sm:pb-4">
-            <p className="text-xl font-semibold sm:text-2xl">12</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">Operações com indicadores atualizados.</p>
+            <p className="text-xl font-semibold sm:text-2xl">—</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Em breve serão exibidas aqui apenas informações reais da operação.
+            </p>
           </CardContent>
         </Card>
       </section>
 
+      {/* Área reservada para gráficos com dados reais */}
       <section className="grid gap-4 lg:grid-cols-[2fr,1.3fr]">
         <Card className="elevated-card border-none bg-card/95">
           <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3">
             <div>
               <CardTitle className="text-sm">Corridas por estado</CardTitle>
               <p className="text-[11px] text-muted-foreground sm:text-xs">
-                Distribuição das corridas concluídas nos últimos 30 dias.
+                Assim que os dados forem integrados, este gráfico mostrará as corridas reais por estado.
               </p>
             </div>
           </CardHeader>
@@ -115,60 +124,52 @@ const DashboardPage = () => {
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <div>
               <CardTitle className="text-sm">Resumo financeiro</CardTitle>
-              <p className="text-xs text-muted-foreground">Visão macro da plataforma (valores ilustrativos).</p>
+              <p className="text-xs text-muted-foreground">
+                Os valores serão alimentados automaticamente a partir dos dados reais da plataforma.
+              </p>
             </div>
             <Wallet2 className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent className="space-y-3 pt-1 text-xs">
             <div className="flex items-center justify-between rounded-lg bg-primary-soft/60 px-3 py-2">
               <span className="text-muted-foreground">Faturamento total</span>
-              <span className="font-semibold text-foreground">R$ 3.280.000,00</span>
+              <span className="font-semibold text-foreground">—</span>
             </div>
             <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2">
-              <span className="text-muted-foreground">Faturamento mensal (ilustrativo)</span>
-              <span className="font-semibold text-foreground">R$ 268.000,00</span>
+              <span className="text-muted-foreground">Faturamento mensal</span>
+              <span className="font-semibold text-foreground">—</span>
             </div>
             <div className="grid gap-2 rounded-lg bg-background px-3 py-2">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Motoristas</span>
-                <span className="font-medium text-foreground">60%</span>
+                <span className="font-medium text-foreground">—</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Empreendedores locais</span>
-                <span className="font-medium text-foreground">25%</span>
+                <span className="font-medium text-foreground">—</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Plataforma</span>
-                <span className="font-medium text-foreground">15%</span>
+                <span className="font-medium text-foreground">—</span>
               </div>
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Todos os valores são demonstrativos para fins de visualização do painel, sem promessas financeiras.
+                Nenhum número exibido aqui é fictício: os dados só aparecerão quando vierem do backend.
               </p>
             </div>
           </CardContent>
         </Card>
       </section>
 
+      {/* Seção informativa, sem números falsos */}
       <section className="grid gap-4 md:grid-cols-3">
         <Card className="border-dashed bg-background/60">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Indicadores por cidade</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
-            <div className="flex items-center justify-between rounded-lg bg-primary-soft/60 px-3 py-2">
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-primary" />Montes Claros/MG
-              </span>
-              <span className="font-medium">Corridas: 320</span>
-            </div>
-            <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2">
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-accent" />Barreiras/BA
-              </span>
-              <span className="font-medium">Corridas: 210</span>
-            </div>
             <p className="text-[11px] text-muted-foreground">
-              Cada cidade poderá ter suas próprias cores definidas em Cidades &gt; Configuração visual.
+              Aqui você poderá acompanhar indicadores reais de cada cidade assim que a integração de dados for
+              concluída.
             </p>
           </CardContent>
         </Card>
@@ -179,11 +180,11 @@ const DashboardPage = () => {
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
             <p className="text-muted-foreground">
-              A aba Atendimento concentra conversas de WhatsApp integradas via Evolution API, com identificação de
-              cidade e estado em cores específicas.
+              A aba Atendimento será integrada ao Evolution API para exibir conversas reais organizadas por cidade e
+              estado.
             </p>
             <p className="text-[11px] text-muted-foreground">
-              Nesta versão inicial os dados são estáticos. A integração em tempo real será conectada na próxima etapa.
+              No momento nenhum número é simulado: os dados serão carregados diretamente da sua operação.
             </p>
           </CardContent>
         </Card>
@@ -194,7 +195,8 @@ const DashboardPage = () => {
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
             <p className="text-muted-foreground">
-              A estrutura foi pensada para crescer com novos módulos, relatórios, permissões avançadas e integrações.
+              A estrutura do painel está pronta para receber dados reais, novos módulos, relatórios e permissões
+              avançadas.
             </p>
           </CardContent>
         </Card>
