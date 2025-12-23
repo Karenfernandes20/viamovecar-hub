@@ -91,7 +91,7 @@ const QrCodePage = () => {
           disabled={isLoading}
         >
           <RefreshCcw className="h-3.5 w-3.5" />
-          {isLoading ? "Atualizando QR" : "Atualizar QR"}
+          {isLoading ? "Gerando QR..." : "Gerar QR Code"}
         </Button>
       </header>
 

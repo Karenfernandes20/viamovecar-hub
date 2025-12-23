@@ -53,6 +53,7 @@ export const getEvolutionQrCode = async (_req: Request, res: Response) => {
       (data.qrcode as string) ||
       (data.qr_code as string) ||
       (data.qr as string) ||
+      (data.base64 as string) ||
       undefined;
 
     return res.status(200).json({
