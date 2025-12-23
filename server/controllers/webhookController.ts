@@ -18,9 +18,30 @@ export const handleWebhook = async (req: Request, res: Response) => {
     try {
         // O Evolution pode mandar arrays de eventos ou objetos únicos dependendo da config
         // Vamos assumir o padrão Global Webhook: { type: "...", data: ... }
-        const { type, data } = req.body;
+        const body = req.body;
+        console.log('--- WEBHOOK PAYLOAD ---');
+        console.log(JSON.stringify(body, null, 2));
+        console.log('-----------------------');
 
-        console.log(`Webhook received: ${type}`);
+        // Normalização: Evolution pode enviar objeto unico { type: ..., data: ... }
+        // ou array de objetos se estiver em lote, etc.
+        // Se undefined, assumir que o proprio body pode ser o "data" se type nao existir no root
+
+        // Find the event data
+        let type = body.type;
+        let data = body.data;
+
+        // Se for array, pega o primeiro (simplificação para debug)
+        if (Array.isArray(body) && body.length > 0) {
+            type = body[0].type;
+            data = body[0].data;
+        } else if (!type && body.event) {
+            // Algumas versões mandam { event: "...", ... }
+            type = body.event;
+            data = body;
+        }
+
+        console.log(`Webhook processed type: ${type}`);
 
         if (type === 'messages.upsert') {
             const msg = data as WebhookMessage;

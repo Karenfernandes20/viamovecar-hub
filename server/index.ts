@@ -1,3 +1,5 @@
+import "./env";
+import path from "path";
 import express from "express";
 import cors from "cors";
 import { pool } from "./db";
@@ -33,7 +35,6 @@ app.get("/api/health", async (_req, res) => {
 
 
 // Serve static files from the React app
-import path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
