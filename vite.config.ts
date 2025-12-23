@@ -11,8 +11,9 @@ const __dirname = path.dirname(__filename);
 export default defineConfig(({ mode }) => ({
   // root: "client",
   server: {
-    host: "::",
+    host: true,
     port: 8080,
+    open: true,
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
