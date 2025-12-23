@@ -22,9 +22,12 @@ const QrCodePage = () => {
       }
 
       const text = await response.text();
-      // Se o backend devolver HTML (ex.: erro de rota/deploy), evita quebrar no JSON.parse
-      if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
-        throw new Error("Resposta do servidor não é JSON (provavelmente HTML). Verifique a rota /api/evolution/qrcode no backend.");
+      const trimmed = text.trim().toLowerCase();
+      // Se o backend devolver HTML (ex.: está apontando para o frontend e não para a API), evita quebrar no JSON.parse
+      if (trimmed.startsWith("<!doctype") || trimmed.startsWith("<html")) {
+        throw new Error(
+          "Resposta do servidor não é JSON, e sim HTML. Provavelmente a URL https://viamovecar-hub.onrender.com está servindo apenas o frontend e a rota /api/evolution/qrcode não existe no backend."
+        );
       }
 
       const data = JSON.parse(text);
