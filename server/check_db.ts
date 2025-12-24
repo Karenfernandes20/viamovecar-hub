@@ -2,6 +2,10 @@ import "./env";
 import { pool } from "./db";
 
 async function check() {
+    if (!pool) {
+        console.error("Pool is null. DATABASE_URL not configured?");
+        return;
+    }
     try {
         console.log("Checking database...");
 
@@ -28,7 +32,7 @@ async function check() {
     } catch (error) {
         console.error("Check failed:", error);
     } finally {
-        pool.end();
+        await pool.end();
     }
 }
 
