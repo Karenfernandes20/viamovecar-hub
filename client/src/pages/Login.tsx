@@ -82,11 +82,21 @@ const LoginPage = () => {
                         <Button type="submit" className="w-full" disabled={loading}>
                             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Entrar"}
                         </Button>
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
-    );
-};
-
-export default LoginPage;
+                        <div className="mt-4 text-center text-xs text-muted-foreground">
+                            Ainda não tem acesso?{" "}
+                            <button
+                                type="button"
+                                onClick={() => navigate("/cadastro")}
+                                className="font-medium text-primary underline-offset-2 hover:underline"
+                            >
+                                Cadastre-se
+                            </button>
+                        </div>
+                     </form>
+                 </CardContent>
+             </Card>
+         </div>
+     );
+ };
+ 
+ export default LoginPage;
