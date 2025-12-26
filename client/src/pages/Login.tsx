@@ -20,24 +20,32 @@ const LoginPage = () => {
         setLoading(true);
 
         try {
-            // Use full URL if running locally vs production, or configure generic proxy
-            // Using relative path assuming proxy or same-origin
             const res = await fetch("/api/auth/login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, password }),
             });
 
-            const data = await res.json();
+            let data: any = {};
+            try {
+                const text = await res.text();
+                data = text ? JSON.parse(text) : {};
+            } catch {
+                data = {};
+            }
 
             if (!res.ok) {
-                throw new Error(data.error || "Falha no login");
+                throw new Error(data.error || "Falha no login. Tente novamente em alguns instantes.");
+            }
+
+            if (!data.token || !data.user) {
+                throw new Error("Resposta inesperada do servidor. Tente novamente.");
             }
 
             login(data.token, data.user);
             navigate("/");
         } catch (err: any) {
-            setError(err.message);
+            setError(err.message || "Erro ao tentar entrar. Tente novamente.");
         } finally {
             setLoading(false);
         }
