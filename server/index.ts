@@ -44,6 +44,13 @@ const __dirname = path.dirname(__filename);
 const distPath = path.join(__dirname, "../dist");
 app.use(express.static(distPath));
 
+// Serve uploads
+const uploadsPath = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadsPath)) {
+  fs.mkdirSync(uploadsPath, { recursive: true });
+}
+app.use("/uploads", express.static(uploadsPath));
+
 // 404 para rotas de API não encontradas + fallback da SPA
 app.use((req, res, next) => {
   // Se começar com /api e nenhuma rota respondeu até aqui, é 404 de API
@@ -64,6 +71,11 @@ app.use((req, res, next) => {
   return next();
 });
 
-app.listen(port, () => {
-  console.log(`Server rodando na porta ${port}`);
+import { runMigrations } from "./db/migrations";
+
+// Run migrations then start server
+runMigrations().then(() => {
+  app.listen(port, () => {
+    console.log(`Server rodando na porta ${port}`);
+  });
 });
