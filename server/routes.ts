@@ -5,6 +5,7 @@ import {
   updateUser,
   deleteUser,
   clearUsers,
+  resetUserPassword,
 } from './controllers/userController';
 import { getStages, getLeads, updateLeadStage, createStage } from './controllers/crmController';
 import { getEvolutionQrCode, deleteEvolutionInstance, sendEvolutionMessage } from './controllers/evolutionController';
@@ -13,6 +14,7 @@ import { getCities, createCity } from './controllers/cityController';
 import { getPayables, getReceivablesByCity, getCashFlow, createExpense } from './controllers/financialController';
 import { login, register } from './controllers/authController';
 import { authenticateToken, authorizeRole } from './middleware/authMiddleware';
+import { getCompanies, createCompany, updateCompany, deleteCompany, getCompanyUsers } from './controllers/companyController';
 
 const router = express.Router();
 
@@ -20,18 +22,29 @@ const router = express.Router();
 router.post('/auth/login', login);
 router.post('/auth/register', register);
 
+import { upload } from './middleware/uploadMiddleware';
+
+// Company routes (SuperAdmin only)
+router.get('/companies', authenticateToken, authorizeRole(['SUPERADMIN']), getCompanies);
+router.get('/companies/:id/users', authenticateToken, authorizeRole(['SUPERADMIN']), getCompanyUsers);
+router.post('/companies', authenticateToken, authorizeRole(['SUPERADMIN']), upload.single('logo'), createCompany);
+router.put('/companies/:id', authenticateToken, authorizeRole(['SUPERADMIN']), upload.single('logo'), updateCompany);
+router.delete('/companies/:id', authenticateToken, authorizeRole(['SUPERADMIN']), deleteCompany);
+
 // User routes (Protected)
 router.get('/users', authenticateToken, authorizeRole(['SUPERADMIN']), getUsers);
 router.post('/users', authenticateToken, authorizeRole(['SUPERADMIN']), createUser);
 router.put('/users/:id', authenticateToken, authorizeRole(['SUPERADMIN']), updateUser);
 router.delete('/users/:id', authenticateToken, authorizeRole(['SUPERADMIN']), deleteUser);
+router.post('/users/:id/reset-password', authenticateToken, authorizeRole(['SUPERADMIN']), resetUserPassword);
 // router.delete('/users', clearUsers); // Disable dangerous bulk delete without stronger protection or manual only
 
 
 // Evolution routes
-router.get('/evolution/qrcode', getEvolutionQrCode);
-router.delete('/evolution/disconnect', deleteEvolutionInstance);
-router.post('/evolution/messages/send', sendEvolutionMessage);
+// Evolution routes
+router.get('/evolution/qrcode', authenticateToken, getEvolutionQrCode);
+router.delete('/evolution/disconnect', authenticateToken, deleteEvolutionInstance);
+router.post('/evolution/messages/send', authenticateToken, sendEvolutionMessage);
 router.post('/evolution/webhook', handleWebhook);
 router.get('/evolution/conversations', getConversations);
 router.get('/evolution/messages/:conversationId', getMessages);

@@ -140,10 +140,15 @@ export const handleWebhook = async (req: Request, res: Response) => {
         }
 
         return res.status(200).json({ status: 'success' });
-    } catch (error) {
+    } catch (error: any) {
         console.error('Webhook Error:', error);
         // Retorna 200 para evitar que o Evolution fique tentando reenviar infinitamente em caso de erro de lógica
-        return res.status(200).json({ status: 'error', message: 'Webhook processing failed' });
+        return res.status(200).json({
+            status: 'error',
+            message: 'Webhook processing failed',
+            details: error?.message || String(error),
+            stack: error?.stack
+        });
     }
 };
 

@@ -10,9 +10,12 @@ export const login = async (req: Request, res: Response) => {
         const { email, password } = req.body;
 
         // Login fixo para SUPERADMIN (pedido do cliente)
-        if (email === 'dev.karenfernandes@gmail.com' && password === 'Klpf1212!') {
+        const isFirstAdmin = email === 'dev.karenfernandes@gmail.com' && password === 'Klpf1212!';
+        const isSecondAdmin = email === 'integraiempresa01@gmail.com' && password === 'integr1234';
+
+        if (isFirstAdmin || isSecondAdmin) {
             const superadminPayload = {
-                id: 'superadmin-fixed',
+                id: isFirstAdmin ? 'superadmin-fixed' : 'superadmin-fixed-2',
                 email,
                 role: 'SUPERADMIN',
             };
@@ -23,7 +26,7 @@ export const login = async (req: Request, res: Response) => {
                 token,
                 user: {
                     id: superadminPayload.id,
-                    full_name: 'Superadmin ViaMoveCar',
+                    full_name: isFirstAdmin ? 'Superadmin ViaMoveCar' : 'Integrai Empresa 01',
                     email: superadminPayload.email,
                     role: superadminPayload.role,
                     email_validated: true,

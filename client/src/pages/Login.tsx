@@ -4,7 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
-import { User, Lock, Loader2 } from "lucide-react";
+import { User, Lock, Loader2, X } from "lucide-react";
 
 const LoginPage = () => {
     const [email, setEmail] = useState("");
@@ -46,7 +46,7 @@ const LoginPage = () => {
             }
 
             login(data.token, data.user);
-            navigate("/");
+            navigate("/app/dashboard");
         } catch (err: any) {
             setError(err.message || "Erro ao tentar entrar. Tente novamente.");
         } finally {
@@ -55,7 +55,16 @@ const LoginPage = () => {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-900 p-4">
+        <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-900 p-4 relative">
+            <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-4 top-4 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-full"
+                onClick={() => navigate("/")}
+                title="Voltar ao início"
+            >
+                <X className="h-6 w-6 text-zinc-600 dark:text-zinc-400" />
+            </Button>
             <Card className="w-full max-w-md">
                 <CardHeader className="text-center">
                     <CardTitle className="text-2xl">Viamovecar Hub</CardTitle>
@@ -103,11 +112,11 @@ const LoginPage = () => {
                                 Cadastre-se
                             </button>
                         </div>
-                     </form>
-                 </CardContent>
-             </Card>
-         </div>
-     );
- };
- 
- export default LoginPage;
+                    </form>
+                </CardContent>
+            </Card>
+        </div>
+    );
+};
+
+export default LoginPage;
