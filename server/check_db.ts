@@ -1,39 +1,36 @@
-import "./env";
-import { pool } from "./db";
+import { pool } from './db';
 
-async function check() {
-    if (!pool) {
-        console.error("Pool is null. DATABASE_URL not configured?");
-        return;
-    }
+const checkDatabase = async () => {
     try {
-        console.log("Checking database...");
+        console.log('--- Checking Database ---');
 
-        // 1. List Tables
-        const tables = await pool.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public'
-    `);
-        console.log("Tables found:", tables.rows.map(r => r.table_name));
+        // Check connection
+        const res = await pool.query('SELECT NOW()');
+        console.log('Database connected:', res.rows[0]);
 
-        // 2. Check Conversations
-        const conversations = await pool.query('SELECT count(*) FROM whatsapp_conversations');
-        console.log("Conversations count:", conversations.rows[0].count);
+        // Check Conversations
+        const conversations = await pool.query('SELECT * FROM whatsapp_conversations');
+        console.log(`Conversations found: ${conversations.rows.length}`);
+        if (conversations.rows.length > 0) {
+            console.log('Sample Conversation:', conversations.rows[0]);
+        }
 
-        // 3. Check Messages
-        const messages = await pool.query('SELECT count(*) FROM whatsapp_messages');
-        console.log("Messages count:", messages.rows[0].count);
+        // Check Messages
+        const messages = await pool.query('SELECT * FROM whatsapp_messages ORDER BY sent_at DESC LIMIT 5');
+        console.log(`Messages found (showing max 5): ${messages.rows.length}`);
+        messages.rows.forEach(msg => {
+            console.log(`- [${msg.direction}] ${msg.content} (${msg.sent_at})`);
+        });
 
-        // 4. List last 5 messages
-        const lastMsgs = await pool.query('SELECT * FROM whatsapp_messages ORDER BY created_at DESC LIMIT 5');
-        console.log("Last 5 messages:", lastMsgs.rows);
+        // Check CRM Leads
+        const leads = await pool.query('SELECT * FROM crm_leads LIMIT 5');
+        console.log(`Leads found: ${leads.rows.length}`);
 
     } catch (error) {
-        console.error("Check failed:", error);
+        console.error('Database check failed:', error);
     } finally {
         await pool.end();
     }
-}
+};
 
-check();
+checkDatabase();

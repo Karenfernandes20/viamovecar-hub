@@ -16,12 +16,14 @@ interface WebhookMessage {
 
 export const handleWebhook = async (req: Request, res: Response) => {
     try {
-        // O Evolution pode mandar arrays de eventos ou objetos únicos dependendo da config
-        // Vamos assumir o padrão Global Webhook: { type: "...", data: ... }
+        // Log raw body details
+        console.log('--- INCOMING WEBHOOK ---');
+        console.log('Headers:', JSON.stringify(req.headers, null, 2));
+        console.log('Body Type:', typeof req.body);
+        console.log('Body Content:', JSON.stringify(req.body, null, 2));
+        console.log('------------------------');
+
         const body = req.body;
-        console.log('--- WEBHOOK PAYLOAD ---');
-        console.log(JSON.stringify(body, null, 2));
-        console.log('-----------------------');
 
         // Normalização: Evolution pode enviar objeto unico { type: ..., data: ... }
         // ou array de objetos se estiver em lote, etc.
@@ -35,30 +37,40 @@ export const handleWebhook = async (req: Request, res: Response) => {
         if (Array.isArray(body) && body.length > 0) {
             type = body[0].type;
             data = body[0].data;
+            console.log('Payload identified as ARRAY. Using first element.');
         } else if (!type && body.event) {
             // Algumas versões mandam { event: "...", ... }
             type = body.event;
             data = body;
+            console.log('Payload identified as EVENT field format.');
         }
 
-        console.log(`Webhook processed type: ${type}`);
+        console.log(`Processed Type: ${type}`);
+
+        if (!type) {
+            console.warn('Could not identify message type from payload.');
+            return res.status(200).send();
+        }
 
         if (type === 'messages.upsert') {
             const msg = data as WebhookMessage;
-            const remoteJid = msg.key.remoteJid;
-
-            // Ignora mensagens de status/grupo por enquanto, foca em user
-            if (remoteJid.includes('@g.us') || remoteJid === 'status@broadcast') {
+            if (!msg.key) {
+                console.error('Invalid message structure: missing key', msg);
                 return res.status(200).send();
             }
 
-            const isFromMe = msg.key.fromMe;
-            const phone = remoteJid.split('@')[0];
-            const name = msg.pushName || phone;
+            const remoteJid = msg.key.remoteJid;
+            console.log(`Processing message from: ${remoteJid}`);
+
+            // Ignora mensagens de status/grupo por enquanto, foca em user
+            if (remoteJid.includes('@g.us') || remoteJid === 'status@broadcast') {
+                console.log('Ignoring group or status message.');
+                return res.status(200).send();
+            }
 
             if (!pool) {
                 console.error("Database pool not available");
-                return res.status(200).send();
+                return res.status(500).send();
             }
 
             // 1. Upsert Conversation
