@@ -67,7 +67,7 @@ const LoginPage = () => {
             </Button>
             <Card className="w-full max-w-md">
                 <CardHeader className="text-center">
-                    <CardTitle className="text-2xl">Viamovecar Hub</CardTitle>
+                    <CardTitle className="text-2xl">Integrai Hub</CardTitle>
                     <CardDescription>Entre com suas credenciais de acesso</CardDescription>
                 </CardHeader>
                 <CardContent>

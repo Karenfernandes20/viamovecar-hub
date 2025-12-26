@@ -1,13 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Button } from "../components/ui/button";
 import { useToast } from "../hooks/use-toast";
 import { Separator } from "../components/ui/separator";
+import { useAuth } from "../contexts/AuthContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,15 +19,24 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "../components/ui/alert-dialog";
-import { Pencil, Trash2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "../components/ui/dialog";
+import { Pencil, Trash2, Upload, Users, KeyRound } from "lucide-react";
 
+// Schema now only validates text fields; file validation is manual or via input accept
 const companySchema = z.object({
   name: z.string().min(1, "Nome é obrigatório."),
   cnpj: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
   phone: z.string().optional(),
-  logo_url: z.string().url("Informe uma URL válida para o logo.").optional().or(z.literal("")),
 });
 
 interface Company {
@@ -38,53 +47,93 @@ interface Company {
   state: string | null;
   phone: string | null;
   logo_url: string | null;
+  evolution_instance: string | null;
+  evolution_apikey: string | null;
+}
+
+interface AppUser {
+  id: number;
+  full_name: string;
+  email: string;
+  role: string;
+  is_active: boolean;
 }
 
 const SuperadminPage = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { token } = useAuth();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
+
+  // Form states
   const [formValues, setFormValues] = useState({
     name: "",
     cnpj: "",
     city: "",
     state: "",
     phone: "",
-    logo_url: "",
+    evolution_instance: "",
+    evolution_apikey: "",
   });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // User Management State
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const [companyUsers, setCompanyUsers] = useState<AppUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [resetPasswords, setResetPasswords] = useState<{ [key: number]: string }>(
+    {}
+  );
+  const [savingPassword, setSavingPassword] = useState<number | null>(null);
+
+  // New User State
+  const [newUser, setNewUser] = useState({
+    full_name: "",
+    email: "",
+    password: "",
+  });
+  const [creatingUser, setCreatingUser] = useState(false);
 
   const loadCompanies = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from("companies")
-      .select("id, name, cnpj, city, state, phone, logo_url")
-      .order("created_at", { ascending: false });
-
-    if (error) {
+    try {
+      const res = await fetch("/api/companies", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Falha ao carregar empresas");
+      const data = await res.json();
+      setCompanies(data);
+    } catch (error) {
       console.error(error);
       toast({
         title: "Erro ao carregar empresas",
-        description: error.message,
+        description: "Não foi possível buscar os dados.",
         variant: "destructive",
       });
-    } else {
-      setCompanies(data as Company[]);
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   useEffect(() => {
-    loadCompanies();
-  }, []);
+    if (token) loadCompanies();
+  }, [token]);
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
     setFormValues((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      setSelectedFile(event.target.files[0]);
+    }
   };
 
   const handleEdit = (company: Company) => {
@@ -95,8 +144,11 @@ const SuperadminPage = () => {
       city: company.city ?? "",
       state: company.state ?? "",
       phone: company.phone ?? "",
-      logo_url: company.logo_url ?? "",
+      evolution_instance: company.evolution_instance ?? "",
+      evolution_apikey: company.evolution_apikey ?? "",
     });
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleOpenDashboard = (company: Company) => {
@@ -111,14 +163,25 @@ const SuperadminPage = () => {
       city: "",
       state: "",
       phone: "",
-      logo_url: "",
+      evolution_instance: "",
+      evolution_apikey: "",
     });
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const parsed = companySchema.safeParse(formValues);
+    const parsed = companySchema.safeParse({
+      name: formValues.name,
+      cnpj: formValues.cnpj,
+      city: formValues.city,
+      state: formValues.state,
+      phone: formValues.phone
+    });
+    // Schema doesn't validate evolution fields yet, keeping strict only on basic info or adding if needed
+
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
       toast({
@@ -131,65 +194,50 @@ const SuperadminPage = () => {
 
     try {
       setIsSubmitting(true);
+      const url = editingCompany ? `/api/companies/${editingCompany.id}` : "/api/companies";
+      const method = editingCompany ? "PUT" : "POST";
 
-      if (editingCompany) {
-        const { error } = await supabase
-          .from("companies")
-          .update({
-            name: parsed.data.name,
-            cnpj: parsed.data.cnpj || null,
-            city: parsed.data.city || null,
-            state: parsed.data.state || null,
-            phone: parsed.data.phone || null,
-            logo_url: parsed.data.logo_url || null,
-          })
-          .eq("id", editingCompany.id);
+      const formData = new FormData();
+      formData.append("name", parsed.data.name);
+      if (parsed.data.cnpj) formData.append("cnpj", parsed.data.cnpj);
+      if (parsed.data.city) formData.append("city", parsed.data.city);
+      if (parsed.data.state) formData.append("state", parsed.data.state);
+      if (parsed.data.phone) formData.append("phone", parsed.data.phone);
 
-        if (error) {
-          toast({
-            title: "Erro ao atualizar empresa",
-            description: error.message,
-            variant: "destructive",
-          });
-          return;
-        }
+      // Evolution fields
+      if (formValues.evolution_instance) formData.append("evolution_instance", formValues.evolution_instance);
+      if (formValues.evolution_apikey) formData.append("evolution_apikey", formValues.evolution_apikey);
 
-        toast({
-          title: "Empresa atualizada",
-          description: "As informações da empresa foram salvas com sucesso.",
-        });
-      } else {
-        const { error } = await supabase.from("companies").insert({
-          name: parsed.data.name,
-          cnpj: parsed.data.cnpj || null,
-          city: parsed.data.city || null,
-          state: parsed.data.state || null,
-          phone: parsed.data.phone || null,
-          logo_url: parsed.data.logo_url || null,
-        });
-
-        if (error) {
-          toast({
-            title: "Erro ao cadastrar empresa",
-            description: error.message,
-            variant: "destructive",
-          });
-          return;
-        }
-
-        toast({
-          title: "Empresa cadastrada",
-          description: "A empresa foi criada com sucesso.",
-        });
+      if (selectedFile) {
+        formData.append("logo", selectedFile);
       }
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          // Content-Type is set automatically by browser for FormData
+        },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Erro ao salvar empresa");
+      }
+
+      toast({
+        title: editingCompany ? "Empresa atualizada" : "Empresa cadastrada",
+        description: "Operação realizada com sucesso.",
+      });
 
       resetForm();
       await loadCompanies();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
       toast({
         title: "Erro inesperado",
-        description: "Tente novamente em alguns instantes.",
+        description: err.message || "Tente novamente em alguns instantes.",
         variant: "destructive",
       });
     } finally {
@@ -200,16 +248,12 @@ const SuperadminPage = () => {
   const handleDelete = async (company: Company) => {
     try {
       setDeletingId(company.id);
-      const { error } = await supabase.from("companies").delete().eq("id", company.id);
+      const res = await fetch(`/api/companies/${company.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      if (error) {
-        toast({
-          title: "Erro ao excluir empresa",
-          description: error.message,
-          variant: "destructive",
-        });
-        return;
-      }
+      if (!res.ok) throw new Error("Erro ao excluir empresa");
 
       toast({
         title: "Empresa excluída",
@@ -229,6 +273,107 @@ const SuperadminPage = () => {
     }
   };
 
+  const handleManageUsers = async (company: Company) => {
+    setSelectedCompanyId(company.id);
+    setLoadingUsers(true);
+    setCompanyUsers([]);
+    setNewUser({ full_name: "", email: "", password: "" }); // Reset form
+    try {
+      const res = await fetch(`/api/companies/${company.id}/users`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCompanyUsers(data);
+      }
+    } catch (e) {
+      console.error(e);
+      toast({
+        title: "Erro ao carregar usuários",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const handlePasswordChange = (userId: number, value: string) => {
+    setResetPasswords((prev) => ({ ...prev, [userId]: value }));
+  };
+
+  const submitPasswordReset = async (userId: number) => {
+    const newPassword = resetPasswords[userId];
+    if (!newPassword || newPassword.length < 6) {
+      toast({ title: "A senha deve ter pelo menos 6 caracteres", variant: "destructive" });
+      return;
+    }
+
+    setSavingPassword(userId);
+    try {
+      const res = await fetch(`/api/users/${userId}/reset-password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password: newPassword }),
+      });
+
+      if (!res.ok) throw new Error();
+
+      toast({ title: "Senha atualizada com sucesso!" });
+      setResetPasswords((prev) => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+    } catch (e) {
+      toast({ title: "Erro ao resetar senha", variant: "destructive" });
+    } finally {
+      setSavingPassword(null);
+    }
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCompanyId) return;
+    if (!newUser.full_name || !newUser.email || !newUser.password) {
+      toast({ title: "Preencha todos os campos", variant: "destructive" });
+      return;
+    }
+
+    setCreatingUser(true);
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ...newUser,
+          company_id: selectedCompanyId,
+          role: "ADMIN", // Defaulting to Admin for company users created this way, or could be USUARIO
+          user_type: "company_user",
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Erro ao criar usuário");
+      }
+
+      const createdUser = await res.json();
+      setCompanyUsers((prev) => [createdUser, ...prev]);
+      setNewUser({ full_name: "", email: "", password: "" });
+      toast({ title: "Usuário adicionado com sucesso!" });
+    } catch (err: any) {
+      toast({ title: err.message, variant: "destructive" });
+    } finally {
+      setCreatingUser(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen items-stretch bg-gradient-to-br from-primary-soft via-background to-primary/5 px-4 py-6">
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 md:flex-row">
@@ -238,7 +383,7 @@ const SuperadminPage = () => {
               Painel <span className="text-primary">Superadmin</span>
             </h1>
             <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-              Cadastre e gerencie empresas (como ViaMoveCar) para ter uma visão geral e acesso aos painéis de cada uma.
+              Cadastre e gerencie empresas para ter uma visão geral e acesso aos painéis de cada uma.
             </p>
           </header>
           <Card className="border border-primary-soft/70 bg-card/95 shadow-strong">
@@ -278,10 +423,118 @@ const SuperadminPage = () => {
                           {company.city || company.state ? `${company.city ?? ""}/${company.state ?? ""}` : "-"}
                         </span>
                         <span className="truncate text-muted-foreground">{company.phone || "-"}</span>
-                        <span className="truncate text-primary">
-                          {company.logo_url ? "Logo configurado" : "Sem logo"}
-                        </span>
+                        <div className="truncate text-primary flex items-center gap-2">
+                          {company.logo_url ? (
+                            <>
+                              <img src={company.logo_url} alt="Logo" className="h-6 w-6 object-cover rounded" />
+                              <span>Configurado</span>
+                            </>
+                          ) : "Sem logo"}
+                        </div>
                         <span className="flex items-center justify-end gap-1.5">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-7 w-7 border-primary-soft/60 text-primary"
+                                onClick={() => handleManageUsers(company)}
+                              >
+                                <Users className="h-3.5 w-3.5" />
+                                <span className="sr-only">Usuários</span>
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-2xl">
+                              <DialogHeader>
+                                <DialogTitle>Usuários: {company.name}</DialogTitle>
+                                <DialogDescription>
+                                  Gerencie o acesso dos usuários desta empresa.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4 py-4">
+                                {loadingUsers ? (
+                                  <p className="text-sm text-muted-foreground">Carregando usuários...</p>
+                                ) : (
+                                  <div className="space-y-4">
+                                    {companyUsers.length === 0 ? (
+                                      <p className="text-sm text-muted-foreground">Nenhum usuário encontrado.</p>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {companyUsers.map(user => (
+                                          <div key={user.id} className="flex items-center justify-between rounded-lg border p-3 bg-muted/40">
+                                            <div className="space-y-1">
+                                              <p className="text-sm font-medium">{user.full_name}</p>
+                                              <p className="text-xs text-muted-foreground">{user.email}</p>
+                                              <span className="text-[10px] uppercase bg-primary/10 text-primary px-1.5 py-0.5 rounded">{user.role}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <div className="flex items-center gap-2">
+                                                <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
+                                                <Input
+                                                  type="password"
+                                                  placeholder="Nova senha"
+                                                  className="h-7 w-32 text-xs"
+                                                  value={resetPasswords[user.id] || ''}
+                                                  onChange={(e) => handlePasswordChange(user.id, e.target.value)}
+                                                />
+                                              </div>
+                                              <Button
+                                                size="sm"
+                                                className="h-7 text-xs"
+                                                disabled={savingPassword === user.id}
+                                                onClick={() => submitPasswordReset(user.id)}
+                                              >
+                                                {savingPassword === user.id ? 'Sal...' : 'Redefinir'}
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+
+                                    <Separator />
+
+                                    <div className="space-y-3 pt-2">
+                                      <h4 className="text-sm font-medium">Adicionar novo usuário</h4>
+                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                        <Input
+                                          placeholder="Nome completo"
+                                          className="h-8 text-xs"
+                                          value={newUser.full_name}
+                                          onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })}
+                                        />
+                                        <Input
+                                          placeholder="Email"
+                                          type="email"
+                                          className="h-8 text-xs"
+                                          value={newUser.email}
+                                          onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                                        />
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Senha"
+                                            type="password"
+                                            className="h-8 text-xs"
+                                            value={newUser.password}
+                                            onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                                          />
+                                          <Button
+                                            size="sm"
+                                            className="h-8 text-xs"
+                                            onClick={handleCreateUser}
+                                            disabled={creatingUser}
+                                          >
+                                            Adicionar
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+
                           <Button
                             type="button"
                             variant="outline"
@@ -340,92 +593,125 @@ const SuperadminPage = () => {
               <CardTitle className="text-base sm:text-lg">Cadastrar nova empresa</CardTitle>
             </CardHeader>
             <CardContent>
-                <form className="space-y-3" onSubmit={handleSubmit}>
+              <form className="space-y-3" onSubmit={handleSubmit}>
+                <div className="space-y-1.5">
+                  <Label htmlFor="name">Nome da empresa</Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    placeholder="Minha Empresa"
+                    required
+                    value={formValues.name}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="cnpj">CNPJ</Label>
+                  <Input
+                    id="cnpj"
+                    name="cnpj"
+                    placeholder="00.000.000/0000-00"
+                    value={formValues.cnpj}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="name">Nome da empresa</Label>
+                    <Label htmlFor="city">Cidade</Label>
                     <Input
-                      id="name"
-                      name="name"
-                      placeholder="ViaMoveCar"
-                      required
-                      value={formValues.name}
+                      id="city"
+                      name="city"
+                      placeholder="Goiânia"
+                      value={formValues.city}
                       onChange={handleChange}
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="cnpj">CNPJ</Label>
+                    <Label htmlFor="state">UF</Label>
                     <Input
-                      id="cnpj"
-                      name="cnpj"
-                      placeholder="00.000.000/0000-00"
-                      value={formValues.cnpj}
+                      id="state"
+                      name="state"
+                      placeholder="GO"
+                      maxLength={2}
+                      value={formValues.state}
                       onChange={handleChange}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="city">Cidade</Label>
-                      <Input
-                        id="city"
-                        name="city"
-                        placeholder="Goiânia"
-                        value={formValues.city}
-                        onChange={handleChange}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="state">UF</Label>
-                      <Input
-                        id="state"
-                        name="state"
-                        placeholder="GO"
-                        maxLength={2}
-                        value={formValues.state}
-                        onChange={handleChange}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="phone">Telefone de contato</Label>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="phone">Telefone de contato</Label>
+                  <Input
+                    id="phone"
+                    name="phone"
+                    placeholder="(62) 99999-9999"
+                    value={formValues.phone}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <Separator className="my-2" />
+                <p className="text-sm font-semibold text-primary">Integração Evolution API</p>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="evolution_instance">Nome da Instância</Label>
+                  <Input
+                    id="evolution_instance"
+                    name="evolution_instance"
+                    placeholder="minha-instancia"
+                    value={formValues.evolution_instance}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="evolution_apikey">API Key</Label>
+                  <Input
+                    id="evolution_apikey"
+                    name="evolution_apikey"
+                    type="password"
+                    placeholder="sk_..."
+                    value={formValues.evolution_apikey}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <Separator className="my-2" />
+                <div className="space-y-1.5">
+                  <Label htmlFor="logo">Logo da empresa</Label>
+                  <div className="flex items-center gap-2">
                     <Input
-                      id="phone"
-                      name="phone"
-                      placeholder="(62) 99999-9999"
-                      value={formValues.phone}
-                      onChange={handleChange}
+                      id="logo"
+                      name="logo"
+                      type="file"
+                      accept="image/*"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      className="flex-1 cursor-pointer"
                     />
                   </div>
-                  <Separator className="my-2" />
-                  <div className="space-y-1.5">
-                    <Label htmlFor="logo_url">URL do logo</Label>
-                    <Input
-                      id="logo_url"
-                      name="logo_url"
-                      placeholder="https://exemplo.com/logo.png"
-                      value={formValues.logo_url}
-                      onChange={handleChange}
-                    />
+                  {editingCompany?.logo_url && !selectedFile && (
                     <p className="text-[11px] text-muted-foreground">
-                      No futuro podemos adicionar upload de imagem; por enquanto use uma URL pública da logo.
+                      Atual: <a href={editingCompany.logo_url} target="_blank" className="underline text-primary">Ver imagem</a>
                     </p>
-                  </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    <Button type="submit" className="flex-1" size="lg" disabled={isSubmitting}>
-                      {isSubmitting
-                        ? editingCompany
-                          ? "Salvando..."
-                          : "Salvando..."
-                        : editingCompany
-                          ? "Atualizar empresa"
-                          : "Salvar empresa"}
+                  )}
+                  <p className="text-[11px] text-muted-foreground">
+                    Formatos aceitos: JPG, PNG, WEBP, GIF. Máx 5MB.
+                  </p>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <Button type="submit" className="flex-1" size="lg" disabled={isSubmitting}>
+                    {isSubmitting
+                      ? "Salvando..."
+                      : editingCompany
+                        ? "Atualizar empresa"
+                        : "Salvar empresa"}
+                  </Button>
+                  {editingCompany && (
+                    <Button type="button" variant="outline" size="lg" onClick={resetForm}>
+                      Cancelar edição
                     </Button>
-                    {editingCompany && (
-                      <Button type="button" variant="outline" size="lg" onClick={resetForm}>
-                        Cancelar edição
-                      </Button>
-                    )}
-                  </div>
-                </form>
+                  )}
+                </div>
+              </form>
             </CardContent>
           </Card>
         </section>

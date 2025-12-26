@@ -12,6 +12,7 @@ import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
+import { io } from "socket.io-client";
 import { useState, useEffect, useRef } from "react";
 import type { FormEvent } from "react";
 import { cn } from "../lib/utils";
@@ -23,6 +24,8 @@ interface Conversation {
   contact_name: string;
   last_message?: string;
   last_message_at?: string;
+  unread_count?: number;
+  profile_pic_url?: string;
 }
 
 interface Message {
@@ -30,6 +33,7 @@ interface Message {
   direction: "inbound" | "outbound";
   content: string;
   sent_at: string;
+  status?: string;
 }
 
 interface Contact {
@@ -52,12 +56,163 @@ const AtendimentoPage = () => {
   const newContactFormRef = useRef<HTMLFormElement | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom when messages change
+  // Socket status for debugging
+  const [socketStatus, setSocketStatus] = useState<"connected" | "disconnected" | "connecting">("connecting");
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  // Auto-scroll logic
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, selectedConversation]);
+
+  // Socket.io Integration
+  useEffect(() => {
+    // Force new connection
+    const socket = io({
+      transports: ["websocket"],
+      reconnectionAttempts: 10,
+    });
+
+    socket.on("connect", () => {
+      console.log("Connected to socket server");
+      setSocketStatus("connected");
+      fetchConversations(); // Refresh list on connect
+    });
+
+    socket.on("disconnect", () => {
+      console.log("Disconnected from socket server");
+      setSocketStatus("disconnected");
+    });
+
+    socket.on("connect_error", (err) => {
+      console.error("Socket connection error:", err);
+      setSocketStatus("disconnected");
+    });
+
+    socket.on("message:received", (newMessage: any) => {
+      console.log("New message received via socket:", newMessage);
+
+      // 1. Se a mensagem for da conversa aberta, adiciona na lista
+      setSelectedConversation((currentSelected) => {
+        // Precisamos usar functional update para ter acesso ao valor atual de selectedConversation
+        // Mas como selectedConversation está no scope do useEffect se não listarmos nas dependencias...
+        // O pattern correto é atualizar messages com base no ID
+
+        // Verifica se a mensagem pertence à conversa aberta pelo telefone ou ID (se vier)
+        // O evento traz 'phone' (do remetente/conversa).
+
+        if (currentSelected && (currentSelected.phone === newMessage.phone || currentSelected.phone === newMessage.remoteJid)) {
+          setMessages((prev) => {
+            // Evitar duplicados se já tiver
+            if (prev.find(m => m.id === newMessage.id)) return prev;
+            return [...prev, newMessage];
+          });
+          // Mark as read logic could go here
+        }
+        return currentSelected;
+      });
+
+      // 2. Atualiza a lista de conversas
+      setConversations((prev) => {
+        const existingIndex = prev.findIndex((c) => c.phone === newMessage.phone);
+        let updatedList = [...prev];
+        let conversationToUpdate: Conversation;
+
+        if (existingIndex >= 0) {
+          const existing = prev[existingIndex];
+          const isChatOpen = selectedConversation?.phone === newMessage.phone;
+
+          conversationToUpdate = {
+            ...existing,
+            last_message: newMessage.content,
+            last_message_at: newMessage.sent_at,
+            // Incrementa unread se chat não estiver aberto e for inbound
+            unread_count: (existing.unread_count || 0) + (newMessage.direction === 'inbound' && !isChatOpen ? 1 : 0)
+          };
+          // Remove da posição atual
+          updatedList.splice(existingIndex, 1);
+        } else {
+          // Nova conversa (não estava na lista)
+          conversationToUpdate = {
+            id: newMessage.conversation_id, // Pode não ser exato se o back não mandar id da conv no payload de msg, mas webhook manda
+            phone: newMessage.phone,
+            contact_name: newMessage.contact_name || newMessage.phone,
+            last_message: newMessage.content,
+            last_message_at: newMessage.sent_at,
+            unread_count: newMessage.direction === 'inbound' ? 1 : 0
+          };
+        }
+
+        // Adiciona no topo
+        updatedList.unshift(conversationToUpdate);
+        return updatedList;
+      });
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [selectedConversation]); // Re-bind socket listeners if selectedConversation changes (to capture closure correctly) OR better: use refs
+
+
+  const fetchConversations = async () => {
+    try {
+      const res = await fetch("/api/evolution/conversations");
+      if (res.ok) {
+        const data: Conversation[] = await res.json();
+        setConversations(data);
+        // Atualiza lista de contatos baseada nas conversas
+        setContacts((prev) => {
+          const map = new Map<string, Contact>();
+          prev.forEach(c => map.set(c.phone, c));
+          data.forEach(c => {
+            if (!map.has(c.phone)) map.set(c.phone, { id: c.id, name: c.contact_name || c.phone, phone: c.phone });
+          });
+          return Array.from(map.values());
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao buscar conversas", error);
+      setApiError("Falha ao carregar conversas.");
+    }
+  };
+
+  // Initial Fetch logic
+  useEffect(() => {
+    fetchConversations();
+  }, []);
+
+
+  // Fetch messages on select
+  useEffect(() => {
+    if (!selectedConversation) return;
+
+    const fetchMessages = async () => {
+      try {
+        setIsLoadingMessages(true);
+        const res = await fetch(`/api/evolution/messages/${selectedConversation.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setMessages(data);
+
+          // Reset unread count localmente
+          setConversations(prev => prev.map(c =>
+            c.id === selectedConversation.id ? { ...c, unread_count: 0 } : c
+          ));
+          // TODO: Avisar backend que leu?
+        }
+      } catch (error) {
+        console.error("Erro ao buscar mensagens", error);
+      } finally {
+        setIsLoadingMessages(false);
+      }
+    };
+
+    fetchMessages();
+  }, [selectedConversation?.id]); // Depender de ID é melhor que objeto inteiro
+
 
   // DDDs brasileiros conhecidos
   const KNOWN_DDDS = new Set([
@@ -197,68 +352,6 @@ const AtendimentoPage = () => {
     setNewContactPhone("");
   };
 
-  // Polling para conversas
-  useEffect(() => {
-    const fetchConversations = async () => {
-      try {
-        const res = await fetch("/api/evolution/conversations");
-        if (res.ok) {
-          const data: Conversation[] = await res.json();
-          setConversations(data);
-          setContacts((prev) => {
-            const map = new Map<string, Contact>();
-
-            prev.forEach((c) => {
-              map.set(c.phone, c);
-            });
-
-            data.forEach((conv) => {
-              const phone = conv.phone;
-              if (!map.has(phone)) {
-                map.set(phone, {
-                  id: conv.id,
-                  name: conv.contact_name || conv.phone,
-                  phone: conv.phone,
-                });
-              }
-            });
-
-            return Array.from(map.values());
-          });
-        }
-      } catch (error) {
-        console.error("Erro ao buscar conversas", error);
-      }
-    };
-
-    fetchConversations();
-    const interval = setInterval(fetchConversations, 5000); // 5s
-    return () => clearInterval(interval);
-  }, []);
-
-  // Polling para mensagens quando uma conversa está selecionada
-  useEffect(() => {
-    if (!selectedConversation) return;
-
-    const fetchMessages = async () => {
-      try {
-        const res = await fetch(`/api/evolution/messages/${selectedConversation.id}`);
-        if (res.ok) {
-          const data = await res.json();
-          setMessages(data);
-        }
-      } catch (error) {
-        console.error("Erro ao buscar mensagens", error);
-      }
-    };
-
-    setIsLoadingMessages(true);
-    fetchMessages().finally(() => setIsLoadingMessages(false));
-
-    const interval = setInterval(fetchMessages, 3000); // 3s
-    return () => clearInterval(interval);
-  }, [selectedConversation]);
-
   const formatTime = (dateString: string) => {
     if (!dateString) return "";
     return new Date(dateString).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -281,7 +374,14 @@ const AtendimentoPage = () => {
               </Avatar>
               <div>
                 <CardTitle className="text-sm font-bold">Atendimentos</CardTitle>
-                <p className="text-xs text-muted-foreground">instancia: integrai</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-muted-foreground">instancia: integrai</p>
+                  <span className={cn(
+                    "w-2 h-2 rounded-full",
+                    socketStatus === "connected" ? "bg-green-500" : "bg-red-500"
+                  )} title={`Socket: ${socketStatus}`}></span>
+                </div>
+                {apiError && <p className="text-[10px] text-red-500">{apiError}</p>}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -335,9 +435,16 @@ const AtendimentoPage = () => {
                             {formatTime(conv.last_message_at!)}
                           </span>
                         </div>
-                        <p className="text-sm text-muted-foreground truncate line-clamp-1">
-                          {conv.last_message || "Sem mensagens"}
-                        </p>
+                        <div className="flex justify-between items-center">
+                          <p className="text-sm text-muted-foreground truncate line-clamp-1 flex-1">
+                            {conv.last_message || "Sem mensagens"}
+                          </p>
+                          {conv.unread_count && conv.unread_count > 0 ? (
+                            <span className="ml-2 flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-[10px] font-bold text-white">
+                              {conv.unread_count}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                     </button>
                   ))}

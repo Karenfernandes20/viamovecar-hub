@@ -15,6 +15,7 @@ const SECTION_TITLES: Record<string, string> = {
   "/app/cidades": "Cidades",
   "/app/qr-code": "QR Code",
   "/app/configuracoes": "Configurações",
+  "/app/relatorios": "Relatórios Gerenciais",
 };
 
 function getSectionTitle(pathname: string) {
@@ -45,7 +46,7 @@ export const AdminLayout = () => {
                 <SidebarTrigger className="mr-1" />
                 <div>
                   <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
-                  <p className="text-xs text-muted-foreground">Central de controle da operação ViaMoveCar</p>
+                  <p className="text-xs text-muted-foreground">Sistema de Gestão Inteligente</p>
                 </div>
               </div>
               <div className="relative flex items-center gap-3 text-xs">
@@ -63,7 +64,7 @@ export const AdminLayout = () => {
 
                 <div className="hidden text-right md:block">
                   <p className="font-medium">{user?.full_name || 'Usuário'}</p>
-                  <p className="text-[11px] text-muted-foreground">{user?.role || 'Acesso interno'} · ViaMoveCar</p>
+                  <p className="text-[11px] text-muted-foreground">{user?.role || 'Acesso interno'} · Integrai</p>
                 </div>
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary-soft-foreground" title={user?.full_name}>
                   {user?.full_name?.substring(0, 2).toUpperCase() || 'US'}

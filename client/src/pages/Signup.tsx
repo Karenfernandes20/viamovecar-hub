@@ -37,7 +37,7 @@ const SignupPage = () => {
     setLoading(true);
 
     const messageLines = [
-      "Novo cadastro ViaMoveCar Admin:",
+      "Novo cadastro Integrai:",
       "",
       `Nome: ${name}`,
       `Empresa: ${company}`,
@@ -47,7 +47,7 @@ const SignupPage = () => {
       details && "",
       details && `Detalhes: ${details}`,
       "",
-      "Origem: formulário de cadastro no painel ViaMoveCar Admin",
+      "Origem: formulário de cadastro no painel Integrai",
     ].filter(Boolean);
 
     const whatsappText = encodeURIComponent(messageLines.join("\n"));
@@ -69,11 +69,11 @@ const SignupPage = () => {
         <CardHeader>
           <CardTitle className="text-xl sm:text-2xl flex items-center gap-2">
             <MessageCircle className="h-5 w-5 text-primary" />
-            Cadastre sua empresa para usar o ViaMoveCar Admin
+            Cadastre sua empresa para usar o Integrai
           </CardTitle>
           <CardDescription className="text-xs sm:text-sm">
             Preencha os dados abaixo e vamos entrar em contato pelo WhatsApp para ativar o painel para sua
-            operação de mobilidade.
+            operação.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -123,7 +123,7 @@ const SignupPage = () => {
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-foreground">
-                Fale um pouco sobre como pretende usar o ViaMoveCar Admin
+                Fale um pouco sobre como pretende usar o Integrai
               </label>
               <Textarea
                 name="details"

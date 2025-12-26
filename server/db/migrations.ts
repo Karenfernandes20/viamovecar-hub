@@ -37,8 +37,101 @@ export const runMigrations = async () => {
             // Ignore duplicate_column error
         }
 
+        // 4. CRM Tables
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS crm_stages (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(50) NOT NULL,
+                color VARCHAR(20) DEFAULT '#cbd5e1',
+                position INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        // Ensure default stages exist
+        const stagesCheck = await pool.query('SELECT COUNT(*) FROM crm_stages');
+        if (parseInt(stagesCheck.rows[0].count) === 0) {
+            await pool.query(`
+                INSERT INTO crm_stages (name, color, position) VALUES 
+                ('Leads', '#cbd5e1', 0),
+                ('Em Atendimento', '#93c5fd', 1),
+                ('Proposta', '#fde047', 2),
+                ('Fechado', '#86efac', 3),
+                ('Perdido', '#fca5a5', 4);
+            `);
+        }
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS crm_leads (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                phone VARCHAR(50),
+                email VARCHAR(100),
+                value DECIMAL(12, 2),
+                stage_id INTEGER REFERENCES crm_stages(id),
+                description TEXT,
+                origin VARCHAR(50),
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+
+        await runWhatsappMigrations();
         console.log("Migrations finished.");
     } catch (e) {
         console.error("Migration Error:", e);
+    }
+};
+
+const runWhatsappMigrations = async () => {
+    if (!pool) return;
+    try {
+        // whatsapp_conversations
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS whatsapp_conversations (
+                id SERIAL PRIMARY KEY,
+                external_id VARCHAR(100) NOT NULL, -- remove UNIQUE constraint globally if multi-tenant sharing same number (unlikely) but better: enforce uniqueness constraint on (external_id, instance)
+                phone VARCHAR(50),
+                contact_name VARCHAR(100),
+                profile_pic_url TEXT,
+                unread_count INTEGER DEFAULT 0,
+                last_message_at TIMESTAMP DEFAULT NOW(),
+                instance VARCHAR(100), -- Connected instance name
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(external_id, instance) -- Conversation is unique per number per instance
+            );
+        `);
+
+        // whatsapp_messages
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS whatsapp_messages (
+                id SERIAL PRIMARY KEY,
+                conversation_id INTEGER REFERENCES whatsapp_conversations(id) ON DELETE CASCADE,
+                direction VARCHAR(20) NOT NULL CHECK (direction IN ('inbound', 'outbound')),
+                content TEXT,
+                status VARCHAR(20) DEFAULT 'received', -- sent, delivered, read
+                message_type VARCHAR(50) DEFAULT 'text',
+                media_url TEXT,
+                sent_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        // Add columns safely if they don't exist
+        const addColumn = async (table: string, column: string, type: string) => {
+            if (!pool) return;
+            try {
+                await pool.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${type};`);
+            } catch (e) { }
+        };
+
+        await addColumn('whatsapp_conversations', 'profile_pic_url', 'TEXT');
+        await addColumn('whatsapp_conversations', 'unread_count', 'INTEGER DEFAULT 0');
+        await addColumn('whatsapp_messages', 'status', "VARCHAR(20) DEFAULT 'received'");
+        await addColumn('whatsapp_conversations', 'instance', 'VARCHAR(100)');
+
+    } catch (error) {
+        console.error("Error creating WhatsApp tables:", error);
     }
 };

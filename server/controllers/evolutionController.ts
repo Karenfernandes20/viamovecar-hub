@@ -12,7 +12,7 @@ import { pool } from "../db";
  */
 
 // Helper to get Evolution Config based on User Context
-const getEvolutionConfig = async (user: any) => {
+const getEvolutionConfig = async (user: any, source: string = 'unknown') => {
   // Default Global Config (SuperAdmin)
   let config = {
     url: process.env.EVOLUTION_API_URL,
@@ -34,22 +34,22 @@ const getEvolutionConfig = async (user: any) => {
           if (evolution_instance && evolution_apikey) {
             config.instance = evolution_instance;
             config.apikey = evolution_apikey;
-            console.log(`[Evolution] Using Company Context: ${evolution_instance}`);
           }
         }
       }
     } catch (e) {
       console.error("Error fetching company evolution config", e);
     }
-  } else {
-    console.log(`[Evolution] Using Global Context: ${config.instance}`);
   }
+
+  // Log source to debug potential loops
+  console.log(`[Evolution] Config accessed by [${source}] for instance: ${config.instance}`);
 
   return config;
 };
 
 export const getEvolutionQrCode = async (req: Request, res: Response) => {
-  const config = await getEvolutionConfig(req.user);
+  const config = await getEvolutionConfig((req as any).user, 'qrcode_connect');
 
   const EVOLUTION_API_URL = config.url;
   const EVOLUTION_API_KEY = config.apikey;
@@ -113,7 +113,7 @@ export const getEvolutionQrCode = async (req: Request, res: Response) => {
 };
 
 export const deleteEvolutionInstance = async (req: Request, res: Response) => {
-  const config = await getEvolutionConfig(req.user);
+  const config = await getEvolutionConfig((req as any).user, 'disconnect');
   const EVOLUTION_API_URL = config.url;
   const EVOLUTION_API_KEY = config.apikey;
   const EVOLUTION_INSTANCE = config.instance;
@@ -158,8 +158,52 @@ export const deleteEvolutionInstance = async (req: Request, res: Response) => {
   }
 };
 
+// ... existing imports
+
+export const getEvolutionConnectionState = async (req: Request, res: Response) => {
+  const config = await getEvolutionConfig((req as any).user, 'status_poll');
+  const EVOLUTION_API_URL = config.url;
+  const EVOLUTION_API_KEY = config.apikey;
+  const EVOLUTION_INSTANCE = config.instance;
+
+  try {
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+      // Silently fail or return unknown if not configured, to avoid spamming logs if just polling
+      return res.json({ instance: EVOLUTION_INSTANCE, state: 'unknown' });
+    }
+
+    const url = `${EVOLUTION_API_URL.replace(/\/$/, "")}/instance/connectionState/${EVOLUTION_INSTANCE}`;
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: EVOLUTION_API_KEY,
+      },
+    });
+
+    if (!response.ok) {
+      // If 404, instance might not exist (created on connect)
+      if (response.status === 404) {
+        return res.json({ instance: EVOLUTION_INSTANCE, state: 'closed' });
+      }
+      return res.json({ instance: EVOLUTION_INSTANCE, state: 'unknown' });
+    }
+
+    const data = await response.json();
+    // Evolution usually returns { instance: { state: 'open' | 'close' | 'connecting' ... } }
+    return res.json(data);
+
+  } catch (error) {
+    // console.error("Error fetching connection state:", error); 
+    // Suppress heavy logging for polling
+    return res.json({ instance: EVOLUTION_INSTANCE, state: 'unknown' });
+  }
+};
+
 export const sendEvolutionMessage = async (req: Request, res: Response) => {
-  const config = await getEvolutionConfig(req.user);
+  // ... existing sendEvolutionMessage code ...
+  const config = await getEvolutionConfig((req as any).user, 'sendMessage');
   const EVOLUTION_API_URL = config.url;
   const EVOLUTION_API_KEY = config.apikey;
   const EVOLUTION_INSTANCE = config.instance;
@@ -214,37 +258,33 @@ export const sendEvolutionMessage = async (req: Request, res: Response) => {
 
         // Find or create conversation
         let conversationId: number;
+
+        // CHECK INSTANCE
         const checkConv = await pool.query(
-          'SELECT id FROM whatsapp_conversations WHERE external_id = $1',
-          [remoteJid]
+          'SELECT id FROM whatsapp_conversations WHERE external_id = $1 AND instance = $2',
+          [remoteJid, EVOLUTION_INSTANCE]
         );
 
         if (checkConv.rows.length > 0) {
           conversationId = checkConv.rows[0].id;
-          console.log(`[Evolution] Found existing conversation ID: ${conversationId}`);
         } else {
-          console.log(`[Evolution] Creating new conversation for ${remoteJid}`);
           const newConv = await pool.query(
-            'INSERT INTO whatsapp_conversations (external_id, phone, contact_name) VALUES ($1, $2, $3) RETURNING id',
-            [remoteJid, phone, phone]
+            'INSERT INTO whatsapp_conversations (external_id, phone, contact_name, instance) VALUES ($1, $2, $3, $4) RETURNING id',
+            [remoteJid, phone, phone, EVOLUTION_INSTANCE]
           );
           conversationId = newConv.rows[0].id;
-          console.log(`[Evolution] Created conversation ID: ${conversationId}`);
         }
 
         // Insert message
         await pool.query(
-          'INSERT INTO whatsapp_messages (conversation_id, direction, content, sent_at) VALUES ($1, $2, $3, NOW())',
-          [conversationId, 'outbound', message]
+          'INSERT INTO whatsapp_messages (conversation_id, direction, content, sent_at, status) VALUES ($1, $2, $3, NOW(), $4)',
+          [conversationId, 'outbound', message, 'sent']
         );
         console.log(`[Evolution] Saved message to DB successfully.`);
 
       } catch (dbError) {
         console.error("Failed to save sent message to DB:", dbError);
-        // Verify if we should fail the request or just log. Usually just log since API sent OK.
       }
-    } else {
-      console.error("[Evolution] Pool is not defined or available.");
     }
 
     return res.status(200).json(data);

@@ -1,188 +1,147 @@
-import { ArrowRight, ShieldAlert, LayoutDashboard } from "lucide-react";
+import { ArrowRight, BarChart3, MessageCircle, ShieldCheck, Users, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
-import { useToast } from "../hooks/use-toast";
-import { useAuth } from "../contexts/AuthContext";
-import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 
 const Index = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { login, logout, user, isAuthenticated } = useAuth();
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const email = String(formData.get("email") || "").trim();
-    const password = String(formData.get("password") || "").trim();
-
-    if (!email || !password) {
-      toast({
-        title: "Preencha os dados",
-        description: "Informe e-mail e senha administrativos para acessar o painel.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Falha no login");
-      }
-
-      login(data.token, data.user);
-
-      toast({
-        title: "Bem-vindo(a)!",
-        description: `Login realizado com sucesso.`,
-      });
-
-      navigate("/app/dashboard");
-    } catch (error: any) {
-      toast({
-        title: "Erro no login",
-        description: error.message || "Verifique suas credenciais.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleForgotPassword = () => {
-    navigate("/forgot-password");
-  };
 
   return (
-    <div className="flex min-h-screen items-stretch bg-gradient-to-br from-primary-soft via-background to-primary/5 px-4 py-6">
-      <main className="mx-auto flex w-full max-w-5xl flex-col items-stretch gap-8 md:flex-row md:items-stretch md:gap-10">
-        <section className="flex flex-1 flex-col justify-center space-y-5 md:space-y-6">
-          <span className="inline-flex max-w-[260px] items-center gap-2 rounded-full bg-primary-soft px-3 py-1 text-[11px] font-medium text-primary-soft-foreground md:max-w-none">
-            ViaMoveCar Admin
-            <span className="h-1 w-1 rounded-full bg-accent" />
-            Centro de controle da operação
-          </span>
-          <header>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl md:text-4xl">
-              Acesse o painel <span className="text-primary">ViaMoveCar Admin</span>
+    <div className="min-h-screen bg-gradient-to-b from-primary-soft via-background to-background">
+      {/* Top navigation */}
+      <header className="border-b border-primary-soft/40 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <ShieldCheck className="h-4 w-4" />
+            </div>
+            <div className="flex flex-col leading-tight">
+              <span className="text-sm font-semibold tracking-tight">Integrai</span>
+              <span className="text-[11px] text-muted-foreground">Painel de gestão</span>
+            </div>
+          </div>
+
+          <nav className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/app/empresas")}
+              className="text-red-500 hover:text-red-600 hover:bg-red-50 font-medium"
+            >
+              <ShieldCheck className="mr-2 h-4 w-4" />
+              SuperAdmin
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/login")}
+              className="text-muted-foreground hover:text-primary"
+            >
+              Login
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => navigate("/cadastro")}
+              className="gap-2 shadow-sm"
+            >
+              Cadastre-se
+              <ArrowRight className="h-3 w-3" />
+            </Button>
+          </nav>
+        </div>
+      </header>
+
+      {/* Hero section */}
+      <main className="mx-auto flex max-w-6xl flex-col gap-10 px-4 pb-12 pt-10 sm:pt-16 md:flex-row md:items-center md:gap-16 md:pb-20">
+        <section className="flex flex-1 flex-col justify-center space-y-8">
+          <div className="space-y-4">
+            <span className="inline-flex items-center gap-2 rounded-full bg-primary/5 px-3 py-1 text-[11px] font-medium text-primary border border-primary/10">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+              Novo CRM + Atendimento WhatsApp
+            </span>
+
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl text-foreground">
+              Gestão completa dos seus <span className="text-primary">atendimentos e vendas</span>
             </h1>
-            <p className="mt-2 max-w-xl text-xs text-muted-foreground sm:text-sm">
-              Dashboard, CRM, financeiro, atendimento WhatsApp e gestão de usuários em um único ambiente
-              administrativo.
+
+            <p className="max-w-xl text-base text-muted-foreground sm:text-lg leading-relaxed">
+              O Integrai centraliza CRM, financeiro, atendimento via WhatsApp e automações em uma única plataforma inteligente.
             </p>
-          </header>
-          <ul className="grid grid-cols-1 gap-3 text-xs text-muted-foreground sm:grid-cols-2 md:max-w-md">
-            <li className="rounded-xl bg-card/70 p-3 shadow-soft">
-              <p className="font-medium text-foreground">Visão 360º</p>
-              <p className="mt-1 text-[11px]">
-                Indicadores por cidade, estado e canais de atendimento.
-              </p>
-            </li>
-            <li className="rounded-xl bg-card/70 p-3 shadow-soft">
-              <p className="font-medium text-foreground">Pronto para integração</p>
-              <p className="mt-1 text-[11px]">
-                Evolution API, financeiro e apps móveis serão plugados aqui.
-              </p>
-            </li>
-          </ul>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <Button size="lg" className="gap-2 h-12 text-base px-6 shadow-md" onClick={() => navigate("/cadastro")}>
+              Começar agora
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => navigate("/login")}
+              className="h-12 text-base px-6 border-primary/20 hover:bg-primary/5"
+            >
+              Já tenho conta
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-2 gap-4 text-sm text-muted-foreground pt-4">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-primary" />
+              <span>CRM Integrado</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-primary" />
+              <span>WhatsApp API</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-primary" />
+              <span>Controle Financeiro</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-primary" />
+              <span>Relatórios 360º</span>
+            </div>
+          </div>
         </section>
 
-        <section className="flex flex-1 items-center justify-center md:justify-end">
-          <Card className="w-full max-w-md border border-primary-soft/70 bg-card/95 shadow-strong relative">
-            <CardHeader className="space-y-1 pb-3 sm:pb-4">
-              <CardTitle className="text-sm sm:text-base">
-                {isAuthenticated ? `Olá, ${user?.full_name}` : "Login administrativo"}
-              </CardTitle>
-              <p className="text-[11px] text-muted-foreground sm:text-xs">
-                {isAuthenticated ? "Você já está conectado." : "Apenas usuários internos autorizados podem acessar."}
-              </p>
+        {/* Right side illustration */}
+        <section className="flex flex-1 items-center justify-center lg:justify-end relative">
+          <div className="absolute -z-10 bg-primary/20 blur-[100px] w-[300px] h-[300px] rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
 
-              {isAuthenticated && user?.role === 'SUPERADMIN' && (
-                <div className="absolute top-4 right-4">
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => navigate('/superadmin')}
-                    className="gap-2 shadow-sm"
-                  >
-                    <ShieldAlert className="h-4 w-4" />
-                    SuperAdmin
-                  </Button>
-                </div>
-              )}
+          <Card className="w-full max-w-sm border-primary/10 bg-card/80 backdrop-blur-sm shadow-2xl">
+            <CardHeader className="pb-4">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+              </div>
+              <CardTitle className="text-lg">Otimize seus resultados</CardTitle>
+              <CardDescription>
+                Acompanhe cada etapa do funil de vendas e atendimento.
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              {isAuthenticated ? (
-                <div className="flex flex-col gap-4">
-                  <Button onClick={() => navigate('/app/dashboard')} size="lg" className="w-full gap-2">
-                    <LayoutDashboard className="h-5 w-5" />
-                    Acessar Dashboard
-                  </Button>
-
-                  <Button variant="outline" onClick={() => { logout(); navigate(0); }} className="w-full">
-                    Sair / Logout
-                  </Button>
-
-                  <div className="text-xs text-center text-muted-foreground bg-muted p-2 rounded">
-                    <p>Debug Info:</p>
-                    <p>User: <strong>{user?.email}</strong></p>
-                    <p>Role: <strong>{user?.role || 'Sem role'}</strong></p>
-                  </div>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Leads Hoje</div>
+                <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-primary w-[75%]" />
                 </div>
-              ) : (
-                <form className="space-y-3 sm:space-y-4" onSubmit={handleSubmit}>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="email">E-mail corporativo</Label>
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      inputMode="email"
-                      autoComplete="email"
-                      placeholder="admin@viamovecar.com"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="password">Senha</Label>
-                    <Input id="password" name="password" type="password" autoComplete="current-password" required />
-                    <div className="flex justify-end">
-                      <Button
-                        type="button"
-                        variant="link"
-                        size="sm"
-                        className="px-0 text-primary"
-                        onClick={handleForgotPassword}
-                      >
-                        Esqueci minha senha
-                      </Button>
-                    </div>
-                  </div>
-                  <Button
-                    type="submit"
-                    className="mt-1 flex w-full items-center justify-center gap-2 sm:mt-2"
-                    size="lg"
-                    disabled={loading}
-                  >
-                    {loading ? "Entrando..." : "Entrar no painel"}
-                    {!loading && <ArrowRight className="h-4 w-4" />}
-                  </Button>
-                </form>
-              )}
+              </div>
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Atendimentos</div>
+                <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 w-[90%]" />
+                </div>
+              </div>
+
+              <div className="pt-4 flex items-center justify-between text-xs text-muted-foreground border-t">
+                <span>Online agora</span>
+                <span className="flex items-center gap-1.5 ">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                  </span>
+                  Sistema Operante
+                </span>
+              </div>
             </CardContent>
           </Card>
         </section>

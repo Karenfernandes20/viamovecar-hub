@@ -8,7 +8,6 @@ import {
   resetUserPassword,
 } from './controllers/userController';
 import { getStages, getLeads, updateLeadStage, createStage } from './controllers/crmController';
-import { getEvolutionQrCode, deleteEvolutionInstance, sendEvolutionMessage } from './controllers/evolutionController';
 import { handleWebhook, getConversations, getMessages } from './controllers/webhookController';
 import { getCities, createCity } from './controllers/cityController';
 import { getPayables, getReceivablesByCity, getCashFlow, createExpense } from './controllers/financialController';
@@ -42,12 +41,14 @@ router.post('/users/:id/reset-password', authenticateToken, authorizeRole(['SUPE
 
 // Evolution routes
 // Evolution routes
+import { getEvolutionQrCode, deleteEvolutionInstance, sendEvolutionMessage, getEvolutionConnectionState } from './controllers/evolutionController';
 router.get('/evolution/qrcode', authenticateToken, getEvolutionQrCode);
+router.get('/evolution/status', authenticateToken, getEvolutionConnectionState);
 router.delete('/evolution/disconnect', authenticateToken, deleteEvolutionInstance);
 router.post('/evolution/messages/send', authenticateToken, sendEvolutionMessage);
 router.post('/evolution/webhook', handleWebhook);
-router.get('/evolution/conversations', getConversations);
-router.get('/evolution/messages/:conversationId', getMessages);
+router.get('/evolution/conversations', authenticateToken, getConversations);
+router.get('/evolution/messages/:conversationId', authenticateToken, getMessages);
 
 // Cities routes
 router.get('/cities', getCities);

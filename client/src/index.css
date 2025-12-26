@@ -7,8 +7,10 @@
 @layer base {
   :root {
     /* Base */
-    --background: 210 40% 98%; /* branco levemente azulado */
-    --foreground: 222 47% 11%; /* quase preto azulado */
+    --background: 210 40% 98%;
+    /* branco levemente azulado */
+    --foreground: 222 47% 11%;
+    /* quase preto azulado */
 
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
@@ -16,14 +18,17 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
+    /* Marca Integrai */
     /* Marca ViaMoveCar */
-    --primary: 217 90% 46%; /* azul forte */
+    --primary: 217 90% 46%;
+    /* azul forte */
     --primary-foreground: 0 0% 100%;
 
     --primary-soft: 214 95% 92%;
     --primary-soft-foreground: 217 90% 26%;
 
-    --accent: 48 100% 52%; /* amarelo destaque */
+    --accent: 48 100% 52%;
+    /* amarelo destaque */
     --accent-foreground: 222 47% 11%;
 
     --secondary: 211 40% 96%;
@@ -57,8 +62,8 @@
     --surface-elevated: 0 0% 100%;
 
     /* Sombras semânticas */
-    --shadow-soft: 222 47% 11% / 0.06;
-    --shadow-strong: 222 47% 11% / 0.18;
+    --shadow-soft: 167 50% 10% / 0.06;
+    --shadow-strong: 167 50% 10% / 0.18;
   }
 
   .dark {

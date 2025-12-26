@@ -71,11 +71,34 @@ app.use((req, res, next) => {
   return next();
 });
 
+import { createServer } from "http";
+import { Server } from "socket.io";
 import { runMigrations } from "./db/migrations";
+
+// Create HTTP server
+const httpServer = createServer(app);
+
+// Configure Socket.IO
+const io = new Server(httpServer, {
+  cors: {
+    origin: "*", // Em produção, restrinja isso
+    methods: ["GET", "POST"]
+  }
+});
+
+io.on("connection", (socket) => {
+  console.log("Client connected via Socket.IO:", socket.id);
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id);
+  });
+});
+
+// Tornar io acessível nas rotas via req.app.get('io')
+app.set("io", io);
 
 // Run migrations then start server
 runMigrations().then(() => {
-  app.listen(port, () => {
+  httpServer.listen(Number(port), "0.0.0.0", () => {
     console.log(`Server rodando na porta ${port}`);
   });
 });

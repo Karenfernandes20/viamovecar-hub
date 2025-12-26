@@ -1,36 +1,28 @@
-import { pool } from './db';
+import dotenv from 'dotenv';
+import path from 'path';
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
-const checkDatabase = async () => {
+const checkDb = async () => {
+    // Dynamic import to allow dotenv to load first
+    const { pool } = await import('./db');
+
     try {
-        console.log('--- Checking Database ---');
-
-        // Check connection
-        const res = await pool.query('SELECT NOW()');
-        console.log('Database connected:', res.rows[0]);
-
-        // Check Conversations
-        const conversations = await pool.query('SELECT * FROM whatsapp_conversations');
-        console.log(`Conversations found: ${conversations.rows.length}`);
-        if (conversations.rows.length > 0) {
-            console.log('Sample Conversation:', conversations.rows[0]);
+        if (!pool) {
+            console.log('No pool');
+            return;
         }
+        const resConvs = await pool.query('SELECT * FROM whatsapp_conversations');
+        const resMsgs = await pool.query('SELECT * FROM whatsapp_messages');
 
-        // Check Messages
-        const messages = await pool.query('SELECT * FROM whatsapp_messages ORDER BY sent_at DESC LIMIT 5');
-        console.log(`Messages found (showing max 5): ${messages.rows.length}`);
-        messages.rows.forEach(msg => {
-            console.log(`- [${msg.direction}] ${msg.content} (${msg.sent_at})`);
-        });
+        console.log('Conversations count:', resConvs.rowCount);
+        console.log('Conversations rows:', resConvs.rows);
+        console.log('Messages count:', resMsgs.rowCount);
 
-        // Check CRM Leads
-        const leads = await pool.query('SELECT * FROM crm_leads LIMIT 5');
-        console.log(`Leads found: ${leads.rows.length}`);
-
-    } catch (error) {
-        console.error('Database check failed:', error);
+    } catch (e) {
+        console.error(e);
     } finally {
-        await pool.end();
+        if (pool) await pool.end();
     }
 };
 
-checkDatabase();
+checkDb();
