@@ -19,8 +19,11 @@ import {
   QrCode,
   Settings,
   LogOut,
+  Building2,
+  FileText,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 const items = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/app/dashboard" },
@@ -36,11 +39,26 @@ const items = [
 export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const currentPath = location.pathname;
 
   const handleLogout = () => {
-    navigate("/");
+    logout();
+    navigate("/login");
   };
+
+  const navItems = [...items];
+  if (user?.role === 'SUPERADMIN') {
+    navItems.splice(1, 0, { label: "Empresas", icon: Building2, to: "/app/empresas" });
+  }
+
+  if (user?.role === 'SUPERADMIN' || user?.role === 'ADMIN') {
+    navItems.push({ label: "Relatórios", icon: FileText, to: "/app/relatorios" });
+  }
+
+  if (user?.role === 'SUPERADMIN' || user?.role === 'ADMIN') {
+    navItems.push({ label: "Relatórios", icon: FileText, to: "/app/relatorios" });
+  }
 
   return (
     <Sidebar className="data-[variant=sidebar]:border-r data-[variant=sidebar]:border-sidebar-border" collapsible="offcanvas">
@@ -63,7 +81,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <nav className="mt-1 flex flex-col gap-1 text-sm">
-              {items.map((item) => {
+              {navItems.map((item) => {
                 const isActive = currentPath.startsWith(item.to);
                 const Icon = item.icon;
                 return (

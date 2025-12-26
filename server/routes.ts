@@ -59,6 +59,12 @@ router.post('/crm/stages', createStage);
 router.get('/crm/leads', getLeads);
 router.put('/crm/leads/:id/move', updateLeadStage);
 
+// Reports routes
+import { getDRE, getBreakdown, getFinancialIndicators } from './controllers/reportsController';
+router.get('/reports/dre', authenticateToken, authorizeRole(['SUPERADMIN', 'ADMIN']), getDRE);
+router.get('/reports/breakdown', authenticateToken, authorizeRole(['SUPERADMIN', 'ADMIN']), getBreakdown);
+router.get('/reports/indicators', authenticateToken, authorizeRole(['SUPERADMIN', 'ADMIN']), getFinancialIndicators);
+
 // Financial routes
 router.get('/financial/payables', getPayables);
 router.get('/financial/receivables-by-city', getReceivablesByCity);
