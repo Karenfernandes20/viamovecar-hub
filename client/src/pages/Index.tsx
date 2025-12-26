@@ -11,7 +11,7 @@ import { useState } from "react";
 const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { login, user, isAuthenticated } = useAuth();
+  const { login, logout, user, isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
