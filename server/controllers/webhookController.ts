@@ -68,6 +68,10 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 return res.status(200).send();
             }
 
+            const isFromMe = msg.key.fromMe;
+            const phone = remoteJid.split('@')[0];
+            const name = msg.pushName || phone;
+
             if (!pool) {
                 console.error("Database pool not available");
                 return res.status(500).send();
