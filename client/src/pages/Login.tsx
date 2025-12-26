@@ -20,24 +20,35 @@ const LoginPage = () => {
         setLoading(true);
 
         try {
-            // Use full URL if running locally vs production, or configure generic proxy
-            // Using relative path assuming proxy or same-origin
             const res = await fetch("/api/auth/login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, password }),
             });
 
-            const data = await res.json();
+            let data: any = {};
+            try {
+                const text = await res.text();
+                data = text ? JSON.parse(text) : {};
+            } catch {
+                data = {};
+            }
 
             if (!res.ok) {
-                throw new Error(data.error || "Falha no login");
+                if (res.status === 401) {
+                    throw new Error(data.error || "E-mail ou senha incorretos.");
+                }
+                throw new Error(data.error || "Falha no login. Tente novamente em alguns instantes.");
+            }
+
+            if (!data.token || !data.user) {
+                throw new Error("Resposta inesperada do servidor. Tente novamente.");
             }
 
             login(data.token, data.user);
             navigate("/");
         } catch (err: any) {
-            setError(err.message);
+            setError(err.message || "Erro ao tentar entrar. Tente novamente.");
         } finally {
             setLoading(false);
         }
@@ -82,11 +93,21 @@ const LoginPage = () => {
                         <Button type="submit" className="w-full" disabled={loading}>
                             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Entrar"}
                         </Button>
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
-    );
-};
-
-export default LoginPage;
+                        <div className="mt-4 text-center text-xs text-muted-foreground">
+                            Ainda não tem acesso?{" "}
+                            <button
+                                type="button"
+                                onClick={() => navigate("/cadastro")}
+                                className="font-medium text-primary underline-offset-2 hover:underline"
+                            >
+                                Cadastre-se
+                            </button>
+                        </div>
+                     </form>
+                 </CardContent>
+             </Card>
+         </div>
+     );
+ };
+ 
+ export default LoginPage;
