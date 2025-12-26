@@ -1,7 +1,10 @@
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AppSidebar } from "../components/AppSidebar";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "../components/ui/sidebar";
 import { cn } from "../lib/utils";
+import { useAuth } from "../contexts/AuthContext";
+import { Button } from "../components/ui/button";
+import { ShieldAlert, LogOut } from "lucide-react";
 
 const SECTION_TITLES: Record<string, string> = {
   "/app/dashboard": "Dashboard",
@@ -21,7 +24,14 @@ function getSectionTitle(pathname: string) {
 
 export const AdminLayout = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const title = getSectionTitle(location.pathname);
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   return (
     <SidebarProvider>
@@ -39,14 +49,29 @@ export const AdminLayout = () => {
                 </div>
               </div>
               <div className="relative flex items-center gap-3 text-xs">
+                {user?.role === 'SUPERADMIN' && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="gap-2 mr-2 hidden md:flex"
+                    onClick={() => navigate('/superadmin')}
+                  >
+                    <ShieldAlert className="h-4 w-4" />
+                    SuperAdmin
+                  </Button>
+                )}
+
                 <div className="hidden text-right md:block">
-                  <p className="font-medium">Administração</p>
-                  <p className="text-[11px] text-muted-foreground">Acesso interno ViaMoveCar</p>
+                  <p className="font-medium">{user?.full_name || 'Usuário'}</p>
+                  <p className="text-[11px] text-muted-foreground">{user?.role || 'Acesso interno'} · ViaMoveCar</p>
                 </div>
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary-soft-foreground">
-                  AD
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary-soft-foreground" title={user?.full_name}>
+                  {user?.full_name?.substring(0, 2).toUpperCase() || 'US'}
                 </div>
-                <div className="pointer-events-none absolute -right-10 top-1/2 hidden h-16 w-16 -translate-y-1/2 rounded-full bg-accent/40 blur-2xl md:block" />
+                <Button variant="ghost" size="icon" onClick={handleLogout} title="Sair">
+                  <LogOut className="h-4 w-4" />
+                </Button>
+                {/* <div className="pointer-events-none absolute -right-10 top-1/2 hidden h-16 w-16 -translate-y-1/2 rounded-full bg-accent/40 blur-2xl md:block" /> */}
               </div>
             </header>
 

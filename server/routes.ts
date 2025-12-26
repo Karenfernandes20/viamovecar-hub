@@ -11,15 +11,22 @@ import { getEvolutionQrCode, deleteEvolutionInstance, sendEvolutionMessage } fro
 import { handleWebhook, getConversations, getMessages } from './controllers/webhookController';
 import { getCities, createCity } from './controllers/cityController';
 import { getPayables, getReceivablesByCity, getCashFlow, createExpense } from './controllers/financialController';
+import { login, register } from './controllers/authController';
+import { authenticateToken, authorizeRole } from './middleware/authMiddleware';
 
 const router = express.Router();
 
-// User routes
-router.get('/users', getUsers);
-router.post('/users', createUser);
-router.put('/users/:id', updateUser);
-router.delete('/users/:id', deleteUser);
-router.delete('/users', clearUsers);
+// Auth routes
+router.post('/auth/login', login);
+router.post('/auth/register', register);
+
+// User routes (Protected)
+router.get('/users', authenticateToken, authorizeRole(['SUPERADMIN']), getUsers);
+router.post('/users', authenticateToken, authorizeRole(['SUPERADMIN']), createUser);
+router.put('/users/:id', authenticateToken, authorizeRole(['SUPERADMIN']), updateUser);
+router.delete('/users/:id', authenticateToken, authorizeRole(['SUPERADMIN']), deleteUser);
+// router.delete('/users', clearUsers); // Disable dangerous bulk delete without stronger protection or manual only
+
 
 // Evolution routes
 router.get('/evolution/qrcode', getEvolutionQrCode);

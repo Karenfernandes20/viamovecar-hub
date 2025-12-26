@@ -18,36 +18,48 @@ import ForgotPasswordPage from "./pages/ForgotPassword";
 import ResetPasswordPage from "./pages/ResetPassword";
 import SuperadminPage from "./pages/Superadmin";
 
+import { AuthProvider } from "./contexts/AuthContext";
+import AdminRoute from "./components/AdminRoute";
+import LoginPage from "./pages/Login";
+
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/superadmin" element={<SuperadminPage />} />
+      <AuthProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/" element={<Index />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-          <Route path="/app" element={<AdminLayout />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="atendimento" element={<AtendimentoPage />} />
-            <Route path="crm" element={<CrmPage />} />
-            <Route path="financeiro" element={<FinanceiroPage />} />
-            <Route path="usuarios" element={<UsuariosPage />} />
-            <Route path="cidades" element={<CidadesPage />} />
-            <Route path="qr-code" element={<QrCodePage />} />
-            <Route path="configuracoes" element={<ConfiguracoesPage />} />
-          </Route>
+            <Route element={<AdminRoute roles={['SUPERADMIN']} />}>
+              <Route path="/superadmin" element={<SuperadminPage />} />
+              {/* Use the new dashboard component for the panel if SuperadminPage is old/placeholder */}
+              <Route path="/admin/dashboard" element={<SuperadminPage />} />
+            </Route>
 
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+            <Route path="/app" element={<AdminLayout />}>
+              <Route index element={<DashboardPage />} />
+              <Route path="dashboard" element={<DashboardPage />} />
+              <Route path="atendimento" element={<AtendimentoPage />} />
+              <Route path="crm" element={<CrmPage />} />
+              <Route path="financeiro" element={<FinanceiroPage />} />
+              <Route path="usuarios" element={<UsuariosPage />} />
+              <Route path="cidades" element={<CidadesPage />} />
+              <Route path="qr-code" element={<QrCodePage />} />
+              <Route path="configuracoes" element={<ConfiguracoesPage />} />
+            </Route>
+
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

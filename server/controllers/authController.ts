@@ -1,0 +1,92 @@
+import { Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { pool } from '../db';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key_change_in_production';
+
+export const login = async (req: Request, res: Response) => {
+    try {
+        const { email, password } = req.body;
+
+        if (!pool) return res.status(500).json({ error: 'Database not configured' });
+
+        const result = await pool.query('SELECT * FROM app_users WHERE email = $1', [email]);
+        const user = result.rows[0];
+
+        if (!user) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        if (!user.is_active) {
+            return res.status(403).json({ error: 'Account is inactive' });
+        }
+
+        const validPassword = await bcrypt.compare(password, user.password_hash);
+        if (!validPassword) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        // Generate Token
+        const token = jwt.sign(
+            { id: user.id, email: user.email, role: user.role },
+            JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        // Update last login
+        await pool.query('UPDATE app_users SET last_login = NOW() WHERE id = $1', [user.id]);
+
+        res.json({
+            token,
+            user: {
+                id: user.id,
+                full_name: user.full_name,
+                email: user.email,
+                role: user.role,
+                email_validated: user.email_validated,
+                user_type: user.user_type
+            }
+        });
+
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const register = async (req: Request, res: Response) => {
+    try {
+        const { full_name, email, password, phone } = req.body;
+
+        if (!pool) return res.status(500).json({ error: 'Database not configured' });
+
+        // Check if user exists
+        const userCheck = await pool.query('SELECT id FROM app_users WHERE email = $1', [email]);
+        if (userCheck.rows.length > 0) {
+            return res.status(400).json({ error: 'User already exists' });
+        }
+
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hash = await bcrypt.hash(password, salt);
+
+        // Default: Role USUARIO, Invalidated Email
+        const result = await pool.query(
+            `INSERT INTO app_users 
+             (full_name, email, password_hash, phone, role, email_validated, is_active, user_type, city_id, state, created_at)
+             VALUES ($1, $2, $3, $4, 'USUARIO', false, true, 'user', 1, 'SP', NOW())
+             RETURNING id, full_name, email, role`,
+            [full_name, email, hash, phone || '']
+        );
+
+        res.status(201).json({
+            message: 'User created successfully',
+            user: result.rows[0]
+        });
+
+    } catch (error) {
+        console.error('Register error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
