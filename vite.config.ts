@@ -33,4 +33,8 @@ export default defineConfig(({ mode }) => ({
   optimizeDeps: {
     include: ["react", "react-dom", "@tanstack/react-query"],
   },
+  build: {
+    chunkSizeWarningLimit: 1500,
+    outDir: "dist",
+  },
 }));
