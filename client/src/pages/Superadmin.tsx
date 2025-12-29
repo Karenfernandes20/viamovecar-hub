@@ -397,15 +397,15 @@ const SuperadminPage = () => {
         <section className="flex-1 space-y-4">
           <header>
             <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl md:text-4xl">
-              Painel <span className="text-primary">Superadmin</span>
+              Painel de <span className="text-primary">Gestão de Clientes</span>
             </h1>
             <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-              Cadastre e gerencie empresas para ter uma visão geral e acesso aos painéis de cada uma.
+              Cadastre e gerencie seus clientes, visualize estatísticas e acesse os painéis individuais.
             </p>
           </header>
           <Card className="border border-primary-soft/70 bg-card/95 shadow-strong">
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-base sm:text-lg">Empresas cadastradas</CardTitle>
+              <CardTitle className="text-base sm:text-lg">Carteira de Clientes</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {isLoading ? (
@@ -462,7 +462,6 @@ const SuperadminPage = () => {
                               </Button>
                             </DialogTrigger>
                             <DialogContent className="max-w-2xl">
-                              {/* Dialog content unchanged */}
                               <DialogHeader>
                                 <DialogTitle>Usuários: {company.name}</DialogTitle>
                                 <DialogDescription>
@@ -608,13 +607,13 @@ const SuperadminPage = () => {
         <section className="w-full max-w-md">
           <Card className="border border-primary-soft/70 bg-card/95 shadow-strong">
             <CardHeader>
-              <CardTitle className="text-base sm:text-lg">Cadastrar nova empresa</CardTitle>
+              <CardTitle className="text-base sm:text-lg">Novo Cliente</CardTitle>
             </CardHeader>
             <CardContent>
               <form className="space-y-3" onSubmit={handleSubmit}>
                 {/* Form fields: Name */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="name">Nome da empresa</Label>
+                  <Label htmlFor="name">Nome do Cliente / Empresa</Label>
                   <Input
                     id="name"
                     name="name"

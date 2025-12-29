@@ -23,6 +23,7 @@ import ContatosPage from "./pages/Contatos";
 import { AuthProvider } from "./contexts/AuthContext";
 import AdminRoute from "./components/AdminRoute";
 import LoginPage from "./pages/Login";
+import SuperAdminLoginPage from "./pages/SuperAdminLogin";
 import SignupPage from "./pages/Signup";
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/superlogin" element={<SuperAdminLoginPage />} />
             <Route path="/cadastro" element={<SignupPage />} />
             <Route path="/" element={<Index />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />

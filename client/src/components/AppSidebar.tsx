@@ -50,7 +50,7 @@ export function AppSidebar() {
 
   const navItems = [...items];
   if (user?.role === 'SUPERADMIN') {
-    navItems.splice(1, 0, { label: "Empresas", icon: Building2, to: "/app/empresas" });
+    navItems.splice(1, 0, { label: "Clientes", icon: Building2, to: "/app/empresas" });
   }
 
   if (user?.role === 'SUPERADMIN' || user?.role === 'ADMIN') {

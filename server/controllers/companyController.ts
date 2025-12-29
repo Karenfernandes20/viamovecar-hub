@@ -18,6 +18,13 @@ export const getCompany = async (req: Request, res: Response) => {
         const { id } = req.params;
         const user = (req as any).user;
 
+        console.log('DEBUG: getCompany auth check', {
+            requestingUser: user?.email,
+            role: user?.role,
+            userCompanyId: user?.company_id,
+            targetCompanyId: id
+        });
+
         // Security check: Only SuperAdmin or the company's own users can view details
         if (user.role !== 'SUPERADMIN') {
             // Check if user belongs to this company
@@ -27,7 +34,12 @@ export const getCompany = async (req: Request, res: Response) => {
             }
         }
 
-        const result = await pool.query('SELECT * FROM companies WHERE id = $1', [id]);
+        const result = await pool.query(`
+            SELECT 
+                id, name, cnpj, city, state, phone, logo_url, evolution_instance, evolution_apikey, created_at,
+                COALESCE(operation_type, 'clientes') as operation_type 
+            FROM companies WHERE id = $1
+        `, [id]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Company not found' });

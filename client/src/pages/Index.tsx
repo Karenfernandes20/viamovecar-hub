@@ -25,8 +25,8 @@ const Index = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate("/login")}
-              className="text-red-500 hover:text-red-600 hover:bg-red-50 font-medium"
+              onClick={() => navigate("/superlogin")}
+              className="text-amber-500 hover:text-amber-600 hover:bg-amber-500/10 font-medium"
             >
               <ShieldCheck className="mr-2 h-4 w-4" />
               SuperAdmin
@@ -52,8 +52,8 @@ const Index = () => {
       </header>
 
       {/* Hero section */}
-      <main className="mx-auto flex max-w-6xl flex-col gap-10 px-4 pb-12 pt-10 sm:pt-16 md:flex-row md:items-center md:gap-16 md:pb-20">
-        <section className="flex flex-1 flex-col justify-center space-y-8">
+      <main className="mx-auto flex max-w-7xl flex-col items-center gap-12 px-4 pb-12 pt-10 sm:pt-16 md:pb-20">
+        <section className="flex flex-col items-center text-center space-y-8 max-w-4xl">
           <div className="space-y-4">
             <span className="inline-flex items-center gap-2 rounded-full bg-primary/5 px-3 py-1 text-[11px] font-medium text-primary border border-primary/10">
               <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
@@ -64,13 +64,13 @@ const Index = () => {
               Gestão completa dos seus <span className="text-primary">atendimentos e vendas</span>
             </h1>
 
-            <p className="max-w-xl text-base text-muted-foreground sm:text-lg leading-relaxed">
+            <p className="max-w-2xl mx-auto text-base text-muted-foreground sm:text-lg leading-relaxed">
               O Integrai centraliza CRM, financeiro, atendimento via WhatsApp e automações em uma única plataforma inteligente.
             </p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <Button size="lg" className="gap-2 h-12 text-base px-6 shadow-md" onClick={() => navigate("/cadastro")}>
+            <Button size="lg" className="gap-2 h-12 text-base px-8 shadow-md" onClick={() => navigate("/cadastro")}>
               Começar agora
               <ArrowRight className="h-4 w-4" />
             </Button>
@@ -78,13 +78,13 @@ const Index = () => {
               variant="outline"
               size="lg"
               onClick={() => navigate("/login")}
-              className="h-12 text-base px-6 border-primary/20 hover:bg-primary/5"
+              className="h-12 text-base px-8 border-primary/20 hover:bg-primary/5"
             >
               Já tenho conta
             </Button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-2 gap-4 text-sm text-muted-foreground pt-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 text-sm text-muted-foreground pt-2">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-primary" />
               <span>CRM Integrado</span>
@@ -104,50 +104,17 @@ const Index = () => {
           </div>
         </section>
 
-        {/* Right side illustration */}
-        <section className="flex flex-1 items-center justify-center lg:justify-end relative">
-          <div className="absolute -z-10 bg-primary/20 blur-[100px] w-[300px] h-[300px] rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-
-          <Card className="w-full max-w-sm border-primary/10 bg-card/80 backdrop-blur-sm shadow-2xl">
-            <CardHeader className="pb-4">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
-                <BarChart3 className="h-5 w-5 text-primary" />
-              </div>
-              <CardTitle className="text-lg">Otimize seus resultados</CardTitle>
-              <CardDescription>
-                Acompanhe cada etapa do funil de vendas e atendimento.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="text-xs font-medium text-muted-foreground">Leads Hoje</div>
-                <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-primary w-[75%]" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-xs font-medium text-muted-foreground">Atendimentos</div>
-                <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 w-[90%]" />
-                </div>
-              </div>
-
-              <div className="pt-4 flex items-center justify-between text-xs text-muted-foreground border-t">
-                <span>Online agora</span>
-                <span className="flex items-center gap-1.5 ">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                  </span>
-                  Sistema Operante
-                </span>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Dashboard Preview Section */}
+        <section className="w-full relative mt-8">
+          <div className="absolute -z-10 bg-primary/20 blur-[120px] w-[60%] h-[300px] rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-50" />
+          <DashboardPreview />
         </section>
+
       </main>
     </div>
   );
 };
 
+// Import DashboardPreview
+import { DashboardPreview } from "../components/landing/DashboardPreview";
 export default Index;
