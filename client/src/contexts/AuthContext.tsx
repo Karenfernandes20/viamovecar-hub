@@ -1,12 +1,19 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
 interface User {
-    id: number;
+    id: number | string; // Supporting 'superadmin-fixed' string IDs
     full_name: string;
     email: string;
     role: "SUPERADMIN" | "ADMIN" | "USUARIO";
     email_validated: boolean;
     user_type: string;
+    company_id?: number;
+    company?: {
+        id: number;
+        name: string;
+        logo_url: string;
+    };
+    profile_pic_url?: string;
 }
 
 interface AuthContextType {

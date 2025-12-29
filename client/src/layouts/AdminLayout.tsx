@@ -5,6 +5,7 @@ import { cn } from "../lib/utils";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../components/ui/button";
 import { ShieldAlert, LogOut } from "lucide-react";
+import { useEffect } from "react";
 
 const SECTION_TITLES: Record<string, string> = {
   "/app/dashboard": "Dashboard",
@@ -33,6 +34,20 @@ export const AdminLayout = () => {
     logout();
     navigate("/login");
   };
+
+  // Dynamic Favicon Update
+  useEffect(() => {
+    if (user?.company?.logo_url) {
+      // Try to find existing icon link
+      let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'shortcut icon';
+        document.head.appendChild(link);
+      }
+      link.href = user.company.logo_url;
+    }
+  }, [user?.company?.logo_url]);
 
   return (
     <SidebarProvider>
@@ -64,11 +79,22 @@ export const AdminLayout = () => {
 
                 <div className="hidden text-right md:block">
                   <p className="font-medium">{user?.full_name || 'Usuário'}</p>
-                  <p className="text-[11px] text-muted-foreground">{user?.role || 'Acesso interno'} · Integrai</p>
+                  <p className="text-[11px] text-muted-foreground max-w-[150px] truncate">
+                    {user?.company?.name ? user.company.name : (user?.role || 'Acesso interno')}
+                  </p>
                 </div>
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary-soft-foreground" title={user?.full_name}>
-                  {user?.full_name?.substring(0, 2).toUpperCase() || 'US'}
-                </div>
+
+                {user?.company?.logo_url || user?.profile_pic_url ? (
+                  <img
+                    src={user?.company?.logo_url || user?.profile_pic_url}
+                    className="h-9 w-9 rounded-full object-cover border bg-gray-50"
+                    alt="Avatar"
+                  />
+                ) : (
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary-soft-foreground" title={user?.full_name}>
+                    {user?.full_name?.substring(0, 2).toUpperCase() || 'US'}
+                  </div>
+                )}
                 <Button variant="ghost" size="icon" onClick={handleLogout} title="Sair">
                   <LogOut className="h-4 w-4" />
                 </Button>

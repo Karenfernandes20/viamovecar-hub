@@ -63,11 +63,21 @@ export function AppSidebar() {
     <Sidebar className="data-[variant=sidebar]:border-r data-[variant=sidebar]:border-sidebar-border" collapsible="offcanvas">
       <SidebarHeader className="gap-3 border-b border-sidebar-border/60 pb-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sidebar-primary/20 text-sidebar-primary-foreground">
-            <span className="text-lg font-semibold">IN</span>
-          </div>
+          {user?.company?.logo_url ? (
+            <img
+              src={user.company.logo_url}
+              alt="Logo"
+              className="h-9 w-9 rounded-xl object-cover bg-white"
+            />
+          ) : (
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sidebar-primary/20 text-sidebar-primary-foreground">
+              <span className="text-lg font-semibold">IN</span>
+            </div>
+          )}
           <div className="flex flex-col text-xs">
-            <span className="text-sm font-semibold tracking-tight">Integrai</span>
+            <span className="text-sm font-semibold tracking-tight truncate max-w-[150px]">
+              {user?.company?.name || "Integrai"}
+            </span>
             <span className="text-[11px] text-sidebar-foreground/70">Painel Administrativo</span>
           </div>
         </div>

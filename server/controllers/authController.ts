@@ -63,6 +63,15 @@ export const login = async (req: Request, res: Response) => {
         // Update last login
         await pool.query('UPDATE app_users SET last_login = NOW() WHERE id = $1', [user.id]);
 
+        // Fetch company details if applicable
+        let companyDetails = null;
+        if (user.company_id) {
+            const compRes = await pool.query('SELECT id, name, logo_url FROM companies WHERE id = $1', [user.company_id]);
+            if (compRes.rows.length > 0) {
+                companyDetails = compRes.rows[0];
+            }
+        }
+
         res.json({
             token,
             user: {
@@ -72,6 +81,9 @@ export const login = async (req: Request, res: Response) => {
                 role: user.role,
                 email_validated: user.email_validated,
                 user_type: user.user_type,
+                company: companyDetails,
+                company_id: user.company_id,
+                profile_pic_url: user.profile_pic_url // Assuming this column exists or will exist logic
             },
         });
 
