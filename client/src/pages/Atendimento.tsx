@@ -288,18 +288,24 @@ const AtendimentoPage = () => {
   }, [selectedConversation]); // Re-bind socket listeners if selectedConversation changes (to capture closure correctly) OR better: use refs
 
 
-  const fetchEvolutionContacts = async () => {
-    // Check connection (basic check via socket status or just try sync)
-    if (socketStatus !== 'connected') {
-      // Warning if socket is dead, though HTTP might work. 
-      // User requested: "Caso não exista conexão ativa, exibir aviso"
-      // Better to check API status or just try and handle error.
+  // Automatic fetch when switching to 'contatos' tab
+  useEffect(() => {
+    if (activeTab === "contatos") {
+      fetchEvolutionContacts();
     }
+  }, [activeTab]);
+
+  const fetchEvolutionContacts = async () => {
+    // Only fetch if WhatsApp is somewhat connected? 
+    // User wants "live data regardless".
+
+    // Safety check just in case but we want to try loading
 
     try {
       setIsLoadingContacts(true);
-      const res = await fetch("/api/evolution/contacts/sync", {
-        method: "POST",
+      // Use NOVO endpoint LIVE (Sem persistência no DB)
+      const res = await fetch("/api/evolution/contacts/live", {
+        method: "GET", // CHANGED FROM POST SYNC TO GET LIVE
         headers: {
           "Authorization": `Bearer ${token}`
         }
@@ -307,31 +313,18 @@ const AtendimentoPage = () => {
 
       if (res.ok) {
         const data = await res.json();
-        const mapped: Contact[] = data.map((c: any) => {
-          let rawPhone = c.jid ? c.jid.split('@')[0] : (c.phone || "");
-          if (rawPhone && typeof rawPhone === 'string' && rawPhone.includes('@')) {
-            rawPhone = rawPhone.split('@')[0];
-          }
-          return {
-            id: c.id,
-            name: c.name || "Sem Nome",
-            phone: rawPhone,
-            profile_pic_url: c.profile_pic_url,
-            push_name: c.push_name
-          };
-        });
-
-        setImportedContacts(mapped);
-        setFilteredContacts(mapped);
-        alert("Contatos sincronizados com sucesso!"); // Simple feedback for now
+        // Backend now returns normalized objects { id, name, phone, profile_pic_url }
+        setImportedContacts(data);
+        setFilteredContacts(data);
+        // No alert needed for automatic background load unless critical error
       } else {
         const err = await res.json();
-        console.error("Failed to sync contacts", err);
-        alert("Falha ao sincronizar: " + (err.error || "Erro desconhecido"));
+        console.error("Failed to fetch live contacts", err);
+        // Fallback or silent fail? User wants results.
+        // setFilteredContacts([]); // Keep empty if failed
       }
     } catch (error) {
-      console.error("Error fetching contacts", error);
-      alert("Erro ao conectar com servidor.");
+      console.error("Error fetching live contacts", error);
     } finally {
       setIsLoadingContacts(false);
     }
@@ -803,6 +796,7 @@ const AtendimentoPage = () => {
             </TabsContent>
 
             {/* Aba NOVA CONVERSA / CONTATOS */}
+            {/* Aba NOVA CONVERSA / CONTATOS */}
             <TabsContent value="contatos" className="h-full flex flex-col m-0 bg-white dark:bg-zinc-950">
               {/* Header de Nova Conversa (Estilo WhatsApp) */}
               <div className="h-[60px] bg-[#008069] dark:bg-zinc-800 flex items-center px-4 gap-4 text-white shrink-0">
@@ -826,39 +820,26 @@ const AtendimentoPage = () => {
               </div>
 
               <div className="flex-1 overflow-y-auto flex flex-col">
-                {/* ... buttons ... */}
-                {/* List starts here */}
 
-                {filteredContacts.length === 0 && !contactSearchTerm && (
-                  <div className="text-center text-gray-400 text-sm mt-8">
-                    Nenhum contato sincronizado.<br />Clique em "Sincronizar" acima.
+                {/* List starts here */}
+                {isLoadingContacts && (
+                  <div className="flex flex-col items-center justify-center p-8 text-muted-foreground gap-2">
+                    <RefreshCcw className="h-5 w-5 animate-spin" />
+                    <span className="text-xs">Carregando contatos do WhatsApp...</span>
                   </div>
                 )}
-                <div className="p-4">
-                  <Button
-                    className={cn(
-                      "w-full bg-[#008069] hover:bg-[#006d59] text-white font-semibold shadow-md transition-all active:scale-95",
-                      (isLoadingContacts || whatsappStatus !== 'open') && "opacity-80 cursor-not-allowed"
-                    )}
-                    onClick={async () => {
-                      if (whatsappStatus !== 'open') return;
-                      await fetchEvolutionContacts();
-                    }}
-                    disabled={isLoadingContacts || whatsappStatus !== 'open'}
-                    title={whatsappStatus !== 'open' ? "WhatsApp não conectado" : "Sincronizar contatos"}
-                  >
-                    <RefreshCcw className={cn("mr-2 h-4 w-4", isLoadingContacts && "animate-spin")} />
-                    {isLoadingContacts ? "Sincronizando..." : "Sincronizar contatos"}
-                  </Button>
-                  {whatsappStatus !== 'open' && (
-                    <p className="text-xs text-red-500 text-center mt-2">WhatsApp desconectado. Conecte via QR Code.</p>
-                  )}
-                </div>
 
-                {/* Botão Novo Contato Manual (Não funcional no prompt do user, mas bom ter visualmente ou redirecionar a modal) */}
+                {!isLoadingContacts && filteredContacts.length === 0 && !contactSearchTerm && (
+                  <div className="text-center text-gray-400 text-sm mt-8 px-4">
+                    Nenhum contato encontrado no WhatsApp.<br />Verifique se o celular está conectado.
+                  </div>
+                )}
+
+                {/* Remove Sync Button - Automatic Load on Tab Change implemented via useEffect below */}
+
+                {/* Botão Novo Contato Manual */}
                 <div className="flex items-center gap-4 p-4 hover:bg-gray-100 dark:hover:bg-zinc-900 cursor-pointer transition-colors" onClick={() => {
-                  // Logic for manual add
-                  // For now we can just focus on search bar entering number
+                  // Just focus input
                 }}>
                   <div className="w-10 h-10 rounded-full bg-[#008069] flex items-center justify-center text-white shrink-0">
                     <UserPlus className="h-5 w-5" />
@@ -869,7 +850,7 @@ const AtendimentoPage = () => {
                 </div>
 
                 <div className="px-4 py-3 text-[#008069] font-medium text-sm">
-                  CONTATOS NO VIAMOVECAR
+                  CONTATOS DO WHATSAPP ({filteredContacts.length})
                 </div>
 
                 {filteredContacts
@@ -877,31 +858,28 @@ const AtendimentoPage = () => {
                   .map((contact, idx) => (
                     <div
                       key={contact.id || idx}
-                      className="flex items-center p-2 border-b border-gray-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors gap-2"
+                      className="flex items-center p-2 border-b border-gray-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors gap-2 cursor-pointer"
+                      onClick={() => handleStartConversationFromContact(contact)}
                     >
-                      <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100 whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px]" title={contact.name}>
-                        {contact.name}
-                      </span>
-                      <span className="text-xs text-zinc-500 font-mono whitespace-nowrap">
-                        {contact.phone}
-                      </span>
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={contact.profile_pic_url} />
+                        <AvatarFallback className="bg-gray-200 text-gray-500">
+                          {(contact.name?.[0] || "?").toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
 
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-[#008069] hover:bg-[#008069]/10 rounded-full ml-1"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleStartConversationFromContact(contact);
-                        }}
-                        title="Conversar"
-                      >
-                        <MessageCircleMore className="h-4 w-4" />
-                      </Button>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm text-zinc-900 dark:text-zinc-100 whitespace-nowrap overflow-hidden text-ellipsis" title={contact.name}>
+                          {contact.name}
+                        </div>
+                        <div className="text-xs text-zinc-500 font-mono whitespace-nowrap">
+                          {contact.phone}
+                        </div>
+                      </div>
                     </div>
                   ))}
 
-                {filteredContacts.length === 0 && contactSearchTerm && (
+                {!isLoadingContacts && filteredContacts.length === 0 && contactSearchTerm && (
                   <div className="p-8 text-center">
                     <p className="text-gray-500 text-sm mb-4">Nenhum contato encontrado.</p>
                     <Button

@@ -101,8 +101,175 @@ const DashboardPage = () => {
     void loadCompany();
   }, [companyId]);
 
+  // --- CRM / CLIENTES DASHBOARD ---
+  if (company?.operation_type === 'clientes') {
+    return (
+      <div className="space-y-6">
+        {/* Company Header */}
+        <section className="rounded-lg border border-[#008069]/20 bg-[#008069]/5 px-4 py-3 text-xs">
+          <div className="flex items-center gap-3">
+            {company.logo_url && (
+              <img src={company.logo_url} alt={company.name} className="h-10 w-10 rounded-full object-cover border" />
+            )}
+            <div>
+              <h2 className="text-sm font-bold text-[#008069] flex items-center gap-2">
+                {company.name}
+                <span className="text-[10px] bg-white border px-1.5 py-0.5 rounded text-gray-500 font-normal uppercase">
+                  CRM & VENDAS
+                </span>
+              </h2>
+              <p className="text-muted-foreground">Painel exclusivo de Atendimento e Relacionamento</p>
+            </div>
+          </div>
+        </section>
+
+        {/* 1. VISÃO GERAL (Top Cards) */}
+        <section className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          {[
+            { label: "Conversas Ativas", icon: "💬", value: "—", sub: "No momento" },
+            { label: "Mensagens Hoje", icon: "📩", value: "—", sub: "Recebidas" },
+            { label: "Novos Leads", icon: "⭐", value: "—", sub: "Hoje" },
+            { label: "Clientes Atendidos", icon: "✅", value: "—", sub: "Hoje" },
+            { label: "Tempo 1ª Resposta", icon: "⚡", value: "—", sub: "Médio" },
+            { label: "Tempo Atendimento", icon: "⏱️", value: "—", sub: "Médio" },
+            { label: "Atendentes Online", icon: "🎧", value: "—", sub: "Agora" },
+            { label: "Conexão WhatsApp", icon: "🟢", value: "—", sub: "Status" },
+            { label: "Vendas Hoje", icon: "💰", value: "—", sub: "Confirmadas" },
+            { label: "Ticket Médio", icon: "🏷️", value: "—", sub: "Mensal" }
+          ].map((card, i) => (
+            <Card key={i} className="border-none shadow-sm hover:shadow-md transition-shadow bg-card">
+              <CardContent className="p-4 flex flex-col justify-between h-full">
+                <div className="flex justify-between items-start mb-2">
+                  <span className="text-xs font-medium text-muted-foreground">{card.label}</span>
+                  <span className="text-base">{card.icon}</span>
+                </div>
+                <div>
+                  <span className="text-xl font-bold block">{card.value}</span>
+                  <span className="text-[10px] text-muted-foreground">{card.sub}</span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </section>
+
+        {/* 2. FUNIL & 3. PERFORMANCE */}
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Funil Visual */}
+          <Card className="lg:col-span-2 border-none shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-[#008069]" /> Funil de Vendas (Kanban)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between gap-2 overflow-x-auto pb-4">
+                {["Novo Contato", "Em Atendimento", "Proposta", "Negociação", "Fechado"].map((step, idx) => (
+                  <div key={idx} className="flex-1 min-w-[100px] bg-muted/30 rounded-lg p-3 text-center border border-transparent hover:border-[#008069]/30 transition-colors">
+                    <div className="text-xs font-medium text-muted-foreground uppercase mb-2">{step}</div>
+                    <div className="text-lg font-bold text-[#008069]">—</div>
+                    <div className="text-[10px] text-muted-foreground mt-1">0% conv.</div>
+                  </div>
+                ))}
+              </div>
+              <div className="h-[200px] w-full bg-muted/10 rounded border border-dashed flex items-center justify-center text-xs text-muted-foreground">
+                Gráfico do Funil será exibido aqui (Recharts)
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Ranking Atendentes */}
+          <Card className="border-none shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Users className="h-4 w-4 text-blue-500" /> Top Atendentes
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {[1, 2, 3].map((_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500">
+                    #{i + 1}
+                  </div>
+                  <div className="flex-1">
+                    <div className="h-3 w-24 bg-gray-200 rounded animate-pulse mb-1"></div>
+                    <div className="h-2 w-16 bg-gray-100 rounded animate-pulse"></div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs font-bold text-green-600">—</div>
+                  </div>
+                </div>
+              ))}
+              <div className="mt-4 pt-4 border-t text-center">
+                <p className="text-[10px] text-muted-foreground">Ranking baseado em volume e satisfação</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* 5. ATIVIDADE EM TEMPO REAL & 6. ORIGEM */}
+        <div className="grid lg:grid-cols-2 gap-6">
+          <Card className="border-none shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <ArrowUpRight className="h-4 w-4 text-orange-500" /> Atividade em Tempo Real
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[1, 2, 3, 4].map((_, i) => (
+                  <div key={i} className="flex items-start gap-3 p-2 hover:bg-muted/20 rounded transition-colors">
+                    <div className={`h-2 w-2 rounded-full mt-1.5 ${i % 2 === 0 ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                    <div className="flex-1">
+                      <p className="text-xs font-medium">Conversa #{1000 + i}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">Aguardando resposta do atendente...</p>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">há {i * 5} min</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-purple-500" /> Origem dos Leads
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[
+                  { name: "Instagram Ads", color: "bg-pink-500" },
+                  { name: "Google Search", color: "bg-blue-500" },
+                  { name: "Site Oficial", color: "bg-green-500" },
+                  { name: "Indicação", color: "bg-yellow-500" }
+                ].map((origin, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className={`h-2 w-2 rounded-full ${origin.color}`}></div>
+                      <span>{origin.name}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className={`h-full ${origin.color} opacity-70`} style={{ width: '0%' }}></div>
+                      </div>
+                      <span className="text-muted-foreground w-6 text-right">—</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+      </div>
+    );
+  }
+
+  // --- STANDARD DASHBOARD (MOTORISTAS/PACIENTES) ---
   return (
     <div className="space-y-5 sm:space-y-6">
+      {/* ... Existing Dashboard Code ... */}
       {companyId && (
         <section className="mb-2 rounded-lg border border-primary-soft bg-primary-soft/20 px-3 py-2 text-xs sm:mb-3">
           {isLoadingCompany ? (

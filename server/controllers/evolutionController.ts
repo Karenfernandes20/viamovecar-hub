@@ -21,11 +21,21 @@ const getEvolutionConfig = async (user: any, source: string = 'unknown') => {
   };
 
   // If user is not SuperAdmin and database is available, look for Company config
+  // If user is not SuperAdmin and database is available, look for Company config
   if (user && user.role !== 'SUPERADMIN' && pool) {
     try {
+      // Create a timeout promise to prevent hanging on network issues
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('DB_TIMEOUT')), 3000)
+      );
+
       // Find company_id for this user
-      const userRes = await pool.query('SELECT company_id FROM app_users WHERE id = $1', [user.id]);
-      if (userRes.rows.length > 0 && userRes.rows[0].company_id) {
+      const userRes = await Promise.race([
+        pool.query('SELECT company_id FROM app_users WHERE id = $1', [user.id]),
+        timeoutPromise
+      ]) as any;
+
+      if (userRes && userRes.rows && userRes.rows.length > 0 && userRes.rows[0].company_id) {
         const companyId = userRes.rows[0].company_id;
         const compRes = await pool.query('SELECT evolution_instance, evolution_apikey FROM companies WHERE id = $1', [companyId]);
 
@@ -37,8 +47,12 @@ const getEvolutionConfig = async (user: any, source: string = 'unknown') => {
           }
         }
       }
-    } catch (e) {
-      console.error("Error fetching company evolution config", e);
+    } catch (e: any) {
+      if (e.message && (e.message.includes('ENETUNREACH') || e.code === 'ENETUNREACH' || e.message === 'DB_TIMEOUT')) {
+        console.warn("[Evolution] Database unreachable or timed out. Falling back to default ENV config.");
+      } else {
+        console.error("Error fetching company evolution config:", e.message);
+      }
     }
   }
 
@@ -428,6 +442,7 @@ export const syncEvolutionContacts = async (req: Request, res: Response) => {
     }
 
     // 3. Return updated local list
+    // 3. Return updated local list
     const localContacts = await pool?.query(
       `SELECT * FROM whatsapp_contacts WHERE instance = $1 ORDER BY name ASC`,
       [EVOLUTION_INSTANCE]
@@ -438,6 +453,78 @@ export const syncEvolutionContacts = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error syncing contacts:", error);
     return res.status(500).json({ error: "Sync failed", details: error.message });
+  }
+};
+
+export const getEvolutionContactsLive = async (req: Request, res: Response) => {
+  const config = await getEvolutionConfig((req as any).user, 'getContactsLive');
+  const EVOLUTION_API_URL = config.url;
+  const EVOLUTION_API_KEY = config.apikey;
+  const EVOLUTION_INSTANCE = config.instance;
+
+  if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+    return res.status(500).json({ error: "Evolution API not configured" });
+  }
+
+  try {
+    // 1. Fetch from Evolution
+    let url = `${EVOLUTION_API_URL.replace(/\/$/, "")}/chat/findContacts/${EVOLUTION_INSTANCE}`;
+    console.log(`[Evolution] Live fetching contacts from: ${url}`);
+
+    let response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: EVOLUTION_API_KEY
+      },
+      body: JSON.stringify({})
+    });
+
+    if (!response.ok) {
+      // Fallback
+      url = `${EVOLUTION_API_URL.replace(/\/$/, "")}/contact/find/${EVOLUTION_INSTANCE}`;
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: EVOLUTION_API_KEY
+        },
+        body: JSON.stringify({})
+      });
+    }
+
+    if (!response.ok) {
+      const text = await response.text();
+      return res.status(response.status).json({ error: "Failed to fetch from Evolution", details: text });
+    }
+
+    const rawData = await response.json();
+
+    // Normalize
+    let contactsList: any[] = [];
+    if (Array.isArray(rawData)) contactsList = rawData;
+    else if (rawData && Array.isArray(rawData.data)) contactsList = rawData.data;
+    else if (rawData && Array.isArray(rawData.contacts)) contactsList = rawData.contacts;
+    else if (rawData && Array.isArray(rawData.results)) contactsList = rawData.results;
+
+    // Return mapped simple objects
+    const mapped = contactsList.map(c => {
+      const jid = c.id;
+      // Basic clean
+      const phone = jid ? jid.split('@')[0] : (c.phone || c.number || "");
+      return {
+        id: jid || phone,
+        name: c.name || c.pushName || c.notify || phone,
+        phone: phone,
+        profile_pic_url: c.profilePictureUrl || c.profilePicture
+      };
+    }).filter(c => c.phone); // Filter empty phones
+
+    return res.json(mapped);
+
+  } catch (error: any) {
+    console.error("Error fetching live contacts:", error);
+    return res.status(500).json({ error: "Live fetch failed", details: error.message });
   }
 };
 // ... (previous code)
