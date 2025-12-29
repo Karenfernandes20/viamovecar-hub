@@ -235,11 +235,20 @@ const ContatosPage = () => {
                 setContacts(mapped);
                 alert("Contatos sincronizados com sucesso!");
             } else {
-                const err = await res.json();
-                alert(`Erro ao sincronizar: ${err.error || "Desconhecido"}\nDetalhes: ${err.details || ""}`);
+                const status = res.status;
+                if (status === 502 || status === 504 || status === 500) {
+                    alert("Serviço indisponível temporariamente. O backend pode estar offline ou reiniciando. Tente novamente em alguns instantes.");
+                } else {
+                    try {
+                        const err = await res.json();
+                        alert(`Erro ao sincronizar: ${err.error || "Desconhecido"}\nDetalhes: ${err.details || ""}`);
+                    } catch {
+                        alert(`Erro ao sincronizar. Status: ${status}`);
+                    }
+                }
             }
         } catch (e) {
-            alert("Erro de conexão ao sincronizar.");
+            alert("Erro de conexão ao sincronizar. Verifique se o servidor backend está rodando.");
         } finally {
             setIsLoading(false);
         }

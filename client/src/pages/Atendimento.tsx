@@ -612,13 +612,19 @@ const AtendimentoPage = () => {
       });
 
       if (!res.ok) {
+        const status = res.status;
         const errText = await res.text();
-        console.error("Falha ao enviar mensagem:", errText);
+        console.error(`Falha ao enviar mensagem (Status ${status}):`, errText);
 
         // Revert optimistic update on failure
         setMessages(prev => prev.filter(m => m.id !== tempMessageId));
         setNewMessage(messageContent); // Restore text
-        alert("Falha ao enviar mensagem. Tente novamente.");
+
+        if (status === 502 || status === 504 || status === 500) {
+          alert("Serviço indisponível temporariamente. O backend pode estar offline ou reiniciando. Tente novamente em alguns instantes.");
+        } else {
+          alert(`Falha ao enviar mensagem. (Erro: ${status})`);
+        }
       } else {
         console.log("Mensagem enviada com sucesso!");
         // We could update the message ID here if the backend returns it, 
@@ -629,7 +635,7 @@ const AtendimentoPage = () => {
       // Revert optimistic update on error
       setMessages(prev => prev.filter(m => m.id !== tempMessageId));
       setNewMessage(messageContent);
-      alert("Erro de conexão ao enviar mensagem.");
+      alert("Erro de conexão. Verifique se o servidor backend está rodando e acessível.");
     }
   };
 

@@ -11,17 +11,17 @@ const __dirname = path.dirname(__filename);
 export default defineConfig(({ mode }) => ({
   // root: "client",
   server: {
-    host: true,
+    host: "0.0.0.0", // Force IPv4
     port: 8082,
     open: true,
     proxy: {
       "/api": {
-        target: "http://localhost:3000",
+        target: "http://127.0.0.1:3000", // Force IPv4 to avoid ENETUNREACH on localhost (::1)
         changeOrigin: true,
         secure: false,
       },
       "/socket.io": {
-        target: "http://localhost:3000",
+        target: "http://127.0.0.1:3000",
         changeOrigin: true,
         ws: true,
       },
