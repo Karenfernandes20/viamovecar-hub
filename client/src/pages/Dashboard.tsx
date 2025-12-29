@@ -27,7 +27,33 @@ interface CompanySummary {
   city: string | null;
   state: string | null;
   logo_url: string | null;
+  operation_type?: 'motoristas' | 'clientes' | 'pacientes';
 }
+
+const getOperationTypeLabel = (type: string | undefined, plural = true) => {
+  switch (type) {
+    case 'motoristas':
+      return plural ? 'Motoristas' : 'Motorista';
+    case 'pacientes':
+      return plural ? 'Pacientes' : 'Paciente';
+    case 'clientes':
+    default:
+      return plural ? 'Clientes' : 'Cliente';
+  }
+};
+
+const getSecondaryTypeLabel = (type: string | undefined, plural = true) => {
+  switch (type) {
+    case 'motoristas':
+      return plural ? 'Passageiros' : 'Passageiro'; // If main is Drivers, secondary is Passengers
+    case 'pacientes':
+      return plural ? 'Atendimentos' : 'Atendimento';
+    case 'clientes':
+    default:
+      return plural ? 'Usuários' : 'Usuário';
+  }
+}
+
 
 const DashboardPage = () => {
   const [searchParams] = useSearchParams();
@@ -95,6 +121,9 @@ const DashboardPage = () => {
               <div className="space-y-0.5">
                 <p className="text-xs font-medium text-foreground">
                   Visão atual: <span className="font-semibold text-primary">{company.name}</span>
+                  <span className="ml-2 text-[10px] uppercase text-muted-foreground border px-1 rounded bg-background/50">
+                    {company.operation_type || 'CLIENTES'}
+                  </span>
                 </p>
                 <p className="text-[11px] text-muted-foreground">
                   {company.city || company.state
@@ -116,7 +145,7 @@ const DashboardPage = () => {
         <Card className="elevated-card animate-card-fade-up border-none bg-card/90">
           <CardHeader className="flex flex-row items-center justify-between pb-1.5 sm:pb-2">
             <CardTitle className="text-[11px] font-medium text-muted-foreground sm:text-xs">
-              Passageiros cadastrados
+              {getSecondaryTypeLabel(company?.operation_type)} cadastrados
             </CardTitle>
             <Users className="h-4 w-4 text-primary" />
           </CardHeader>
@@ -131,7 +160,7 @@ const DashboardPage = () => {
         <Card className="elevated-card animate-card-fade-up border-none bg-card/90">
           <CardHeader className="flex flex-row items-center justify-between pb-1.5 sm:pb-2">
             <CardTitle className="text-[11px] font-medium text-muted-foreground sm:text-xs">
-              Motoristas cadastrados
+              {getOperationTypeLabel(company?.operation_type)} cadastrados
             </CardTitle>
             <Users className="h-4 w-4 text-primary" />
           </CardHeader>
@@ -146,7 +175,7 @@ const DashboardPage = () => {
         <Card className="elevated-card animate-card-fade-up border-none bg-card/90">
           <CardHeader className="flex flex-row items-center justify-between pb-1.5 sm:pb-2">
             <CardTitle className="text-[11px] font-medium text-muted-foreground sm:text-xs">
-              Corridas em andamento
+              {company?.operation_type === 'pacientes' ? 'Consultas' : 'Corridas'} em andamento
             </CardTitle>
             <ArrowUpRight className="h-4 w-4 text-accent" />
           </CardHeader>
@@ -179,9 +208,11 @@ const DashboardPage = () => {
         <Card className="elevated-card border-none bg-card/95">
           <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3">
             <div>
-              <CardTitle className="text-sm">Corridas por estado</CardTitle>
+              <CardTitle className="text-sm">
+                {company?.operation_type === 'pacientes' ? 'Consultas' : 'Corridas'} por estado
+              </CardTitle>
               <p className="text-[11px] text-muted-foreground sm:text-xs">
-                Assim que os dados forem integrados, este gráfico mostrará as corridas reais por estado.
+                Assim que os dados forem integrados, este gráfico mostrará os dados reais por estado.
               </p>
             </div>
           </CardHeader>
@@ -215,7 +246,7 @@ const DashboardPage = () => {
             <div>
               <CardTitle className="text-sm">Resumo financeiro</CardTitle>
               <p className="text-xs text-muted-foreground">
-                Os valores serão alimentados automaticamente a partir dos dados reais da plataforma.
+                Os valores serão alimentados automaticamente a partir dos dados reais.
               </p>
             </div>
             <Wallet2 className="h-4 w-4 text-primary" />
@@ -231,11 +262,11 @@ const DashboardPage = () => {
             </div>
             <div className="grid gap-2 rounded-lg bg-background px-3 py-2">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Motoristas</span>
+                <span className="text-muted-foreground">{getOperationTypeLabel(company?.operation_type)}</span>
                 <span className="font-medium text-foreground">—</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Empreendedores locais</span>
+                <span className="text-muted-foreground">Parceiros locais</span>
                 <span className="font-medium text-foreground">—</span>
               </div>
               <div className="flex items-center justify-between">

@@ -213,9 +213,18 @@ export const sendEvolutionMessage = async (req: Request, res: Response) => {
       return res.status(500).json({ error: "Evolution API not configured" });
     }
 
-    const { phone, message } = req.body;
-    if (!phone || !message) {
-      return res.status(400).json({ error: "Phone and message are required" });
+    const { phone, message, text, to } = req.body;
+
+    // Normalize fields (User asked for "text" but we support "message" too for backward compat, and "to" or "phone")
+    const targetPhone = phone || to;
+    const messageContent = text || message;
+
+    if (!targetPhone || !messageContent) {
+      return res.status(400).json({ error: "Phone (to) and text are required" });
+    }
+
+    if (typeof messageContent !== 'string' || messageContent.trim().length === 0) {
+      return res.status(400).json({ error: "Message text cannot be empty" });
     }
 
     const url = `${EVOLUTION_API_URL.replace(/\/$/, "")}/message/sendText/${EVOLUTION_INSTANCE}`;
@@ -227,13 +236,13 @@ export const sendEvolutionMessage = async (req: Request, res: Response) => {
         apikey: EVOLUTION_API_KEY,
       },
       body: JSON.stringify({
-        number: phone,
+        number: targetPhone,
         options: {
           delay: 1200,
           presence: "composing",
         },
         textMessage: {
-          text: message,
+          text: messageContent,
         },
       }),
     });
@@ -320,16 +329,18 @@ export const syncEvolutionContacts = async (req: Request, res: Response) => {
   const EVOLUTION_API_KEY = config.apikey;
   const EVOLUTION_INSTANCE = config.instance;
 
+  console.log(`[Evolution] Sync requested. Instance: ${EVOLUTION_INSTANCE}, URL present: ${!!EVOLUTION_API_URL}, Key present: ${!!EVOLUTION_API_KEY}`);
+
   if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+    console.error("[Evolution] Config missing during sync.");
     return res.status(500).json({ error: "Evolution API not configured" });
   }
 
   try {
     // 1. Fetch from Evolution
-    // 1. Fetch from Evolution
     // Try POST /chat/findContacts (common for V2 to sync/check DB)
     let url = `${EVOLUTION_API_URL.replace(/\/$/, "")}/chat/findContacts/${EVOLUTION_INSTANCE}`;
-    console.log(`[Evolution] Syncing contacts from: ${url} (POST)`);
+    console.log(`[Evolution] Syncing contacts from primary: ${url} (POST)`);
 
     let response = await fetch(url, {
       method: "POST",
@@ -341,10 +352,12 @@ export const syncEvolutionContacts = async (req: Request, res: Response) => {
     });
 
     if (!response.ok) {
-      console.warn(`[Evolution] POST /chat/findContacts failed (${response.status}). Trying fallback /contact/find...`);
+      console.warn(`[Evolution] POST /chat/findContacts failed (${response.status} - ${response.statusText}). Trying fallback /contact/find...`);
 
       // Fallback: POST /contact/find (V1 or alternative)
       url = `${EVOLUTION_API_URL.replace(/\/$/, "")}/contact/find/${EVOLUTION_INSTANCE}`;
+      console.log(`[Evolution] Syncing contacts from fallback: ${url} (POST)`);
+
       response = await fetch(url, {
         method: "POST",
         headers: {
@@ -357,35 +370,61 @@ export const syncEvolutionContacts = async (req: Request, res: Response) => {
 
     if (!response.ok) {
       const text = await response.text();
-      console.warn(`[Evolution] Sync fallback failed: ${text}`);
+      console.error(`[Evolution] Sync fallback failed: Status ${response.status}. Body: ${text}`);
       return res.status(response.status).json({ error: "Failed to fetch from Evolution (both endpoints failed)", details: text });
     }
 
-    const data: any[] = await response.json();
-    console.log(`[Evolution] Fetched ${Array.isArray(data) ? data.length : 0} contacts. Saving to DB...`);
+    const rawData = await response.json();
+
+    // Normalize data: sometimes it comes as array, sometimes { data: [...] }, sometimes { contacts: [...] }
+    let contactsList: any[] = [];
+    if (Array.isArray(rawData)) {
+      contactsList = rawData;
+    } else if (rawData && Array.isArray(rawData.data)) {
+      contactsList = rawData.data;
+    } else if (rawData && Array.isArray(rawData.contacts)) {
+      contactsList = rawData.contacts;
+    } else if (rawData && Array.isArray(rawData.results)) {
+      contactsList = rawData.results;
+    } else {
+      console.warn("[Evolution] Unexpected response format:", JSON.stringify(rawData).substring(0, 200) + "...");
+    }
+
+    console.log(`[Evolution] Fetched ${contactsList.length} contacts (from raw response type: ${Array.isArray(rawData) ? 'Array' : typeof rawData}). Saving to DB...`);
 
     // 2. Upsert to Database
-    if (pool && Array.isArray(data)) {
-      for (const contact of data) {
+    if (pool && contactsList.length > 0) {
+      let savedCount = 0;
+      for (const contact of contactsList) {
         const jid = contact.id; // remoteJid
-        const name = contact.name || contact.pushName || contact.id?.split('@')[0];
+        // Try to find the best name available
+        const name = contact.name || contact.pushName || contact.notify || (contact.id ? contact.id.split('@')[0] : 'Unknown');
         const pushName = contact.pushName;
-        const profilePicUser = contact.profilePictureUrl;
+        const profilePicUser = contact.profilePictureUrl || contact.profilePicture;
 
         if (!jid) continue;
 
-        // Safe upsert
-        await pool.query(`
-                INSERT INTO whatsapp_contacts (jid, name, push_name, profile_pic_url, instance, updated_at)
-                VALUES ($1, $2, $3, $4, $5, NOW())
-                ON CONFLICT (jid, instance) 
-                DO UPDATE SET 
-                    name = EXCLUDED.name,
-                    push_name = EXCLUDED.push_name,
-                    profile_pic_url = EXCLUDED.profile_pic_url,
-                    updated_at = NOW();
-            `, [jid, name, pushName, profilePicUser, EVOLUTION_INSTANCE]);
+        try {
+          // Safe upsert
+          await pool.query(`
+                        INSERT INTO whatsapp_contacts (jid, name, push_name, profile_pic_url, instance, updated_at)
+                        VALUES ($1, $2, $3, $4, $5, NOW())
+                        ON CONFLICT (jid, instance) 
+                        DO UPDATE SET 
+                            name = EXCLUDED.name,
+                            push_name = EXCLUDED.push_name,
+                            profile_pic_url = EXCLUDED.profile_pic_url,
+                            updated_at = NOW();
+                    `, [jid, name, pushName, profilePicUser, EVOLUTION_INSTANCE]);
+          savedCount++;
+        } catch (dbErr) {
+          console.error(`[Evolution] DB Save error for ${jid}:`, dbErr);
+        }
       }
+      console.log(`[Evolution] Successfully saved/updated ${savedCount} contacts to DB.`);
+    } else {
+      if (!pool) console.error("[Evolution] Database pool is missing.");
+      else console.log("[Evolution] No contacts to save.");
     }
 
     // 3. Return updated local list
@@ -480,6 +519,36 @@ export const handleEvolutionWebhook = async (req: Request, res: Response) => {
               [remoteJid, phone, pushName || phone, instance, content, fromMe ? 0 : 1]
             );
             conversationId = newConv.rows[0].id;
+
+            // --- CRM INTEGRATION: Auto-create Lead ---
+            // Only if message is INBOUND (from user to us)
+            if (!fromMe) {
+              try {
+                // Find 'Leads' stage ID
+                const leadStageRes = await pool.query("SELECT id FROM crm_stages WHERE name = 'Leads' LIMIT 1");
+
+                if (leadStageRes.rows.length > 0) {
+                  const leadsStageId = leadStageRes.rows[0].id;
+
+                  // Check if lead exists by phone
+                  const checkLead = await pool.query("SELECT id FROM crm_leads WHERE phone = $1", [phone]);
+
+                  if (checkLead.rows.length === 0) {
+                    console.log(`[CRM] Auto-creating lead for ${phone}`);
+                    await pool.query(
+                      `INSERT INTO crm_leads (name, phone, stage_id, origin, created_at, updated_at)
+                                 VALUES ($1, $2, $3, 'WhatsApp', NOW(), NOW())`,
+                      [pushName || phone, phone, leadsStageId]
+                    );
+                  }
+                } else {
+                  console.warn("[CRM] 'Leads' stage not found. Skipping auto-lead creation.");
+                }
+              } catch (crmError) {
+                console.error("[CRM] Error auto-creating lead:", crmError);
+              }
+            }
+            // -----------------------------------------
           }
 
           // 2. Insert Message

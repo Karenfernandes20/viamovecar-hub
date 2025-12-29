@@ -4,10 +4,21 @@ import { pool } from '../db';
 // Ensure default stages exist
 const ensureDefaultStages = async () => {
     if (!pool) return;
+
+    // Check specifically for 'Leads' stage
+    const leadsStageCheck = await pool.query("SELECT id FROM crm_stages WHERE name = 'Leads'");
+
+    if (leadsStageCheck.rows.length === 0) {
+        // Create Leads stage if it doesn't exist. Force position 0 or 1.
+        await pool.query("INSERT INTO crm_stages (name, position) VALUES ('Leads', 1)");
+    }
+
     const countResult = await pool.query('SELECT COUNT(*) FROM crm_stages');
-    if (parseInt(countResult.rows[0].count) === 0) {
+    if (parseInt(countResult.rows[0].count) <= 1 && leadsStageCheck.rows.length === 0) {
+        // If table was basically empty (or we just added Leads), add the others.
+        // This prevents adding duplicates if only Leads was missing.
+        // Only run full seed if table was previously empty.
         const defaultStages = [
-            { name: 'Leads', position: 1 },
             { name: 'Em contato', position: 2 },
             { name: 'Agendamento', position: 3 },
             { name: 'Venda realizada', position: 4 },
@@ -15,7 +26,8 @@ const ensureDefaultStages = async () => {
         ];
 
         for (const stage of defaultStages) {
-            await pool.query('INSERT INTO crm_stages (name, position) VALUES ($1, $2)', [stage.name, stage.position]);
+            // Avoid duplicates by name
+            await pool.query('INSERT INTO crm_stages (name, position) VALUES ($1, $2) ON CONFLICT DO NOTHING', [stage.name, stage.position]);
         }
     }
 };

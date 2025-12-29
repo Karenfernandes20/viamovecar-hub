@@ -77,6 +77,20 @@ export const runMigrations = async () => {
         `);
 
 
+        // 5. Companies Updates
+        try {
+            await pool.query(`
+                DO $$ 
+                BEGIN 
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='operation_type') THEN 
+                        ALTER TABLE companies ADD COLUMN operation_type VARCHAR(20) DEFAULT 'clientes' CHECK (operation_type IN ('motoristas', 'clientes', 'pacientes')); 
+                    END IF;
+                END $$;
+            `);
+        } catch (e: any) {
+            console.error("Error adding operation_type to companies:", e);
+        }
+
         await runWhatsappMigrations();
         console.log("Migrations finished.");
     } catch (e) {

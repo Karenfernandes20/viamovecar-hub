@@ -582,11 +582,17 @@ const AtendimentoPage = () => {
       return;
     }
 
-    const tempMessageId = Date.now();
     const messageContent = newMessage; // Capture current state
 
+    // 1. Validation (Strict)
+    if (!messageContent || !messageContent.trim()) {
+      alert("A mensagem não pode estar vazia.");
+      return;
+    }
+
+    const tempMessageId = Date.now();
     try {
-      // 1. Optimistic Update (Immediate Feedback)
+      // 2. Optimistic Update (Immediate Feedback)
       const optimisticMsg: Message = {
         id: tempMessageId,
         direction: "outbound",
@@ -596,9 +602,10 @@ const AtendimentoPage = () => {
       };
 
       setMessages((prev) => [...prev, optimisticMsg]);
-      setNewMessage(""); // Clear input immediately
 
-      // 2. Send to API
+      // 3. Send to API
+      // Payload structure requested: { to: ..., text: ... }
+      // Backend now supports { to, text } or { phone, message }
       const res = await fetch("/api/evolution/messages/send", {
         method: "POST",
         headers: {
@@ -606,8 +613,8 @@ const AtendimentoPage = () => {
           "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
-          phone: targetPhone,
-          message: messageContent,
+          to: targetPhone,
+          text: messageContent,
         }),
       });
 
@@ -618,7 +625,7 @@ const AtendimentoPage = () => {
 
         // Revert optimistic update on failure
         setMessages(prev => prev.filter(m => m.id !== tempMessageId));
-        setNewMessage(messageContent); // Restore text
+        // Input remains populated so user can try again
 
         // Try parsing JSON
         try {
@@ -627,7 +634,6 @@ const AtendimentoPage = () => {
           const errorDetails = errJson.details || errJson.body || "";
           alert(`${errorTitle}\n${errorDetails}`);
         } catch {
-          // HTML or raw text
           if (status === 502 || status === 504) {
             alert("O backend está indisponível ou demorando muito para responder (Gateway Timeout). Tente novamente.");
           } else if (status === 500) {
@@ -638,14 +644,12 @@ const AtendimentoPage = () => {
         }
       } else {
         console.log("Mensagem enviada com sucesso!");
-        // We could update the message ID here if the backend returns it, 
-        // but typically we wait for the socket event 'message:upsert' or 'message:received' to confirm.
+        setNewMessage(""); // Clear input ONLY on success as requested
       }
     } catch (err) {
       console.error("Erro ao enviar mensagem (Network/Code):", err);
       // Revert optimistic update on error
       setMessages(prev => prev.filter(m => m.id !== tempMessageId));
-      setNewMessage(messageContent);
       alert("Erro de conexão. Verifique se o servidor backend está rodando e acessível.");
     }
   };

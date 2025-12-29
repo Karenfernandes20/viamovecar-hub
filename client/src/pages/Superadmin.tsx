@@ -28,6 +28,13 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "../components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 import { Pencil, Trash2, Upload, Users, KeyRound } from "lucide-react";
 
 // Schema now only validates text fields; file validation is manual or via input accept
@@ -37,6 +44,7 @@ const companySchema = z.object({
   city: z.string().optional(),
   state: z.string().optional(),
   phone: z.string().optional(),
+  operation_type: z.enum(["motoristas", "clientes", "pacientes"]).optional(),
 });
 
 interface Company {
@@ -49,6 +57,7 @@ interface Company {
   logo_url: string | null;
   evolution_instance: string | null;
   evolution_apikey: string | null;
+  operation_type: "motoristas" | "clientes" | "pacientes" | null;
 }
 
 interface AppUser {
@@ -77,6 +86,7 @@ const SuperadminPage = () => {
     phone: "",
     evolution_instance: "",
     evolution_apikey: "",
+    operation_type: "clientes", // Default
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -130,6 +140,10 @@ const SuperadminPage = () => {
     setFormValues((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleSelectChange = (value: string) => {
+    setFormValues((prev) => ({ ...prev, operation_type: value }));
+  };
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       setSelectedFile(event.target.files[0]);
@@ -146,6 +160,7 @@ const SuperadminPage = () => {
       phone: company.phone ?? "",
       evolution_instance: company.evolution_instance ?? "",
       evolution_apikey: company.evolution_apikey ?? "",
+      operation_type: company.operation_type ?? "clientes",
     });
     setSelectedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -165,6 +180,7 @@ const SuperadminPage = () => {
       phone: "",
       evolution_instance: "",
       evolution_apikey: "",
+      operation_type: "clientes",
     });
     setSelectedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -203,6 +219,7 @@ const SuperadminPage = () => {
       if (parsed.data.city) formData.append("city", parsed.data.city);
       if (parsed.data.state) formData.append("state", parsed.data.state);
       if (parsed.data.phone) formData.append("phone", parsed.data.phone);
+      formData.append("operation_type", formValues.operation_type);
 
       // Evolution fields
       if (formValues.evolution_instance) formData.append("evolution_instance", formValues.evolution_instance);
@@ -401,7 +418,7 @@ const SuperadminPage = () => {
                     <span>Nome</span>
                     <span>CNPJ</span>
                     <span>Cidade/UF</span>
-                    <span>Telefone</span>
+                    <span>Ramo</span>
                     <span>Logo</span>
                     <span className="text-right">Ações</span>
                   </div>
@@ -422,7 +439,7 @@ const SuperadminPage = () => {
                         <span className="truncate text-muted-foreground">
                           {company.city || company.state ? `${company.city ?? ""}/${company.state ?? ""}` : "-"}
                         </span>
-                        <span className="truncate text-muted-foreground">{company.phone || "-"}</span>
+                        <span className="truncate text-muted-foreground capitalize">{company.operation_type || "-"}</span>
                         <div className="truncate text-primary flex items-center gap-2">
                           {company.logo_url ? (
                             <>
@@ -445,6 +462,7 @@ const SuperadminPage = () => {
                               </Button>
                             </DialogTrigger>
                             <DialogContent className="max-w-2xl">
+                              {/* Dialog content unchanged */}
                               <DialogHeader>
                                 <DialogTitle>Usuários: {company.name}</DialogTitle>
                                 <DialogDescription>
@@ -594,6 +612,7 @@ const SuperadminPage = () => {
             </CardHeader>
             <CardContent>
               <form className="space-y-3" onSubmit={handleSubmit}>
+                {/* Form fields: Name */}
                 <div className="space-y-1.5">
                   <Label htmlFor="name">Nome da empresa</Label>
                   <Input
@@ -605,6 +624,7 @@ const SuperadminPage = () => {
                     onChange={handleChange}
                   />
                 </div>
+                {/* Form fields: CNPJ */}
                 <div className="space-y-1.5">
                   <Label htmlFor="cnpj">CNPJ</Label>
                   <Input
@@ -615,6 +635,7 @@ const SuperadminPage = () => {
                     onChange={handleChange}
                   />
                 </div>
+                {/* Form fields: City/State */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="city">Cidade</Label>
@@ -638,6 +659,23 @@ const SuperadminPage = () => {
                     />
                   </div>
                 </div>
+
+                {/* Operation Type Selector */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="operation_type">Tipo de Operação</Label>
+                  <Select onValueChange={handleSelectChange} value={formValues.operation_type}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o ramo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="clientes">Clientes (Padrão)</SelectItem>
+                      <SelectItem value="motoristas">Motoristas</SelectItem>
+                      <SelectItem value="pacientes">Pacientes</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Form fields: Phone */}
                 <div className="space-y-1.5">
                   <Label htmlFor="phone">Telefone de contato</Label>
                   <Input
@@ -648,6 +686,7 @@ const SuperadminPage = () => {
                     onChange={handleChange}
                   />
                 </div>
+
 
                 <Separator className="my-2" />
                 <p className="text-sm font-semibold text-primary">Integração Evolution API</p>
