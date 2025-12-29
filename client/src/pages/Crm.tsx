@@ -153,25 +153,31 @@ const CrmPage = () => {
       ]);
 
       if (!stagesRes.ok || !leadsRes.ok) {
-        console.error("CRM API retornou erro, usando layout padrão.");
-        loadFallbackData();
+        console.error("CRM API retornou erro.");
+        // loadFallbackData(); // DONT LOAD FALLBACK, IT RESURRECTS DELETED ITEMS
         return;
       }
 
       const stagesData = await stagesRes.json();
       const leadsData = await leadsRes.json();
 
-      setStages(stagesData);
-      setLeads(
-        leadsData.map((l: any) => ({
-          ...l,
-          id: l.id.toString(),
-          columnId: l.stage_id?.toString(),
-        }))
-      );
+      // Basic validation
+      if (Array.isArray(stagesData)) {
+        setStages(stagesData);
+      }
+
+      if (Array.isArray(leadsData)) {
+        setLeads(
+          leadsData.map((l: any) => ({
+            ...l,
+            id: l.id.toString(),
+            columnId: l.stage_id?.toString(),
+          }))
+        );
+      }
     } catch (error) {
       console.error("Failed to fetch CRM data", error);
-      loadFallbackData();
+      // loadFallbackData(); // DONT LOAD FALLBACK
     }
   };
 
@@ -235,7 +241,10 @@ const CrmPage = () => {
 
   const deleteStage = async (stageId: number) => {
     const stage = stages.find((s) => s.id === stageId);
-    if (!stage || stage.name === "Leads") return;
+    if (!stage || stage.name === "Leads") return; // Prevent deleting default stage
+
+    // Optimistic remove
+    setStages((prev) => prev.filter((s) => s.id !== stageId));
 
     try {
       const res = await fetch(`/api/crm/stages/${stageId}`, {
@@ -243,13 +252,17 @@ const CrmPage = () => {
       });
 
       if (!res.ok) {
-        console.error("Erro ao excluir fase do funil no backend, removendo apenas do layout.");
+        const err = await res.json();
+        alert(`Erro ao excluir: ${err.error || 'Falha desconhecida'}`);
+        fetchData(); // Revert optimistic
+      } else {
+        // Success: refresh to see where leads went (if moved)
+        fetchData();
       }
     } catch (error) {
-      console.error("Erro ao excluir fase do funil, removendo apenas do layout.", error);
-    } finally {
-      setStages((prev) => prev.filter((s) => s.id !== stageId));
-      setLeads((prev) => prev.filter((l) => l.stage_id !== stageId));
+      console.error("Erro ao excluir fase do funil", error);
+      alert("Erro ao conectar com o servidor.");
+      fetchData(); // Revert
     }
   };
 

@@ -7,7 +7,7 @@ import {
   clearUsers,
   resetUserPassword,
 } from './controllers/userController';
-import { getStages, getLeads, updateLeadStage, createStage } from './controllers/crmController';
+import { getStages, getLeads, updateLeadStage, createStage, deleteStage } from './controllers/crmController';
 import { handleWebhook, getConversations, getMessages } from './controllers/webhookController';
 import { getCities, createCity } from './controllers/cityController';
 import { getPayables, getReceivablesByCity, getCashFlow, createExpense } from './controllers/financialController';
@@ -60,6 +60,7 @@ router.post('/cities', createCity);
 // CRM routes
 router.get('/crm/stages', getStages);
 router.post('/crm/stages', createStage);
+router.delete('/crm/stages/:id', deleteStage);
 router.get('/crm/leads', getLeads);
 router.put('/crm/leads/:id/move', updateLeadStage);
 

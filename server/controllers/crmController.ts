@@ -102,3 +102,52 @@ export const createStage = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Failed to create stage' });
     }
 };
+
+export const deleteStage = async (req: Request, res: Response) => {
+    try {
+        if (!pool) return res.status(500).json({ error: 'Database not configured' });
+        const { id } = req.params;
+
+        // 1. Check if stage exists and get details
+        const stageRes = await pool.query('SELECT * FROM crm_stages WHERE id = $1', [id]);
+        if (stageRes.rows.length === 0) {
+            return res.status(404).json({ error: 'Stage not found' });
+        }
+        const stageToDelete = stageRes.rows[0];
+
+        // 2. Prevent deleting "Leads" or critical stages
+        // 2. Prevent deleting "Leads" (system stage)
+        if (stageToDelete.name === 'Leads') {
+            return res.status(400).json({ error: 'Não é permitido excluir a fase inicial de Leads.' });
+        }
+
+        // 3. Move leads to "Leads" stage (ID 1 usually, or find by name)
+        // Find default 'Leads' stage
+        const defaultStageRes = await pool.query("SELECT id FROM crm_stages WHERE name = 'Leads' LIMIT 1");
+        let fallbackStageId = defaultStageRes.rows.length > 0 ? defaultStageRes.rows[0].id : null;
+
+        if (!fallbackStageId) {
+            // Fallback to any other stage that is not the one being deleted
+            const specificRes = await pool.query('SELECT id FROM crm_stages WHERE id != $1 ORDER BY position ASC LIMIT 1', [id]);
+            if (specificRes.rows.length > 0) fallbackStageId = specificRes.rows[0].id;
+        }
+
+        if (fallbackStageId) {
+            await pool.query('UPDATE crm_leads SET stage_id = $1 WHERE stage_id = $2', [fallbackStageId, id]);
+        } else {
+            const leadCount = await pool.query('SELECT COUNT(*) FROM crm_leads WHERE stage_id = $1', [id]);
+            if (parseInt(leadCount.rows[0].count) > 0) {
+                return res.status(400).json({ error: 'Não é possível excluir fase com leads sem uma fase de destino alternativa.' });
+            }
+        }
+
+        // 4. Delete stage
+        await pool.query('DELETE FROM crm_stages WHERE id = $1', [id]);
+
+        res.json({ message: 'Stage deleted successfully' });
+
+    } catch (error) {
+        console.error('Error deleting stage:', error);
+        res.status(500).json({ error: 'Failed to delete stage' });
+    }
+};
