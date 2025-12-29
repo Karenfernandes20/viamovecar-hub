@@ -142,10 +142,27 @@ const runWhatsappMigrations = async () => {
                 profile_pic_url TEXT,
                 instance VARCHAR(100),
                 created_at TIMESTAMP DEFAULT NOW(),
-                updated_at TIMESTAMP DEFAULT NOW(),
-                UNIQUE(jid, instance)
+                updated_at TIMESTAMP DEFAULT NOW()
+                -- Constraint will be enforced via Index below to be safe against existing tables
             );
         `);
+
+        // Enforce Unique Constraint for UPSERT (Safe Migration)
+        try {
+            // 1. Clean up potential duplicates first
+            await pool.query(`
+                DELETE FROM whatsapp_contacts a USING whatsapp_contacts b 
+                WHERE a.id < b.id AND a.jid = b.jid AND a.instance = b.instance;
+            `);
+
+            // 2. Create Unique Index if not exists (Required for ON CONFLICT (jid, instance))
+            await pool.query(`
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_contacts_jid_instance 
+                ON whatsapp_contacts (jid, instance);
+            `);
+        } catch (e) {
+            console.error("Warning: Could not enforce unique constraint on whatsapp_contacts:", e);
+        }
 
     } catch (error) {
         console.error("Error creating WhatsApp tables:", error);
