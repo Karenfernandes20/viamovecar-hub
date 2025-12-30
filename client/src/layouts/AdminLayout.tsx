@@ -37,17 +37,23 @@ export const AdminLayout = () => {
 
   // Dynamic Favicon Update
   useEffect(() => {
-    if (user?.company?.logo_url) {
-      // Try to find existing icon link
-      let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
-      if (!link) {
-        link = document.createElement('link');
-        link.rel = 'shortcut icon';
-        document.head.appendChild(link);
-      }
-      link.href = user.company.logo_url;
+    let faviconUrl = "/logo-integrai.jpg"; // Default fallback
+
+    if (user?.role === 'SUPERADMIN') {
+      faviconUrl = "/logo-integrai.jpg";
+    } else if (user?.company?.logo_url) {
+      faviconUrl = user.company.logo_url;
     }
-  }, [user?.company?.logo_url]);
+
+    // Try to find existing icon link
+    let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'shortcut icon';
+      document.head.appendChild(link);
+    }
+    link.href = faviconUrl;
+  }, [user?.company?.logo_url, user?.role]);
 
   return (
     <SidebarProvider>
