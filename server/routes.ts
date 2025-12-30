@@ -84,15 +84,17 @@ router.get('/reports/dre', authenticateToken, authorizeRole(['SUPERADMIN', 'ADMI
 router.get('/reports/breakdown', authenticateToken, authorizeRole(['SUPERADMIN', 'ADMIN']), getBreakdown);
 router.get('/reports/indicators', authenticateToken, authorizeRole(['SUPERADMIN', 'ADMIN']), getFinancialIndicators);
 
-import { getPayables, getReceivablesByCity, getCashFlow, createFinancialTransaction, updateFinancialTransaction, deleteFinancialTransaction, markAsPaid } from './controllers/financialController';
+import { getPayables, getReceivables, getReceivablesByCity, getCashFlow, getFinancialStats, createFinancialTransaction, updateFinancialTransaction, deleteFinancialTransaction, markAsPaid } from './controllers/financialController';
 // Financial routes
-router.get('/financial/payables', getPayables);
-router.get('/financial/receivables-by-city', getReceivablesByCity);
-router.get('/financial/cashflow', getCashFlow);
-router.post('/financial/transactions', createFinancialTransaction);
-router.put('/financial/transactions/:id', updateFinancialTransaction);
-router.delete('/financial/transactions/:id', deleteFinancialTransaction);
-router.post('/financial/transactions/:id/pay', markAsPaid);
+router.get('/financial/payables', authenticateToken, getPayables);
+router.get('/financial/receivables', authenticateToken, getReceivables);
+router.get('/financial/receivables-by-city', authenticateToken, getReceivablesByCity);
+router.get('/financial/cashflow', authenticateToken, getCashFlow);
+router.get('/financial/stats', authenticateToken, getFinancialStats);
+router.post('/financial/transactions', authenticateToken, createFinancialTransaction);
+router.put('/financial/transactions/:id', authenticateToken, updateFinancialTransaction);
+router.delete('/financial/transactions/:id', authenticateToken, deleteFinancialTransaction);
+router.post('/financial/transactions/:id/pay', authenticateToken, markAsPaid);
 
 // Placeholder for other routes
 router.get('/rides', (req, res) => res.json({ message: 'Rides endpoint' }));

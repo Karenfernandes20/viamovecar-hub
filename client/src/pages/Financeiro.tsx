@@ -74,7 +74,10 @@ import {
   Pencil,
   Trash2,
   FileText,
-  FileDown
+  FileDown,
+  ArrowUpRight,
+  ArrowDownRight,
+  Wallet
 } from "lucide-react";
 import {
   LineChart,
@@ -87,7 +90,9 @@ import {
   PieChart,
   Pie,
   Cell,
-  Legend
+  Legend,
+  BarChart,
+  Bar
 } from "recharts";
 import { format, isAfter, isBefore, addDays, startOfDay, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -95,6 +100,7 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useAuth } from "../contexts/AuthContext";
 
 interface Transaction {
   id: number;
@@ -106,29 +112,49 @@ interface Transaction {
   issue_date: string | null;
   paid_at: string | null;
   category: string | null;
+  notes: string | null;
+  company_id?: number | null;
   city_name?: string | null;
   city_state?: string | null;
 }
 
-const CATEGORIES = [
+const CATEGORIES_EXPENSES = [
   "Luz", "Internet", "Aluguel", "Combustível", "Manutenção",
   "Impostos", "Salários", "Marketing", "Limpeza", "Outros"
+];
+
+const CATEGORIES_REVENUES = [
+  "Corrida", "Assinatura", "Serviço", "Comissão", "Outros"
 ];
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d", "#ffc658", "#8dd1e1", "#a4de65", "#d0ed57"];
 
 const FinanceiroPage = () => {
-  // State
+  const { token, user } = useAuth();
+  // Main Tabs State
+  const [mainTab, setMainTab] = useState("expenses"); // expenses, revenues, cashflow
+
+  // Data State
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [stats, setStats] = useState({
+    revenues: 0,
+    expenses: 0,
+    balance: 0,
+    receivables: 0,
+    payables: 0,
+    overdue: 0,
+    received: 0,
+    paid: 0
+  });
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("table");
+  const [activeView, setActiveView] = useState("table"); // table, charts
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   // Filters
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState(format(startOfDay(new Date()), "yyyy-MM-01"));
+  const [endDate, setEndDate] = useState(format(addDays(startOfDay(new Date()), 30), "yyyy-MM-dd"));
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -141,7 +167,8 @@ const FinanceiroPage = () => {
     issue_date: format(new Date(), "yyyy-MM-dd"),
     category: "Outros",
     status: "pending",
-    type: "payable"
+    type: "payable",
+    notes: ""
   });
 
   const fetchData = async () => {
@@ -154,10 +181,26 @@ const FinanceiroPage = () => {
       if (categoryFilter !== "all") params.append("category", categoryFilter);
       if (searchTerm) params.append("search", searchTerm);
 
-      const res = await fetch(`/api/financial/payables?${params.toString()}`);
+      // Determine what to fetch based on mainTab
+      let endpoint = "/api/financial/payables";
+      if (mainTab === "revenues") endpoint = "/api/financial/receivables";
+      if (mainTab === "cashflow") endpoint = "/api/financial/cashflow";
+
+      const res = await fetch(`${endpoint}?${params.toString()}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
       if (res.ok) {
         const data = await res.json();
         setTransactions(data);
+      }
+
+      // Always fetch stats for the period
+      const statsRes = await fetch(`/api/financial/stats?startDate=${startDate}&endDate=${endDate}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        setStats(statsData);
       }
     } catch (error) {
       console.error("Erro ao carregar dados financeiros", error);
@@ -168,7 +211,7 @@ const FinanceiroPage = () => {
 
   useEffect(() => {
     fetchData();
-  }, [startDate, endDate, statusFilter, categoryFilter]);
+  }, [mainTab, startDate, endDate, statusFilter, categoryFilter]);
 
   const handleSave = async () => {
     if (!formData.description || !formData.amount) {
@@ -180,46 +223,75 @@ const FinanceiroPage = () => {
       const method = formData.id ? "PUT" : "POST";
       const url = formData.id ? `/api/financial/transactions/${formData.id}` : "/api/financial/transactions";
 
+      // Ensure type and company_id are correct if not editing
+      if (!formData.id) {
+        formData.type = (mainTab === "revenues" ? "receivable" : "payable") as any;
+        if (user?.company_id) {
+          formData.company_id = user.company_id;
+        }
+      }
+
+      console.log("Enviando dados:", formData);
+
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify(formData)
       });
 
       if (res.ok) {
         setIsDialogOpen(false);
-        setFormData({
-          description: "",
-          amount: 0,
-          due_date: format(new Date(), "yyyy-MM-dd"),
-          issue_date: format(new Date(), "yyyy-MM-dd"),
-          category: "Outros",
-          status: "pending",
-          type: "payable"
-        });
+        resetForm();
         await fetchData();
+      } else {
+        const errData = await res.json();
+        console.error("Erro do servidor:", errData);
+        alert(`Erro ao salvar: ${errData.error || 'Erro desconhecido'}`);
       }
     } catch (error) {
       console.error("Erro ao salvar", error);
+      alert("Erro ao conectar com o servidor.");
     }
   };
 
+  const resetForm = () => {
+    setFormData({
+      description: "",
+      amount: 0,
+      due_date: format(new Date(), "yyyy-MM-dd"),
+      issue_date: format(new Date(), "yyyy-MM-dd"),
+      category: "Outros",
+      status: "pending",
+      type: (mainTab === "revenues" ? "receivable" : "payable") as any,
+      notes: ""
+    });
+  };
+
   const handleDelete = async (id: number) => {
-    if (!confirm("Tem certeza que deseja excluir esta conta?")) return;
+    if (!confirm("Tem certeza que deseja excluir este registro?")) return;
     try {
-      const res = await fetch(`/api/financial/transactions/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/financial/transactions/${id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
       if (res.ok) await fetchData();
     } catch (error) {
       console.error("Erro ao excluir", error);
     }
   };
 
-  const handleMarkAsPaid = async (id: number) => {
+  const handleMarkAsReceivedOrPaid = async (id: number) => {
     try {
-      const res = await fetch(`/api/financial/transactions/${id}/pay`, { method: "POST" });
+      const res = await fetch(`/api/financial/transactions/${id}/pay`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
       if (res.ok) await fetchData();
     } catch (error) {
-      console.error("Erro ao marcar como pago", error);
+      console.error("Erro ao processar", error);
     }
   };
 
@@ -235,18 +307,6 @@ const FinanceiroPage = () => {
     }
   };
 
-  const isDueToday = (dateStr: string | null | undefined) => {
-    if (!dateStr) return false;
-    try {
-      const date = parseISO(dateStr);
-      if (isNaN(date.getTime())) return false;
-      const now = startOfDay(new Date());
-      return format(date, "yyyy-MM-dd") === format(now, "yyyy-MM-dd");
-    } catch (e) {
-      return false;
-    }
-  };
-
   const isOverdue = (dateStr: string | null | undefined) => {
     if (!dateStr) return false;
     try {
@@ -259,41 +319,6 @@ const FinanceiroPage = () => {
     }
   };
 
-  const isNext7Days = (dateStr: string | null | undefined) => {
-    if (!dateStr) return false;
-    try {
-      const date = parseISO(dateStr);
-      if (isNaN(date.getTime())) return false;
-      const now = startOfDay(new Date());
-      const next7 = addDays(now, 7);
-      return isAfter(date, now) && isBefore(date, next7);
-    } catch (e) {
-      return false;
-    }
-  };
-
-  const stats = useMemo(() => {
-    const totalPayableToday = transactions
-      .filter(t => t.status !== "paid" && isDueToday(t.due_date))
-      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
-
-    const next7DaysTotal = transactions
-      .filter(t => t.status !== "paid" && isNext7Days(t.due_date))
-      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
-
-    const overdueTotal = transactions
-      .filter(t => t.status !== "paid" && isOverdue(t.due_date))
-      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
-
-    return {
-      totalToPayToday: totalPayableToday,
-      next7Days: next7DaysTotal,
-      overdue: overdueTotal,
-      count: transactions.length,
-      average: transactions.length > 0 ? (transactions.reduce((sum, t) => sum + Number(t.amount || 0), 0) / transactions.length) : 0
-    };
-  }, [transactions]);
-
   const filteredData = useMemo(() => {
     if (!Array.isArray(transactions)) return [];
     return transactions.filter(t => {
@@ -305,9 +330,10 @@ const FinanceiroPage = () => {
   }, [transactions, searchTerm]);
 
   const totals = useMemo(() => {
-    if (!Array.isArray(filteredData)) return { pending: 0, overdue: 0, total: 0 };
+    if (!Array.isArray(filteredData)) return { pending: 0, paid: 0, overdue: 0, total: 0 };
     return {
       pending: filteredData.filter(t => t.status === "pending").reduce((sum, t) => sum + Number(t.amount || 0), 0),
+      paid: filteredData.filter(t => t.status === "paid").reduce((sum, t) => sum + Number(t.amount || 0), 0),
       overdue: filteredData.filter(t => t.status !== "paid" && isOverdue(t.due_date)).reduce((sum, t) => sum + Number(t.amount || 0), 0),
       total: filteredData.reduce((sum, t) => sum + Number(t.amount || 0), 0)
     };
@@ -317,106 +343,116 @@ const FinanceiroPage = () => {
   const lineChartData = useMemo(() => {
     const grouped = filteredData.reduce((acc: any, t) => {
       const date = safeFormat(t.due_date, "dd/MM");
-      if (!acc[date]) acc[date] = { date, pendente: 0, pago: 0 };
+      if (!acc[date]) acc[date] = { date, pendente: 0, pago: 0, total: 0 };
       if (t.status === "paid") acc[date].pago += Number(t.amount || 0);
       else acc[date].pendente += Number(t.amount || 0);
+      acc[date].total += Number(t.amount || 0);
       return acc;
     }, {});
-    return Object.values(grouped).sort((a: any, b: any) => {
-      // Safely sort by date if possible
-      return a.date.localeCompare(b.date);
-    });
+    return Object.values(grouped).sort((a: any, b: any) => a.date.localeCompare(b.date));
   }, [filteredData]);
 
   const pieChartData = useMemo(() => {
-    if (!Array.isArray(transactions)) return [];
     const grouped = filteredData.reduce((acc: any, t) => {
       const cat = t.category || "Outros";
       if (!acc[cat]) acc[cat] = 0;
       acc[cat] += Number(t.amount);
       return acc;
     }, {});
-    return Object.entries(grouped).map(([name, value]) => ({ name, value }));
+    return Object.entries(grouped)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => (b.value as number) - (a.value as number));
   }, [filteredData]);
 
+  const cashFlowDailyData = useMemo(() => {
+    if (mainTab !== "cashflow") return [];
+    const grouped = filteredData.reduce((acc: any, t) => {
+      const date = safeFormat(t.due_date, "dd/MM");
+      if (!acc[date]) acc[date] = { date, entrada: 0, saida: 0, saldo: 0 };
+      if (t.type === "receivable") acc[date].entrada += Number(t.amount || 0);
+      else acc[date].saida += Number(t.amount || 0);
+      acc[date].saldo = acc[date].entrada - acc[date].saida;
+      return acc;
+    }, {});
+
+    // Sort and calculate accumulation
+    const sorted = Object.values(grouped).sort((a: any, b: any) => a.date.localeCompare(b.date));
+    let accumulated = 0;
+    return sorted.map((day: any) => {
+      accumulated += day.saldo;
+      return { ...day, acumulado: accumulated };
+    });
+  }, [filteredData, mainTab]);
+
   // Exports
+  const getExportTitle = () => {
+    if (mainTab === "expenses") return "Relatório de Despesas & Contas a Pagar";
+    if (mainTab === "revenues") return "Relatório de Receitas & Contas a Receber";
+    return "Relatório de Fluxo de Caixa";
+  };
+
   const exportCSV = () => {
-    const headers = ["Descrição", "Categoria", "Emissão", "Vencimento", "Valor", "Status"];
+    const headers = ["Descrição", "Categoria", "Emissão", "Vencimento/Recebimento", "Valor", "Status", "Tipo"];
     const rows = filteredData.map(t => [
       t.description,
       t.category || "",
       t.issue_date ? format(parseISO(t.issue_date), "yyyy-MM-dd") : "",
       t.due_date ? format(parseISO(t.due_date), "yyyy-MM-dd") : "",
       t.amount,
-      t.status
+      t.status,
+      t.type === "receivable" ? "Receita" : "Despesa"
     ]);
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const csvContent = "\uFEFF" + [headers, ...rows].map(e => e.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    saveAs(blob, `financeiro_${format(new Date(), "yyyyMMdd")}.csv`);
+    saveAs(blob, `financeiro_${mainTab}_${format(new Date(), "yyyyMMdd")}.csv`);
   };
 
   const exportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(filteredData);
+    const ws = XLSX.utils.json_to_sheet(filteredData.map(t => ({
+      Descrição: t.description,
+      Categoria: t.category,
+      Emissão: t.issue_date ? format(parseISO(t.issue_date), "dd/MM/yyyy") : "",
+      "Vencimento/Recebimento": t.due_date ? format(parseISO(t.due_date), "dd/MM/yyyy") : "",
+      Valor: t.amount,
+      Status: t.status.toUpperCase(),
+      Tipo: t.type === "receivable" ? "Receita" : "Despesa"
+    })));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Financeiro");
     const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const data = new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8" });
-    saveAs(data, `financeiro_${format(new Date(), "yyyyMMdd")}.xlsx`);
+    saveAs(data, `financeiro_${mainTab}_${format(new Date(), "yyyyMMdd")}.xlsx`);
   };
 
   const exportPDF = () => {
     const doc = new jsPDF();
-
-    const tableColumn = ["Descrição", "Categoria", "Vencimento", "Valor", "Status"];
+    const tableColumn = ["Descrição", "Categoria", "Vencimento", "Valor", "Status", "Tipo"];
     const tableRows = filteredData.map(t => [
       t.description,
       t.category || "Sem categoria",
       safeFormat(t.due_date, "dd/MM/yyyy"),
       `R$ ${Number(t.amount || 0).toFixed(2)}`,
-      t.status.toUpperCase()
+      t.status.toUpperCase(),
+      t.type === "receivable" ? "RECEITA" : "DESPESA"
     ]);
 
-    const logoUrl = '/logo-integrai.jpg';
-    const img = new Image();
-    img.src = logoUrl;
+    doc.setFontSize(16);
+    doc.setTextColor(mainTab === "revenues" ? "#008069" : "#ff4444");
+    doc.text(getExportTitle(), 14, 15);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 14, 22);
+    doc.text(`Período: ${startDate ? format(parseISO(startDate), "dd/MM/yyyy") : "Início"} até ${endDate ? format(parseISO(endDate), "dd/MM/yyyy") : "Hoje"}`, 14, 27);
 
-    img.onload = () => {
-      // Adicionar Logo
-      doc.addImage(img, 'JPEG', 14, 5, 20, 20);
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 35,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: mainTab === "revenues" ? [0, 128, 105] : [128, 0, 0] }
+    });
 
-      // Cabeçalho
-      doc.setFontSize(16);
-      doc.setTextColor(0, 128, 105); // Verde Integrai
-      doc.text("INTEGRAI - Soluções Conectadas", 40, 12);
-
-      doc.setFontSize(10);
-      doc.setTextColor(100);
-      doc.text("Relatório de Contas a Pagar & Despesas", 40, 18);
-      doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 40, 23);
-
-      autoTable(doc, {
-        head: [tableColumn],
-        body: tableRows,
-        startY: 30,
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [0, 128, 105] }, // Match Integrai Green
-        margin: { top: 30 }
-      });
-
-      doc.save(`financeiro_${format(new Date(), "yyyyMMdd")}.pdf`);
-    };
-
-    img.onerror = () => {
-      // Fallback sem logo se falhar
-      doc.setFontSize(16);
-      doc.text("Relatório de Contas a Pagar", 14, 15);
-      autoTable(doc, {
-        head: [tableColumn],
-        body: tableRows,
-        startY: 20
-      });
-      doc.save(`financeiro_${format(new Date(), "yyyyMMdd")}.pdf`);
-    };
+    doc.save(`financeiro_${mainTab}_${format(new Date(), "yyyyMMdd")}.pdf`);
   };
 
   const getStatusBadge = (t: Transaction) => {
@@ -424,541 +460,682 @@ const FinanceiroPage = () => {
     const dueDate = t.due_date ? parseISO(t.due_date) : null;
     const itemStatus = t.status;
 
-    if (itemStatus === "paid") return <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-none text-[10px] font-bold">PAGO</Badge>;
-    if (dueDate && isBefore(dueDate, now)) return (
-      <Badge variant="destructive" className="animate-pulse shadow-sm flex items-center gap-1 text-[10px] font-bold">
-        <AlertCircle className="h-2.5 w-2.5" /> VENCIDO
+    if (itemStatus === "paid") {
+      return (
+        <Badge className={cn(
+          "border-none text-[10px] font-bold",
+          t.type === "receivable" ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "bg-emerald-500 hover:bg-emerald-600 text-white"
+        )}>
+          {t.type === "receivable" ? "RECEBIDO" : "PAGO"}
+        </Badge>
+      );
+    }
+
+    if (dueDate && isBefore(dueDate, now)) {
+      return (
+        <Badge variant="destructive" className="animate-pulse shadow-sm flex items-center gap-1 text-[10px] font-bold">
+          <AlertCircle className="h-2.5 w-2.5" /> VENCIDO
+        </Badge>
+      );
+    }
+
+    return (
+      <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-200 border-none text-[10px] font-bold">
+        {t.type === "receivable" ? "A RECEBER" : "PENDENTE"}
       </Badge>
     );
-    return <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-200 border-none text-[10px] font-bold">PENDENTE</Badge>;
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-[1600px] mx-auto animate-in fade-in duration-500">
+    <div className="p-4 md:p-6 space-y-6 max-w-[1600px] mx-auto animate-in fade-in duration-500 bg-zinc-50/30 min-h-screen">
 
-      {/* Header & New Action */}
+      {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Contas a Pagar & Despesas</h1>
-          <p className="text-sm text-muted-foreground flex items-center gap-2">
-            Gestão financeira completa com sincronização em tempo real <Badge variant="outline" className="text-[10px] h-5">v2.0 Beta</Badge>
+          <h1 className="text-3xl font-black tracking-tight text-foreground flex items-center gap-2">
+            Controle Financeiro
+            <Badge variant="outline" className="text-[10px] h-5 font-bold bg-white">v3.0</Badge>
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Visão unificada de receitas, despesas e fluxo de caixa consolidado.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={exportCSV} className="gap-2 h-9 text-xs font-semibold">
-            <FileDown className="h-4 w-4 text-zinc-600" /> CSV
-          </Button>
-          <Button variant="outline" size="sm" onClick={exportExcel} className="gap-2 h-9 text-xs font-semibold">
-            <FileDown className="h-4 w-4 text-emerald-600" /> Excel
-          </Button>
-          <Button variant="outline" size="sm" onClick={exportPDF} className="gap-2 h-9 text-xs font-semibold">
-            <FileText className="h-4 w-4 text-red-600" /> PDF
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2 h-10 text-xs font-bold">
+                <Download className="h-4 w-4" /> EXPORTAR
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={exportCSV} className="gap-2"><FileDown className="h-4 w-4" /> CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportExcel} className="gap-2"><FileDown className="h-4 w-4 text-emerald-600" /> Excel</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportPDF} className="gap-2"><FileText className="h-4 w-4 text-red-600" /> PDF</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="gap-2 h-9 text-xs font-bold bg-[#008069] hover:bg-[#006d59] shadow-md">
-                <Plus className="h-4 w-4" /> INCLUIR CONTA
+              <Button size="sm" className={cn(
+                "gap-2 h-10 text-xs font-bold shadow-lg transition-all",
+                mainTab === "revenues" ? "bg-[#008069] hover:bg-[#006d59]" : "bg-zinc-900 hover:bg-zinc-800"
+              )}>
+                <Plus className="h-4 w-4" /> {mainTab === "revenues" ? "NOVA RECEITA" : "NOVA DESPESA"}
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>{formData.id ? "Editar Conta" : "Cadastrar Nova Conta"}</DialogTitle>
+            <DialogContent className="max-w-md max-h-[90vh] flex flex-col p-0 overflow-hidden">
+              <DialogHeader className="p-6 pb-2 shrink-0">
+                <DialogTitle>{formData.id ? "Editar Lançamento" : `Cadastrar ${mainTab === "revenues" ? 'Receita' : 'Despesa'}`}</DialogTitle>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-muted-foreground uppercase">Fornecedor / Descrição</label>
-                  <Input
-                    value={formData.description}
-                    onChange={e => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Vivo Empresas, Aluguel Sede..."
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+
+              <div className="flex-1 overflow-y-auto px-6 py-2">
+                <div className="grid gap-4 py-4">
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-muted-foreground uppercase">Valor (R$)</label>
+                    <label className="text-xs font-bold text-muted-foreground uppercase">{mainTab === "revenues" ? "Cliente / Origem" : "Fornecedor / Descrição"}</label>
                     <Input
-                      type="number"
-                      value={formData.amount}
-                      onChange={e => setFormData({ ...formData, amount: Number(e.target.value) })}
+                      value={formData.description}
+                      onChange={e => setFormData({ ...formData, description: e.target.value })}
+                      placeholder={mainTab === "revenues" ? "Nome do cliente, plataforma..." : "Vivo, Aluguel, Prolabore..."}
                     />
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-muted-foreground uppercase">Valor (R$)</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={formData.amount}
+                        onChange={e => setFormData({ ...formData, amount: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-muted-foreground uppercase">Categoria</label>
+                      <Select value={formData.category || "Outros"} onValueChange={v => setFormData({ ...formData, category: v })}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(mainTab === "revenues" ? CATEGORIES_REVENUES : CATEGORIES_EXPENSES).map(c =>
+                            <SelectItem key={c} value={c}>{c}</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-muted-foreground uppercase">Emissão</label>
+                      <Input
+                        type="date"
+                        value={formData.issue_date?.split('T')[0] || ""}
+                        onChange={e => setFormData({ ...formData, issue_date: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-muted-foreground uppercase">{mainTab === "revenues" ? "Recebimento" : "Vencimento"}</label>
+                      <Input
+                        type="date"
+                        value={formData.due_date?.split('T')[0] || ""}
+                        onChange={e => setFormData({ ...formData, due_date: e.target.value })}
+                      />
+                    </div>
+                  </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-muted-foreground uppercase">Categoria</label>
-                    <Select value={formData.category || "Outros"} onValueChange={v => setFormData({ ...formData, category: v })}>
-                      <SelectTrigger>
+                    <label className="text-xs font-bold text-muted-foreground uppercase">Observações</label>
+                    <Input
+                      value={formData.notes || ""}
+                      onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                      placeholder="Detalhes adicionais..."
+                    />
+                  </div>
+                  <div className="space-y-2 pb-4">
+                    <label className="text-xs font-bold text-muted-foreground uppercase">Status</label>
+                    <Select value={formData.status} onValueChange={(v: any) => setFormData({ ...formData, status: v })}>
+                      <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        <SelectItem value="pending">{mainTab === "revenues" ? "A receber" : "Pendente"}</SelectItem>
+                        <SelectItem value="paid">{mainTab === "revenues" ? "Recebido" : "Pago"}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-muted-foreground uppercase">Emissão</label>
-                    <Input
-                      type="date"
-                      value={formData.issue_date && typeof formData.issue_date === 'string' ? formData.issue_date.split('T')[0] : ""}
-                      onChange={e => setFormData({ ...formData, issue_date: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-muted-foreground uppercase">Vencimento</label>
-                    <Input
-                      type="date"
-                      value={formData.due_date && typeof formData.due_date === 'string' ? formData.due_date.split('T')[0] : ""}
-                      onChange={e => setFormData({ ...formData, due_date: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-muted-foreground uppercase">Status Inicial</label>
-                  <Select value={formData.status} onValueChange={(v: any) => setFormData({ ...formData, status: v })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pendente</SelectItem>
-                      <SelectItem value="paid">Pago</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
-              <DialogFooter>
+
+              <DialogFooter className="p-6 pt-2 shrink-0 border-t bg-zinc-50/50">
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-                <Button onClick={handleSave} className="bg-[#008069] hover:bg-[#006d59]">Salvar Lançamento</Button>
+                <Button onClick={handleSave} className={mainTab === 'revenues' ? "bg-[#008069] hover:bg-[#006d59]" : "bg-zinc-900 hover:bg-zinc-800"}>
+                  Salvar Lançamento
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
-      {/* DASHBOARD CARDS */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card className="border-none shadow-sm bg-background">
-          <CardHeader className="pb-2 space-y-0 px-4 pt-4">
-            <CardDescription className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3 text-blue-500" /> A Pagar (Hoje)
+      {/* DASHBOARD INDICATORS (TOPO) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+        <Card className="border-none shadow-sm bg-emerald-50 dark:bg-emerald-950/20">
+          <CardHeader className="p-4 pb-1">
+            <CardDescription className="text-[10px] font-bold uppercase text-emerald-600 flex items-center gap-1">
+              <ArrowUpRight className="h-3 w-3" /> Receitas
             </CardDescription>
-            <CardTitle className="text-xl font-extrabold text-[#008069]">
-              R$ {stats.totalToPayToday.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            <CardTitle className="text-xl font-black text-emerald-700">
+              R$ {stats.revenues.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <div className="text-[10px] text-muted-foreground">Prioridade máxima</div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm bg-background">
-          <CardHeader className="pb-2 space-y-0 px-4 pt-4">
-            <CardDescription className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <Calendar className="h-3 w-3 text-indigo-500" /> Próximos 7 dias
-            </CardDescription>
-            <CardTitle className="text-xl font-extrabold">
-              R$ {stats.next7Days.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <div className="text-[10px] text-muted-foreground">Previsão semanal</div>
+          <CardContent className="p-4 pt-0">
+            <div className="text-[10px] text-emerald-600/70">No período selecionado</div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm bg-red-50 dark:bg-red-950/20">
-          <CardHeader className="pb-2 space-y-0 px-4 pt-4">
-            <CardDescription className="text-[10px] font-bold uppercase tracking-wider text-red-600 flex items-center gap-1">
-              <AlertCircle className="h-3 w-3 animate-bounce" /> Total Vencido
+          <CardHeader className="p-4 pb-1">
+            <CardDescription className="text-[10px] font-bold uppercase text-red-600 flex items-center gap-1">
+              <ArrowDownRight className="h-3 w-3" /> Despesas
             </CardDescription>
-            <CardTitle className="text-xl font-extrabold text-red-600">
+            <CardTitle className="text-xl font-black text-red-700">
+              R$ {stats.expenses.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className="text-[10px] text-red-600/70">No período selecionado</div>
+          </CardContent>
+        </Card>
+
+        <Card className={cn(
+          "border-none shadow-sm",
+          stats.balance >= 0 ? "bg-blue-50 dark:bg-blue-950/20" : "bg-amber-50 dark:bg-amber-950/20"
+        )}>
+          <CardHeader className="p-4 pb-1">
+            <CardDescription className={cn(
+              "text-[10px] font-bold uppercase flex items-center gap-1",
+              stats.balance >= 0 ? "text-blue-600" : "text-amber-600"
+            )}>
+              <Wallet className="h-3 w-3" /> Saldo
+            </CardDescription>
+            <CardTitle className={cn(
+              "text-xl font-black",
+              stats.balance >= 0 ? "text-blue-700" : "text-amber-700"
+            )}>
+              R$ {stats.balance.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className="text-[10px] opacity-70">Resultado líquido</div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm bg-white">
+          <CardHeader className="p-4 pb-1">
+            <CardDescription className="text-[10px] font-bold uppercase text-zinc-500 flex items-center gap-1">
+              A Receber
+            </CardDescription>
+            <CardTitle className="text-xl font-black text-zinc-900">
+              R$ {stats.receivables.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className="text-[10px] text-zinc-400">Total pendente</div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm bg-white">
+          <CardHeader className="p-4 pb-1">
+            <CardDescription className="text-[10px] font-bold uppercase text-zinc-500 flex items-center gap-1">
+              A Pagar
+            </CardDescription>
+            <CardTitle className="text-xl font-black text-zinc-900">
+              R$ {stats.payables.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className="text-[10px] text-zinc-400">Total pendente</div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm bg-red-100 dark:bg-red-900/40">
+          <CardHeader className="p-4 pb-1">
+            <CardDescription className="text-[10px] font-bold uppercase text-red-700 flex items-center gap-1">
+              <AlertCircle className="h-3 w-3 animate-pulse" /> Vencidos
+            </CardDescription>
+            <CardTitle className="text-xl font-black text-red-800">
               R$ {stats.overdue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <div className="text-[10px] text-red-600/70 font-semibold px-2 bg-red-100 dark:bg-red-900/30 rounded inline-block">ATENÇÃO</div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm bg-background">
-          <CardHeader className="pb-2 space-y-0 px-4 pt-4">
-            <CardDescription className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Quantidade</CardDescription>
-            <CardTitle className="text-xl font-extrabold">{stats.count}</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <div className="text-[10px] text-muted-foreground">Títulos registrados</div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm bg-background">
-          <CardHeader className="pb-2 space-y-0 px-4 pt-4">
-            <CardDescription className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Média Mensal</CardDescription>
-            <CardTitle className="text-xl font-extrabold">
-              R$ {stats.average.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <div className="text-[10px] text-muted-foreground">Baseado nos filtros</div>
+          <CardContent className="p-4 pt-0">
+            <div className="text-[10px] text-red-700/70 font-bold">Ação necessária</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* FILTERS AREA */}
-      <Card className="border-none shadow-sm bg-zinc-50 dark:bg-zinc-900/50">
-        <CardContent className="p-4 flex flex-wrap items-end gap-4">
-          <div className="space-y-1.5 flex-none w-[180px]">
-            <label className="text-[10px] font-bold uppercase text-muted-foreground">Busca rápida</label>
+      {/* NAVIGATION TABS */}
+      <Tabs value={mainTab} onValueChange={setMainTab} className="w-full">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b pb-4">
+          <TabsList className="bg-transparent border h-11 p-1 gap-1">
+            <TabsTrigger value="expenses" className="data-[state=active]:bg-zinc-900 data-[state=active]:text-white h-full px-6 font-bold text-xs uppercase transition-all">
+              <ArrowDownRight className="h-4 w-4 mr-2" /> Despesas
+            </TabsTrigger>
+            <TabsTrigger value="revenues" className="data-[state=active]:bg-[#008069] data-[state=active]:text-white h-full px-6 font-bold text-xs uppercase transition-all">
+              <ArrowUpRight className="h-4 w-4 mr-2" /> Receitas
+            </TabsTrigger>
+            <TabsTrigger value="cashflow" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white h-full px-6 font-bold text-xs uppercase transition-all">
+              <TrendingUp className="h-4 w-4 mr-2" /> Fluxo de Caixa
+            </TabsTrigger>
+          </TabsList>
+
+          <div className="flex items-center gap-2 bg-white p-1 rounded-lg border shadow-sm">
+            <Button
+              variant={activeView === 'table' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-8 text-[10px] font-bold uppercase px-4"
+              onClick={() => setActiveView('table')}
+            >
+              <TableIcon className="h-3.5 w-3.5 mr-1.5" /> Tabela
+            </Button>
+            <Button
+              variant={activeView === 'charts' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-8 text-[10px] font-bold uppercase px-4"
+              onClick={() => setActiveView('charts')}
+            >
+              <PieChartIcon className="h-3.5 w-3.5 mr-1.5" /> Gráficos
+            </Button>
+          </div>
+        </div>
+
+        {/* FILTERS AREA */}
+        <div className="mt-4 flex flex-wrap items-end gap-3 bg-white p-4 rounded-xl border shadow-sm">
+          <div className="space-y-1.5 flex-1 min-w-[200px]">
+            <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Buscar</label>
             <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Fornecedor / Categoria"
+                placeholder="Descrição, categoria ou notas..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="pl-8 h-9 text-xs"
+                className="pl-9 h-10 text-sm border-zinc-200"
               />
             </div>
           </div>
 
-          <div className="space-y-1.5 flex-none w-[130px]">
-            <label className="text-[10px] font-bold uppercase text-muted-foreground">Início</label>
-            <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 text-xs" />
+          <div className="space-y-1.5 w-[140px]">
+            <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Início</label>
+            <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-10 text-sm border-zinc-200" />
           </div>
 
-          <div className="space-y-1.5 flex-none w-[130px]">
-            <label className="text-[10px] font-bold uppercase text-muted-foreground">Fim</label>
-            <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 text-xs" />
+          <div className="space-y-1.5 w-[140px]">
+            <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Fim</label>
+            <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-10 text-sm border-zinc-200" />
           </div>
 
-          <div className="space-y-1.5 flex-none w-[120px]">
-            <label className="text-[10px] font-bold uppercase text-muted-foreground">Status</label>
+          <div className="space-y-1.5 w-[140px]">
+            <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Status</label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-9 text-xs font-semibold">
+              <SelectTrigger className="h-10 text-sm border-zinc-200 font-medium">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="pending">Pendentes</SelectItem>
-                <SelectItem value="paid">Pagos</SelectItem>
+                <SelectItem value="pending">{mainTab === 'revenues' ? 'A Receber' : 'Pendentes'}</SelectItem>
+                <SelectItem value="paid">{mainTab === 'revenues' ? 'Recebidos' : 'Pagos'}</SelectItem>
+                <SelectItem value="cancelled">Cancelados</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <div className="space-y-1.5 flex-none w-[150px]">
-            <label className="text-[10px] font-bold uppercase text-muted-foreground">Categoria</label>
+          <div className="space-y-1.5 w-[160px]">
+            <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Categoria</label>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="h-9 text-xs font-semibold">
+              <SelectTrigger className="h-10 text-sm border-zinc-200 font-medium">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas</SelectItem>
-                {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                {(mainTab === 'revenues' ? CATEGORIES_REVENUES : CATEGORIES_EXPENSES).map(c =>
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>
 
           <Button
             variant="ghost"
-            size="sm"
-            onClick={() => { setStartDate(""); setEndDate(""); setStatusFilter("all"); setCategoryFilter("all"); setSearchTerm(""); }}
-            className="h-9 text-xs font-semibold text-muted-foreground hover:text-red-500"
+            className="h-10 text-xs font-bold text-zinc-500 hover:text-red-500 transition-colors"
+            onClick={() => {
+              setStartDate(format(startOfDay(new Date()), "yyyy-MM-01"));
+              setEndDate(format(addDays(startOfDay(new Date()), 30), "yyyy-MM-dd"));
+              setStatusFilter("all");
+              setCategoryFilter("all");
+              setSearchTerm("");
+            }}
           >
-            <X className="h-4 w-4 mr-1" /> Limpar filtros
+            <X className="h-4 w-4 mr-2" /> LIMPAR
           </Button>
+        </div>
 
-          <div className="flex-1"></div>
-
-          <div className="bg-white dark:bg-zinc-800 p-1 rounded-lg border flex items-center gap-1 shrink-0">
-            <Button
-              variant={activeTab === 'table' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="h-7 text-[10px] font-bold uppercase px-3"
-              onClick={() => setActiveTab('table')}
-            >
-              <TableIcon className="h-3 w-3 mr-1.5" /> Tabela
-            </Button>
-            <Button
-              variant={activeTab === 'charts' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="h-7 text-[10px] font-bold uppercase px-3"
-              onClick={() => setActiveTab('charts')}
-            >
-              <TrendingUp className="h-3 w-3 mr-1.5" /> Gráficos
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* MAIN CONTENT AREA */}
-      <Tabs value={activeTab} className="w-full">
-        <TabsContent value="table" className="mt-0 border-none">
-          <div className="rounded-xl border shadow-sm bg-background overflow-hidden">
-            <Table>
-              <TableHeader className="bg-muted/30">
-                <TableRow>
-                  <TableHead className="w-[300px] text-xs font-bold uppercase">Fornecedor / Descrição</TableHead>
-                  <TableHead className="text-xs font-bold uppercase">Categoria</TableHead>
-                  <TableHead className="text-xs font-bold uppercase text-center">Emissão</TableHead>
-                  <TableHead className="text-xs font-bold uppercase text-center">Vencimento</TableHead>
-                  <TableHead className="text-xs font-bold uppercase text-right">Valor</TableHead>
-                  <TableHead className="text-xs font-bold uppercase text-center">Status</TableHead>
-                  <TableHead className="text-xs font-bold uppercase text-center w-[120px]">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
+        {/* TAB CONTENT: TABLE VIEW */}
+        {activeView === 'table' && (
+          <div className="mt-6 space-y-6">
+            <div className="rounded-xl border shadow-sm bg-white overflow-hidden">
+              <Table>
+                <TableHeader className="bg-zinc-50/50">
                   <TableRow>
-                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">Carregando dados financeiros...</TableCell>
+                    <TableHead className="w-[300px] text-[10px] font-bold uppercase">Descrição / Origem</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase">Categoria</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase">Emissão</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase">
+                      {mainTab === 'revenues' ? 'Vencimento' : 'Vencimento'}
+                    </TableHead>
+                    <TableHead className="text-right text-[10px] font-bold uppercase">Valor</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase">Status</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase w-[150px]">Ações</TableHead>
                   </TableRow>
-                ) : filteredData.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">Nenhum registro encontrado para os filtros selecionados.</TableCell>
-                  </TableRow>
-                ) : (
-                  filteredData.map((t) => (
-                    <TableRow key={t.id} className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900 group" onClick={() => { setSelectedTransaction(t); setIsSheetOpen(true); }}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className={cn("p-2 rounded-lg", t.status === 'paid' ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>
-                            <DollarSign className="h-4 w-4" />
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-48 text-center text-zinc-400 font-medium">Sincronizando dados...</TableCell>
+                    </TableRow>
+                  ) : filteredData.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-48 text-center text-zinc-400 font-medium">
+                        Nenhum registro encontrado para este período.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredData.map((t) => (
+                      <TableRow
+                        key={t.id}
+                        className="cursor-pointer hover:bg-zinc-50/80 group transition-colors"
+                        onClick={() => { setSelectedTransaction(t); setIsSheetOpen(true); }}
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <div className={cn(
+                              "p-2.5 rounded-xl shadow-sm",
+                              t.type === 'receivable' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+                            )}>
+                              {t.type === 'receivable' ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-sm text-zinc-900">{t.description}</span>
+                              <span className="text-[10px] text-zinc-400 font-medium">#{t.id} • {t.notes || "Sem observações"}</span>
+                            </div>
                           </div>
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-sm">{t.description}</span>
-                            <span className="text-[10px] text-muted-foreground">ID: {t.id}</span>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-[10px] font-medium border-zinc-200 dark:border-zinc-800">{t.category || "Outros"}</Badge>
-                      </TableCell>
-                      <TableCell className="text-center font-mono text-[11px] font-medium">
-                        {safeFormat(t.issue_date, "dd/MM/yyyy")}
-                      </TableCell>
-                      <TableCell className="text-center font-mono text-[11px] font-bold">
-                        {safeFormat(t.due_date, "dd/MM/yyyy")}
-                      </TableCell>
-                      <TableCell className="text-right font-bold text-sm">
-                        R$ {Number(t.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {getStatusBadge(t)}
-                      </TableCell>
-                      <TableCell className="text-center" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {t.status !== 'paid' && (
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-[10px] font-extrabold border-zinc-200 text-zinc-600 px-2 py-0 h-5">
+                            {t.category || "Outros"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center font-mono text-[11px] font-medium text-zinc-600">
+                          {safeFormat(t.issue_date, "dd/MM/yyyy")}
+                        </TableCell>
+                        <TableCell className={cn(
+                          "text-center font-mono text-[11px] font-bold",
+                          isOverdue(t.due_date) && t.status !== 'paid' ? "text-red-500" : "text-zinc-600"
+                        )}>
+                          {safeFormat(t.due_date, "dd/MM/yyyy")}
+                        </TableCell>
+                        <TableCell className={cn(
+                          "text-right font-black text-sm",
+                          t.type === 'receivable' ? "text-emerald-700" : "text-zinc-900"
+                        )}>
+                          R$ {Number(t.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {getStatusBadge(t)}
+                        </TableCell>
+                        <TableCell className="text-center w-[150px]" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1">
+                            {t.status !== 'paid' && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 shrink-0"
+                                onClick={() => handleMarkAsReceivedOrPaid(t.id)}
+                                title={t.type === 'receivable' ? "Receber" : "Pagar"}
+                              >
+                                {t.type === 'receivable' ? <ArrowUpRight className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                              </Button>
+                            )}
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                              onClick={() => handleMarkAsPaid(t.id)}
-                              title="Marcar como pago"
+                              className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 shrink-0"
+                              onClick={() => { setFormData(t); setIsDialogOpen(true); }}
+                              title="Editar"
                             >
-                              <CheckCircle2 className="h-4 w-4" />
+                              <Pencil className="h-4 w-4" />
                             </Button>
-                          )}
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                            onClick={() => { setFormData(t); setIsDialogOpen(true); }}
-                            title="Editar"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => handleDelete(t.id)}
-                            title="Excluir"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0"><MoreVertical className="h-4 w-4 text-zinc-400" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleMarkAsReceivedOrPaid(t.id)}>
+                                  {t.type === 'receivable' ? 'Marcar como Recebido' : 'Marcar como Pago'}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => { setFormData(t); setIsDialogOpen(true); }}>Editar</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDelete(t.id)} className="text-red-600">Excluir</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+                <TableFooter className="bg-zinc-50 border-t-2">
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-5 px-6">
+                      <div className="flex gap-6">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-zinc-400 uppercase">Total de Itens</span>
+                          <span className="text-sm font-black text-zinc-900">{filteredData.length} registros</span>
                         </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild className="group-hover:hidden">
-                            <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleMarkAsPaid(t.id)}>Marcar como pago</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => { setFormData(t); setIsDialogOpen(true); }}>Editar</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDelete(t.id)} className="text-red-600">Excluir</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-              <TableFooter className="bg-zinc-50 dark:bg-zinc-900 border-t">
-                <TableRow>
-                  <TableCell colSpan={4} className="text-xs font-bold py-4">
-                    <div className="flex gap-4">
-                      <span className="text-amber-600">Pendentes: R$ {totals.pending.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
-                      <span className="text-red-600">Vencidos: R$ {totals.overdue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right text-base font-extrabold" colSpan={2}>
-                    TOTAL GERAL: R$ {totals.total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell></TableCell>
-                </TableRow>
-              </TableFooter>
-            </Table>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-amber-500 uppercase">Pendente</span>
+                          <span className="text-sm font-black text-amber-600">R$ {totals.pending.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-red-500 uppercase">Vencido</span>
+                          <span className="text-sm font-black text-red-600">R$ {totals.overdue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right py-5 pr-6" colSpan={3}>
+                      <div className="flex flex-col items-end">
+                        <span className="text-[10px] font-bold text-zinc-400 uppercase">Resumo Filtrado</span>
+                        <span className="text-xl font-black text-zinc-900">
+                          Total: R$ {totals.total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                </TableFooter>
+              </Table>
+            </div>
           </div>
-        </TabsContent>
+        )}
 
-        <TabsContent value="charts" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="border-none shadow-sm h-[400px]">
+        {/* TAB CONTENT: CHARTS VIEW */}
+        {activeView === 'charts' && (
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6 pb-10">
+            <Card className="border-none shadow-sm h-[450px]">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center justify-between">
-                  Tendência de Pagamentos
-                  <TrendingUp className="h-4 w-4 text-emerald-500" />
+                <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center justify-between text-zinc-500">
+                  {mainTab === 'cashflow' ? 'Fluxo Diário x Acumulado' : 'Volume por Data'}
+                  <TrendingUp className="h-4 w-4 text-zinc-400" />
                 </CardTitle>
-                <CardDescription>Fluxo de caixa previsto por data de vencimento</CardDescription>
+                <CardDescription className="text-[11px]">Análise temporal do período selecionado</CardDescription>
               </CardHeader>
-              <CardContent className="h-[300px]">
+              <CardContent className="h-[350px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={lineChartData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                    <XAxis dataKey="date" fontSize={10} axisLine={false} tickLine={false} />
-                    <YAxis fontSize={10} axisLine={false} tickLine={false} tickFormatter={(v) => `R$ ${v}`} />
-                    <Tooltip
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                      formatter={(value: any) => `R$ ${value.toLocaleString("pt-BR")}`}
-                    />
-                    <Legend iconType="circle" />
-                    <Line type="monotone" dataKey="pendente" stroke="#FFBB28" strokeWidth={3} dot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="pago" stroke="#00C49F" strokeWidth={3} dot={{ r: 4 }} />
-                  </LineChart>
+                  {mainTab === 'cashflow' ? (
+                    <BarChart data={cashFlowDailyData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
+                      <XAxis dataKey="date" fontSize={10} axisLine={false} tickLine={false} />
+                      <YAxis fontSize={10} axisLine={false} tickLine={false} tickFormatter={(v) => `R$${v}`} />
+                      <Tooltip
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                        formatter={(v: any) => `R$ ${v.toLocaleString("pt-BR")}`}
+                      />
+                      <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 'bold' }} />
+                      <Bar dataKey="entrada" fill="#10b981" radius={[4, 4, 0, 0]} name="Entradas" />
+                      <Bar dataKey="saida" fill="#ef4444" radius={[4, 4, 0, 0]} name="Saídas" />
+                      <Line type="monotone" dataKey="acumulado" stroke="#6366f1" strokeWidth={3} dot={{ r: 4 }} name="Acumulado" />
+                    </BarChart>
+                  ) : (
+                    <LineChart data={lineChartData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
+                      <XAxis dataKey="date" fontSize={10} axisLine={false} tickLine={false} />
+                      <YAxis fontSize={10} axisLine={false} tickLine={false} tickFormatter={(v) => `R$${v}`} />
+                      <Tooltip
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                        formatter={(v: any) => `R$ ${v.toLocaleString("pt-BR")}`}
+                      />
+                      <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 'bold' }} />
+                      <Line type="monotone" dataKey="pago" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} name={mainTab === 'revenues' ? 'Recebido' : 'Pago'} />
+                      <Line type="monotone" dataKey="pendente" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} name={mainTab === 'revenues' ? 'A Receber' : 'Pendente'} />
+                    </LineChart>
+                  )}
                 </ResponsiveContainer>
               </CardContent>
             </Card>
 
-            <Card className="border-none shadow-sm h-[400px]">
+            <Card className="border-none shadow-sm h-[450px]">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center justify-between">
+                <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center justify-between text-zinc-500">
                   Distribuição por Categoria
-                  <PieChartIcon className="h-4 w-4 text-blue-500" />
+                  <PieChartIcon className="h-4 w-4 text-zinc-400" />
                 </CardTitle>
-                <CardDescription>Concentração de despesas por tipo</CardDescription>
+                <CardDescription className="text-[11px]">Concentração financeira por tipo de registro</CardDescription>
               </CardHeader>
-              <CardContent className="h-[300px] flex items-center justify-center">
+              <CardContent className="h-[350px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={pieChartData}
-                      innerRadius={60}
-                      outerRadius={80}
+                      innerRadius={80}
+                      outerRadius={110}
                       paddingAngle={5}
                       dataKey="value"
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     >
                       {pieChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} strokeWidth={0} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value: any) => `R$ ${value.toLocaleString("pt-BR")}`} />
-                    <Legend />
+                    <Tooltip
+                      contentStyle={{ borderRadius: '12px', border: 'none' }}
+                      formatter={(v: any) => `R$ ${v.toLocaleString("pt-BR")}`}
+                    />
+                    <Legend iconType="circle" layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
+        )}
       </Tabs>
 
-      {/* DETAIL SHEET */}
+      {/* DETAIL SHEET (SAME AS PREVIOUS BUT UPDATED) */}
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent className="w-full sm:max-w-md">
-          <SheetHeader className="mb-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-[#008069]">
-                <DollarSign className="h-6 w-6" />
+        <SheetContent className="w-full sm:max-w-md border-none shadow-2xl">
+          <SheetHeader className="pb-6 border-b">
+            <div className="flex items-center gap-4">
+              <div className={cn(
+                "p-4 rounded-2xl shadow-sm text-white",
+                selectedTransaction?.type === 'receivable' ? "bg-emerald-500" : "bg-zinc-900"
+              )}>
+                {selectedTransaction?.type === 'receivable' ? <ArrowUpRight className="h-7 w-7" /> : <ArrowDownRight className="h-7 w-7" />}
               </div>
               <div>
-                <SheetTitle className="text-lg leading-none">Detalhes do Lançamento</SheetTitle>
-                <SheetDescription className="text-xs">Visualização detalhada da transação bancária</SheetDescription>
+                <SheetTitle className="text-xl font-black">{selectedTransaction?.type === 'receivable' ? 'Detalhes da Receita' : 'Detalhes da Despesa'}</SheetTitle>
+                <SheetDescription className="text-xs font-bold uppercase tracking-wider opacity-60">ID: #{selectedTransaction?.id}</SheetDescription>
               </div>
             </div>
           </SheetHeader>
 
           {selectedTransaction && (
-            <ScrollArea className="h-[calc(100vh-150px)] pr-4">
-              <div className="space-y-6 pb-10">
-                <section className="space-y-3">
-                  <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground border-b pb-1">Identificação</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-[10px] text-muted-foreground uppercase">Fornecedor</p>
-                      <p className="text-sm font-bold">{selectedTransaction.description}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] text-muted-foreground uppercase">ID Interno</p>
-                      <p className="text-sm font-bold">#{selectedTransaction.id}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] text-muted-foreground uppercase">Categoria</p>
-                      <Badge variant="outline" className="font-bold">{selectedTransaction.category || "Outros"}</Badge>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] text-muted-foreground uppercase">Status Atual</p>
-                      {getStatusBadge(selectedTransaction)}
-                    </div>
+            <div className="flex flex-col h-full py-6 space-y-8">
+              <div className="space-y-6">
+                <div className="bg-zinc-50 p-6 rounded-3xl border border-zinc-100 flex flex-col items-center justify-center text-center">
+                  <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Valor do Título</span>
+                  <span className={cn(
+                    "text-4xl font-black",
+                    selectedTransaction.type === 'receivable' ? "text-emerald-600" : "text-zinc-900"
+                  )}>
+                    R$ {Number(selectedTransaction.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </span>
+                  <div className="mt-4">
+                    {getStatusBadge(selectedTransaction)}
                   </div>
-                </section>
+                </div>
 
-                <section className="space-y-3">
-                  <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground border-b pb-1">Valores e Datas</h3>
-                  <div className="bg-zinc-50 dark:bg-zinc-900/50 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800">
-                    <p className="text-[10px] text-muted-foreground uppercase mb-1">Montante do Título</p>
-                    <p className="text-3xl font-black text-[#008069]">R$ {Number(selectedTransaction.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Categoria</span>
+                    <span className="text-sm font-bold text-zinc-700">{selectedTransaction.category || "Sem categoria"}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 pt-2">
-                    <div className="space-y-1">
-                      <p className="text-[10px] text-muted-foreground uppercase">Emissão</p>
-                      <p className="text-sm font-semibold">{safeFormat(selectedTransaction.issue_date, "dd/MM/yyyy")}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] text-muted-foreground uppercase">Vencimento</p>
-                      <p className="text-sm font-extrabold text-red-500">{safeFormat(selectedTransaction.due_date, "dd/MM/yyyy")}</p>
-                    </div>
-                    {selectedTransaction.paid_at && (
-                      <div className="space-y-1 col-span-2">
-                        <p className="text-[10px] text-muted-foreground uppercase">Pagamento Realizado em</p>
-                        <p className="text-sm font-semibold flex items-center gap-2 text-emerald-600">
-                          <CheckCircle2 className="h-4 w-4" /> {safeFormat(selectedTransaction.paid_at, "dd/MM/yyyy 'às' HH:mm")}
-                        </p>
-                      </div>
-                    )}
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Cidade</span>
+                    <span className="text-sm font-bold text-zinc-700">{selectedTransaction.city_name || "Geral"}</span>
                   </div>
-                </section>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Data Emissão</span>
+                    <span className="text-sm font-bold text-zinc-700">{safeFormat(selectedTransaction.issue_date, "dd/MM/yyyy")}</span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{selectedTransaction.type === 'receivable' ? 'Previsão Receb.' : 'Vencimento'}</span>
+                    <span className={cn("text-sm font-black", isOverdue(selectedTransaction.due_date) && selectedTransaction.status !== 'paid' ? "text-red-500" : "text-zinc-700")}>
+                      {safeFormat(selectedTransaction.due_date, "dd/MM/yyyy")}
+                    </span>
+                  </div>
+                </div>
 
-                <section className="space-y-2">
-                  <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground border-b pb-1">Notas Internas</h3>
-                  <div className="text-xs text-muted-foreground bg-muted p-3 rounded-lg flex items-start gap-2">
-                    <FileText className="h-4 w-4 shrink-0" />
-                    <p>Este lançamento é fixo e recorrente. Todas as alterações refletem no fluxo de caixa projetado.</p>
+                <div className="space-y-2">
+                  <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Descrição / Observações</span>
+                  <div className="text-xs text-zinc-600 italic leading-relaxed bg-zinc-50 p-4 rounded-xl border border-dashed border-zinc-200">
+                    "{selectedTransaction.description}" <br />
+                    {selectedTransaction.notes && <span className="mt-2 block font-medium">Obs: {selectedTransaction.notes}</span>}
                   </div>
-                </section>
-
-                <div className="pt-6 grid grid-cols-2 gap-3">
-                  <Button className="w-full gap-2 h-10 font-bold" onClick={() => { setFormData(selectedTransaction); setIsDialogOpen(true); setIsSheetOpen(false); }}>
-                    <Pencil className="h-4 w-4" /> EDITAR
-                  </Button>
-                  {selectedTransaction.status !== 'paid' ? (
-                    <Button className="w-full gap-2 h-10 font-bold bg-emerald-600 hover:bg-emerald-700" onClick={() => handleMarkAsPaid(selectedTransaction.id)}>
-                      <CheckCircle2 className="h-4 w-4" /> PAGAR AGORA
-                    </Button>
-                  ) : (
-                    <Button className="w-full gap-2 h-10 font-bold" variant="outline" onClick={() => alert("Comprovante em desenvolvimento")}>
-                      <FileDown className="h-4 w-4" /> RECIBO
-                    </Button>
-                  )}
-                  <Button className="w-full gap-2 h-10 font-bold col-span-2" variant="destructive" onClick={() => { handleDelete(selectedTransaction.id); setIsSheetOpen(false); }}>
-                    <Trash2 className="h-4 w-4" /> EXCLUIR REGISTRO
-                  </Button>
                 </div>
               </div>
-            </ScrollArea>
+
+              <div className="mt-auto grid grid-cols-2 gap-3 pb-8">
+                <Button className="w-full gap-2 h-12 font-black shadow-md" onClick={() => { setFormData(selectedTransaction); setIsDialogOpen(true); setIsSheetOpen(false); }}>
+                  <Pencil className="h-4 w-4" /> EDITAR
+                </Button>
+
+                {selectedTransaction.status !== 'paid' ? (
+                  <Button
+                    className={cn(
+                      "w-full gap-2 h-12 font-black shadow-md",
+                      selectedTransaction.type === 'receivable' ? "bg-emerald-600 hover:bg-emerald-700" : "bg-zinc-900 hover:bg-zinc-800"
+                    )}
+                    onClick={() => handleMarkAsReceivedOrPaid(selectedTransaction.id)}
+                  >
+                    <CheckCircle2 className="h-4 w-4" /> {selectedTransaction.type === 'receivable' ? 'RECEBER' : 'PAGAR'}
+                  </Button>
+                ) : (
+                  <Button className="w-full gap-2 h-12 font-black" variant="outline" disabled>
+                    <CheckCircle2 className="h-4 w-4" /> CONCLUÍDO
+                  </Button>
+                )}
+
+                <Button
+                  className="w-full gap-2 h-12 font-black col-span-2 mt-2"
+                  variant="ghost"
+                  onClick={() => { handleDelete(selectedTransaction.id); setIsSheetOpen(false); }}
+                >
+                  <Trash2 className="h-4 w-4 text-red-500" /> EXCLUIR REGISTRO
+                </Button>
+              </div>
+            </div>
           )}
         </SheetContent>
       </Sheet>

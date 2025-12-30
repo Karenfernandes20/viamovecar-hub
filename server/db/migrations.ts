@@ -77,6 +77,8 @@ export const runMigrations = async () => {
                 paid_at TIMESTAMP,
                 city_id INTEGER,
                 category VARCHAR(100),
+                notes TEXT,
+                company_id INTEGER REFERENCES companies(id),
                 created_at TIMESTAMP DEFAULT NOW(),
                 updated_at TIMESTAMP DEFAULT NOW()
             );
@@ -84,6 +86,7 @@ export const runMigrations = async () => {
 
         // 2. Add columns if missing
         const addColumnSimple = async (col: string, type: string) => {
+            if (!pool) return;
             try {
                 await pool.query(`ALTER TABLE financial_transactions ADD COLUMN ${col} ${type};`);
             } catch (e) { }
@@ -91,7 +94,8 @@ export const runMigrations = async () => {
 
         await addColumnSimple('category', 'VARCHAR(100)');
         await addColumnSimple('paid_at', 'TIMESTAMP');
-        await addColumnSimple('issue_date', 'TIMESTAMP DEFAULT NOW()');
+        await addColumnSimple('notes', 'TEXT');
+        await addColumnSimple('company_id', 'INTEGER REFERENCES companies(id)');
 
         // 4. CRM Tables
         await pool.query(`
@@ -125,6 +129,7 @@ export const runMigrations = async () => {
                 email VARCHAR(100),
                 value DECIMAL(12, 2),
                 stage_id INTEGER REFERENCES crm_stages(id),
+                company_id INTEGER REFERENCES companies(id),
                 description TEXT,
                 origin VARCHAR(50),
                 created_at TIMESTAMP DEFAULT NOW(),

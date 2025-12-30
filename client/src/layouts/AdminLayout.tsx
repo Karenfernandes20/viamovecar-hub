@@ -37,10 +37,10 @@ export const AdminLayout = () => {
 
   // Dynamic Favicon Update
   useEffect(() => {
-    let faviconUrl = "/logo-integrai.jpg"; // Default fallback
+    let faviconUrl = "/logo-integrai.jpg?v=2"; // Default fallback
 
     if (user?.role === 'SUPERADMIN') {
-      faviconUrl = "/logo-integrai.jpg";
+      faviconUrl = "/logo-integrai.jpg?v=2";
     } else if (user?.company?.logo_url) {
       faviconUrl = user.company.logo_url;
     }

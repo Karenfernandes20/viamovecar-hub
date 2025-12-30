@@ -1,7 +1,7 @@
 {
-  "name": "ViaMoveCar Admin",
-  "short_name": "ViaMoveCar",
-  "description": "ViaMoveCar Admin: painel central de gestão com CRM, financeiro, atendimento WhatsApp e dashboard.",
+  "name": "Integrai | Sistema de Gestão Inteligente",
+  "short_name": "Integrai",
+  "description": "Integrai: CRM + Atendimento WhatsApp e automações de vendas unificados.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -9,9 +9,14 @@
   "theme_color": "#0b5ed7",
   "icons": [
     {
-      "src": "/favicon.ico",
-      "sizes": "32x32 48x48 64x64",
-      "type": "image/x-icon"
+      "src": "/logo-integrai.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "/logo-integrai.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
     }
   ]
 }

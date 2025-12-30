@@ -106,8 +106,35 @@ const Index = () => {
 
         {/* Dashboard Preview Section */}
         <section className="w-full relative mt-8">
+          <div className="text-center mb-10 space-y-2">
+            <h2 className="text-3xl font-bold tracking-tight">Potencialize sua Operação</h2>
+            <p className="text-muted-foreground">Módulos especializados para cada necessidade do seu negócio.</p>
+          </div>
+
           <div className="absolute -z-10 bg-primary/20 blur-[120px] w-[60%] h-[300px] rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-50" />
           <DashboardPreview />
+        </section>
+
+        {/* Feature Gallery */}
+        <section className="grid md:grid-cols-2 gap-8 w-full max-w-6xl mt-12 px-4">
+          <div className="flex flex-col gap-4 group">
+            <div className="overflow-hidden rounded-2xl border bg-white shadow-sm transition-all hover:shadow-xl hover:-translate-y-1">
+              <img src="/print-financeiro.png" alt="Financeiro Screen" className="aspect-video object-cover object-top" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold">Módulo Financeiro 360º</h3>
+              <p className="text-sm text-muted-foreground mt-1">Gestão de contas a pagar, fluxo de caixa e exportação de relatórios profissionais com a sua marca.</p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-4 group">
+            <div className="overflow-hidden rounded-2xl border bg-white shadow-sm transition-all hover:shadow-xl hover:-translate-y-1">
+              <img src="/print-usuarios.png" alt="Usuarios Screen" className="aspect-video object-cover object-top" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold">Gestão Inteligente de Usuários</h3>
+              <p className="text-sm text-muted-foreground mt-1">Controle total de passageiros, motoristas e equipe interna. Defina níveis de acesso e gerencie permissões com facilidade.</p>
+            </div>
+          </div>
         </section>
 
       </main>

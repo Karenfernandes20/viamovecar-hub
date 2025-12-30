@@ -420,6 +420,26 @@ export const DashboardPreview = () => {
                             </div>
                         </TabsContent>
 
+                        {/* TAB: FINANCEIRO PRINT */}
+                        <TabsContent value="financeiro" className="m-0 h-[450px] overflow-hidden rounded-lg border border-slate-200 bg-white">
+                            <div className="relative h-full w-full group">
+                                <img src="/print-financeiro.png" alt="Financeiro Module" className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
+                                    <p className="text-white text-sm font-medium">Controle total de contas a pagar, gráficos de desempenho e exportação profissional.</p>
+                                </div>
+                            </div>
+                        </TabsContent>
+
+                        {/* TAB: USUARIOS PRINT */}
+                        <TabsContent value="usuarios" className="m-0 h-[450px] overflow-hidden rounded-lg border border-slate-200 bg-white">
+                            <div className="relative h-full w-full group">
+                                <img src="/print-usuarios.png" alt="Users Module" className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
+                                    <p className="text-white text-sm font-medium">Gestão simplificada de motoristas, passageiros e equipe administrativa com níveis de acesso.</p>
+                                </div>
+                            </div>
+                        </TabsContent>
+
                     </Tabs>
                 </div>
             </div>

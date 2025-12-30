@@ -1,43 +1,48 @@
 import { Request, Response } from 'express';
 import { pool } from '../db';
 
-export const getPayables = async (req: Request, res: Response) => {
+export const getTransactions = async (req: Request, res: Response) => {
   try {
     if (!pool) return res.status(500).json({ error: 'Database not configured' });
 
-    const { startDate, endDate, status, category, search } = req.query;
-    const conditions: string[] = ["type = 'payable'"];
+    const { startDate, endDate, status, category, search, type } = req.query;
+    const conditions: string[] = [];
     const params: any[] = [];
+
+    if (type && type !== 'all') {
+      params.push(type);
+      conditions.push(`ft.type = $${params.length}`);
+    }
 
     if (startDate) {
       params.push(startDate);
-      conditions.push(`due_date >= $${params.length}`);
+      conditions.push(`ft.due_date >= $${params.length}`);
     }
 
     if (endDate) {
       params.push(endDate);
-      conditions.push(`due_date <= $${params.length}`);
+      conditions.push(`ft.due_date <= $${params.length}`);
     }
 
     if (status && status !== 'all') {
       params.push(status);
-      conditions.push(`status = $${params.length}`);
+      conditions.push(`ft.status = $${params.length}`);
     }
 
     if (category && category !== 'all') {
       params.push(category);
-      conditions.push(`category = $${params.length}`);
+      conditions.push(`ft.category = $${params.length}`);
     }
 
     if (search) {
       params.push(`%${search}%`);
-      conditions.push(`(description ILIKE $${params.length} OR category ILIKE $${params.length})`);
+      conditions.push(`(ft.description ILIKE $${params.length} OR ft.category ILIKE $${params.length} OR ft.notes ILIKE $${params.length})`);
     }
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const query = `
-      SELECT ft.id, ft.description, ft.amount, ft.status, ft.due_date, ft.issue_date, ft.category, ft.paid_at,
+      SELECT ft.*,
              c.name as city_name, c.state as city_state
       FROM financial_transactions ft
       LEFT JOIN cities c ON ft.city_id = c.id
@@ -48,8 +53,64 @@ export const getPayables = async (req: Request, res: Response) => {
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching payables:', error);
-    res.status(500).json({ error: 'Failed to fetch payables' });
+    console.error('Error fetching transactions:', error);
+    res.status(500).json({ error: 'Failed to fetch transactions' });
+  }
+};
+
+// Keep old names for compatibility if needed, or update routes
+export const getPayables = (req: Request, res: Response) => {
+  req.query.type = 'payable';
+  return getTransactions(req, res);
+};
+
+export const getReceivables = (req: Request, res: Response) => {
+  req.query.type = 'receivable';
+  return getTransactions(req, res);
+};
+
+export const getFinancialStats = async (req: Request, res: Response) => {
+  try {
+    if (!pool) return res.status(500).json({ error: 'Database not configured' });
+
+    const { startDate, endDate } = req.query;
+    const params: any[] = [];
+    let dateFilter = '';
+
+    if (startDate && endDate) {
+      params.push(startDate, endDate);
+      dateFilter = `AND due_date BETWEEN $1 AND $2`;
+    }
+
+    const query = `
+      SELECT 
+        SUM(CASE WHEN type = 'receivable' THEN amount ELSE 0 END) as total_receivables,
+        SUM(CASE WHEN type = 'payable' THEN amount ELSE 0 END) as total_payables,
+        SUM(CASE WHEN type = 'receivable' AND status = 'paid' THEN amount ELSE 0 END) as received_amount,
+        SUM(CASE WHEN type = 'payable' AND status = 'paid' THEN amount ELSE 0 END) as paid_amount,
+        SUM(CASE WHEN type = 'receivable' AND status = 'pending' THEN amount ELSE 0 END) as pending_receivables,
+        SUM(CASE WHEN type = 'payable' AND status = 'pending' THEN amount ELSE 0 END) as pending_payables,
+        SUM(CASE WHEN status != 'paid' AND due_date < CURRENT_DATE THEN amount ELSE 0 END) as total_overdue
+      FROM financial_transactions
+      WHERE status != 'cancelled' ${dateFilter}
+    `;
+
+    const result = await pool.query(query, params);
+    const stats = result.rows[0];
+
+    res.json({
+      revenues: Number(stats.total_receivables || 0),
+      expenses: Number(stats.total_payables || 0),
+      balance: Number(stats.total_receivables || 0) - Number(stats.total_payables || 0),
+      receivables: Number(stats.pending_receivables || 0),
+      payables: Number(stats.pending_payables || 0),
+      overdue: Number(stats.total_overdue || 0),
+      received: Number(stats.received_amount || 0),
+      paid: Number(stats.paid_amount || 0)
+    });
+  } catch (error) {
+    console.error('Error fetching financial stats:', error);
+    res.status(500).json({ error: 'Failed to fetch financial stats' });
   }
 };
 
@@ -97,13 +158,7 @@ export const getCashFlow = async (req: Request, res: Response) => {
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const query = `
-      SELECT ft.id,
-             ft.description,
-             ft.amount,
-             ft.type,
-             ft.status,
-             ft.due_date,
-             ft.category,
+      SELECT ft.*,
              c.name as city_name,
              c.state as city_state
       FROM financial_transactions ft
@@ -124,23 +179,34 @@ export const createFinancialTransaction = async (req: Request, res: Response) =>
   try {
     if (!pool) return res.status(500).json({ error: 'Database not configured' });
 
-    const { description, amount, due_date, issue_date, category, status, type, city_id } = req.body;
+    const { description, amount, due_date, issue_date, category, status, type, city_id, notes, company_id } = req.body;
 
     if (!description || !amount) {
       return res.status(400).json({ error: 'description and amount are required' });
     }
 
     const result = await pool.query(
-      `INSERT INTO financial_transactions (description, type, amount, status, due_date, issue_date, category, city_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING *` ,
-      [description, type || 'payable', amount, status || 'pending', due_date || null, issue_date || new Date(), category || null, city_id || null]
+      `INSERT INTO financial_transactions (description, type, amount, status, due_date, issue_date, category, city_id, notes, company_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [
+        description,
+        type || 'payable',
+        amount,
+        status || 'pending',
+        (due_date && due_date !== "") ? due_date : null,
+        (issue_date && issue_date !== "") ? issue_date : new Date(),
+        category || null,
+        (city_id && city_id !== "") ? city_id : null,
+        notes || null,
+        (company_id && company_id !== "" && company_id !== 0) ? company_id : null
+      ]
     );
 
     res.status(201).json(result.rows[0]);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating transaction:', error);
-    res.status(500).json({ error: 'Failed to create transaction' });
+    res.status(500).json({ error: 'Failed to create transaction', details: error.message });
   }
 };
 
@@ -148,21 +214,33 @@ export const updateFinancialTransaction = async (req: Request, res: Response) =>
   try {
     if (!pool) return res.status(500).json({ error: 'Database not configured' });
     const { id } = req.params;
-    const { description, amount, due_date, issue_date, category, status, type, city_id } = req.body;
+    const { description, amount, due_date, issue_date, category, status, type, city_id, notes, company_id } = req.body;
 
     const result = await pool.query(
       `UPDATE financial_transactions 
-             SET description = $1, amount = $2, due_date = $3, issue_date = $4, category = $5, status = $6, type = $7, city_id = $8, updated_at = NOW()
-             WHERE id = $9
+             SET description = $1, amount = $2, due_date = $3, issue_date = $4, category = $5, status = $6, type = $7, city_id = $8, notes = $9, company_id = $10, updated_at = NOW()
+             WHERE id = $11
              RETURNING *`,
-      [description, amount, due_date, issue_date, category, status, type, city_id, id]
+      [
+        description,
+        amount,
+        (due_date && due_date !== "") ? due_date : null,
+        (issue_date && issue_date !== "") ? issue_date : null,
+        category || null,
+        status,
+        type,
+        (city_id && city_id !== "") ? city_id : null,
+        notes || null,
+        (company_id && company_id !== "" && company_id !== 0) ? company_id : null,
+        id
+      ]
     );
 
     if (result.rowCount === 0) return res.status(404).json({ error: 'Transaction not found' });
     res.json(result.rows[0]);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating transaction:', error);
-    res.status(500).json({ error: 'Failed to update transaction' });
+    res.status(500).json({ error: 'Failed to update transaction', details: error.message });
   }
 };
 
