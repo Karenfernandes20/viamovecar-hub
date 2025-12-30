@@ -780,6 +780,7 @@ const FinanceiroPage = () => {
                         type="number"
                         step="0.01"
                         value={formData.amount}
+                        onFocus={(e) => e.target.select()}
                         onChange={e => setFormData({ ...formData, amount: Number(e.target.value) })}
                       />
                     </div>
