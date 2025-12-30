@@ -73,8 +73,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
                     await pool.query('UPDATE whatsapp_conversations SET contact_name = $1 WHERE id = $2', [msg.pushName, conversationId]);
                 }
 
-                // If outbound from phone and status is PENDING/null, upgrade to OPEN
-                if (direction === 'outbound' && (existingStatus === 'PENDING' || !existingStatus)) {
+                // Any outbound from me should ensure the conversation is OPEN
+                if (direction === 'outbound' && existingStatus !== 'OPEN') {
                     await pool.query("UPDATE whatsapp_conversations SET status = 'OPEN' WHERE id = $1", [conversationId]);
                 }
             } else {

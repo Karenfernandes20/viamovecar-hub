@@ -10,7 +10,10 @@ import {
   UserPlus,
   Trash2,
   Pencil,
-  XCircle
+  XCircle,
+  Play,
+  CheckCircle2,
+  RotateCcw
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
@@ -948,10 +951,11 @@ const AtendimentoPage = () => {
     }
   };
 
-  const handleStartAtendimento = async () => {
-    if (!selectedConversation) return;
+  const handleStartAtendimento = async (conversation?: Conversation) => {
+    const conv = conversation || selectedConversation;
+    if (!conv) return;
     try {
-      const res = await fetch(`/api/crm/conversations/${selectedConversation.id}/start`, {
+      const res = await fetch(`/api/crm/conversations/${conv.id}/start`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` }
       });
@@ -959,10 +963,11 @@ const AtendimentoPage = () => {
         const userId = user?.id ? Number(user.id) : undefined;
         // Atualiza localmente
         setConversations(prev => prev.map(c =>
-          c.id === selectedConversation.id ? { ...c, status: 'OPEN', user_id: userId } : c
+          c.id === conv.id ? { ...c, status: 'OPEN' as const, user_id: userId } : c
         ));
-        setSelectedConversation(prev => prev ? { ...prev, status: 'OPEN', user_id: userId } : null);
-        setStatusFilter('OPEN'); // Move para a tab Open para o usuário ver
+        if (selectedConversation?.id === conv.id) {
+          setSelectedConversation(prev => prev ? { ...prev, status: 'OPEN' as const, user_id: userId } : null);
+        }
       } else {
         const err = await res.json();
         alert(err.error || "Erro ao iniciar atendimento");
@@ -970,21 +975,23 @@ const AtendimentoPage = () => {
     } catch (e) { console.error(e); alert("Erro ao conectar."); }
   };
 
-  const handleCloseAtendimento = async () => {
-    if (!selectedConversation) return;
+  const handleCloseAtendimento = async (conversation?: Conversation) => {
+    const conv = conversation || selectedConversation;
+    if (!conv) return;
     if (!confirm("Deseja realmente encerrar este atendimento?")) return;
 
     try {
-      const res = await fetch(`/api/crm/conversations/${selectedConversation.id}/close`, {
+      const res = await fetch(`/api/crm/conversations/${conv.id}/close`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
         setConversations(prev => prev.map(c =>
-          c.id === selectedConversation.id ? { ...c, status: 'CLOSED' } : c
+          c.id === conv.id ? { ...c, status: 'CLOSED' as const } : c
         ));
-        setStatusFilter('CLOSED'); // Move view
-        setSelectedConversation(null); // Deselect or keep? keep for review
+        if (selectedConversation?.id === conv.id) {
+          setSelectedConversation(prev => prev ? { ...prev, status: 'CLOSED' as const } : null);
+        }
       } else {
         const err = await res.json();
         alert(err.error || "Erro ao encerrar atendimento");
@@ -993,6 +1000,8 @@ const AtendimentoPage = () => {
       console.error(e);
     }
   };
+
+  const [viewMode, setViewMode] = useState<'ALL' | 'PENDING' | 'OPEN' | 'CLOSED'>('ALL');
 
   // Check Permissions
   const isMyAttendance = selectedConversation?.user_id === user?.id;
@@ -1017,7 +1026,7 @@ const AtendimentoPage = () => {
       key={conv.id}
       onClick={() => setSelectedConversation(conv)}
       className={cn(
-        "group mx-3 my-1 p-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent",
+        "group mx-3 my-1 p-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent flex flex-col gap-2",
         selectedConversation?.id === conv.id
           ? "bg-[#e7fce3] dark:bg-[#005c4b]/30 border-[#00a884]/20 shadow-sm"
           : "hover:bg-zinc-50 dark:hover:bg-zinc-900 border-zinc-100/50 dark:border-zinc-800/50"
@@ -1068,6 +1077,43 @@ const AtendimentoPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Action Buttons on Hover or if Selected */}
+      <div className={cn(
+        "flex items-center gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end",
+        selectedConversation?.id === conv.id && "opacity-100"
+      )}>
+        {(conv.status === 'PENDING' || !conv.status) && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-[10px] gap-1 text-[#008069] hover:bg-[#008069]/10"
+            onClick={(e) => { e.stopPropagation(); handleStartAtendimento(conv); }}
+          >
+            <Play className="h-3 w-3 fill-current" /> INICIAR
+          </Button>
+        )}
+        {conv.status === 'OPEN' && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-[10px] gap-1 text-red-500 hover:bg-red-50"
+            onClick={(e) => { e.stopPropagation(); handleCloseAtendimento(conv); }}
+          >
+            <CheckCircle2 className="h-3 w-3" /> ENCERRAR
+          </Button>
+        )}
+        {conv.status === 'CLOSED' && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-[10px] gap-1 text-blue-500 hover:bg-blue-50"
+            onClick={(e) => { e.stopPropagation(); handleStartAtendimento(conv); }}
+          >
+            <RotateCcw className="h-3 w-3" /> REABRIR
+          </Button>
+        )}
+      </div>
     </div>
   );
 
@@ -1113,70 +1159,107 @@ const AtendimentoPage = () => {
             </div>
           </div>
 
-          <div className="px-3 py-2">
+          <div className="px-3 py-2 flex flex-col gap-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Pesquisar ou começar uma nova conversa"
+                placeholder="Pesquisar..."
                 className="pl-9 h-9 bg-zinc-100 dark:bg-zinc-900 border-none rounded-lg text-sm"
                 value={conversationSearchTerm}
                 onChange={(e) => setConversationSearchTerm(e.target.value)}
               />
             </div>
+
+            {/* Quick Filter Selection */}
+            <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg self-start">
+              <button
+                onClick={() => setViewMode('ALL')}
+                className={cn("text-[10px] px-2 py-1 rounded font-bold uppercase", viewMode === 'ALL' ? "bg-white dark:bg-zinc-800 shadow-sm text-zinc-900" : "text-zinc-500")}
+              >
+                Tudo
+              </button>
+              <button
+                onClick={() => setViewMode('PENDING')}
+                className={cn("text-[10px] px-2 py-1 rounded font-bold uppercase", viewMode === 'PENDING' ? "bg-zinc-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700")}
+              >
+                Pendentes
+              </button>
+              <button
+                onClick={() => setViewMode('OPEN')}
+                className={cn("text-[10px] px-2 py-1 rounded font-bold uppercase", viewMode === 'OPEN' ? "bg-[#008069] text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700")}
+              >
+                Abertos
+              </button>
+              <button
+                onClick={() => setViewMode('CLOSED')}
+                className={cn("text-[10px] px-2 py-1 rounded font-bold uppercase", viewMode === 'CLOSED' ? "bg-zinc-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700")}
+              >
+                Fechados
+              </button>
+            </div>
           </div>
 
           <CardContent className="flex-1 overflow-hidden p-0">
-            {/* Aba CONVERSAS - 3 COLUNAS */}
+            {/* Aba CONVERSAS - 3 COLUNAS ou Filtro Único */}
             <TabsContent value="conversas" className="h-full flex flex-col m-0">
-              <div className="flex-1 grid grid-cols-3 divide-x divide-zinc-100 dark:divide-zinc-800 h-full overflow-hidden">
+              <div className={cn(
+                "flex-1 divide-x divide-zinc-100 dark:divide-zinc-800 h-full overflow-hidden",
+                viewMode === 'ALL' ? "grid grid-cols-3" : "flex"
+              )}>
 
                 {/* COLUNA PENDENTES */}
-                <div className="flex flex-col h-full overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 bg-zinc-50/50 dark:bg-zinc-900/50 border-b">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Pendentes</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[10px] font-medium">{pendingConversations.length}</span>
-                  </div>
-                  <ScrollArea className="flex-1">
-                    <div className="flex flex-col py-2">
-                      {pendingConversations.map(conv => renderConversationCard(conv))}
-                      {pendingConversations.length === 0 && (
-                        <div className="text-center text-[11px] text-muted-foreground p-8 opacity-60">Vazio</div>
-                      )}
+                {(viewMode === 'ALL' || viewMode === 'PENDING') && (
+                  <div className="flex flex-col h-full overflow-hidden flex-1">
+                    <div className="flex items-center justify-between px-4 py-3 bg-zinc-50/50 dark:bg-zinc-900/50 border-b">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Pendentes</span>
+                      <span className="px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[10px] font-medium">{pendingConversations.length}</span>
                     </div>
-                  </ScrollArea>
-                </div>
+                    <ScrollArea className="flex-1">
+                      <div className="flex flex-col py-2">
+                        {pendingConversations.map(conv => renderConversationCard(conv))}
+                        {pendingConversations.length === 0 && (
+                          <div className="text-center text-[11px] text-muted-foreground p-8 opacity-60">Vazio</div>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
 
                 {/* COLUNA ABERTOS */}
-                <div className="flex flex-col h-full overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 bg-[#e7fce3]/40 dark:bg-[#005c4b]/10 border-b">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#008069]">Abertos</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-[#008069]/10 text-[#008069] text-[10px] font-medium">{openConversations.length}</span>
-                  </div>
-                  <ScrollArea className="flex-1">
-                    <div className="flex flex-col py-2">
-                      {openConversations.map(conv => renderConversationCard(conv))}
-                      {openConversations.length === 0 && (
-                        <div className="text-center text-[11px] text-muted-foreground p-8 opacity-60">Vazio</div>
-                      )}
+                {(viewMode === 'ALL' || viewMode === 'OPEN') && (
+                  <div className="flex flex-col h-full overflow-hidden flex-1">
+                    <div className="flex items-center justify-between px-4 py-3 bg-[#e7fce3]/40 dark:bg-[#005c4b]/10 border-b">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#008069]">Abertos</span>
+                      <span className="px-1.5 py-0.5 rounded-full bg-[#008069]/10 text-[#008069] text-[10px] font-medium">{openConversations.length}</span>
                     </div>
-                  </ScrollArea>
-                </div>
+                    <ScrollArea className="flex-1">
+                      <div className="flex flex-col py-2">
+                        {openConversations.map(conv => renderConversationCard(conv))}
+                        {openConversations.length === 0 && (
+                          <div className="text-center text-[11px] text-muted-foreground p-8 opacity-60">Vazio</div>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
 
                 {/* COLUNA FECHADOS */}
-                <div className="flex flex-col h-full overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 bg-zinc-50/50 dark:bg-zinc-900/50 border-b">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Fechados</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[10px] font-medium">{closedConversations.length}</span>
-                  </div>
-                  <ScrollArea className="flex-1">
-                    <div className="flex flex-col py-2">
-                      {closedConversations.map(conv => renderConversationCard(conv))}
-                      {closedConversations.length === 0 && (
-                        <div className="text-center text-[11px] text-muted-foreground p-8 opacity-60">Vazio</div>
-                      )}
+                {(viewMode === 'ALL' || viewMode === 'CLOSED') && (
+                  <div className="flex flex-col h-full overflow-hidden flex-1">
+                    <div className="flex items-center justify-between px-4 py-3 bg-zinc-50/50 dark:bg-zinc-900/50 border-b">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Fechados</span>
+                      <span className="px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[10px] font-medium">{closedConversations.length}</span>
                     </div>
-                  </ScrollArea>
-                </div>
+                    <ScrollArea className="flex-1">
+                      <div className="flex flex-col py-2">
+                        {closedConversations.map(conv => renderConversationCard(conv))}
+                        {closedConversations.length === 0 && (
+                          <div className="text-center text-[11px] text-muted-foreground p-8 opacity-60">Vazio</div>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
 
               </div>
             </TabsContent>
@@ -1352,7 +1435,7 @@ const AtendimentoPage = () => {
               </div>
               <div className="flex items-center gap-4 text-zinc-500">
                 {isPending && (
-                  <Button size="sm" onClick={handleStartAtendimento} className="bg-[#008069] hover:bg-[#006d59] text-white h-8 text-xs">
+                  <Button size="sm" onClick={() => handleStartAtendimento()} className="bg-[#008069] hover:bg-[#006d59] text-white h-8 text-xs">
                     INICIAR
                   </Button>
                 )}
