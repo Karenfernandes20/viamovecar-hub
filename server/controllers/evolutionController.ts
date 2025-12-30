@@ -288,16 +288,25 @@ export const sendEvolutionMessage = async (req: Request, res: Response) => {
 
         // CHECK INSTANCE
         const checkConv = await pool.query(
-          'SELECT id FROM whatsapp_conversations WHERE external_id = $1 AND instance = $2',
+          'SELECT id, status, user_id FROM whatsapp_conversations WHERE external_id = $1 AND instance = $2',
           [remoteJid, EVOLUTION_INSTANCE]
         );
 
         if (checkConv.rows.length > 0) {
           conversationId = checkConv.rows[0].id;
+          // Update status to OPEN if it was PENDING/null, assign user if unassigned, and update last_message metadata
+          await pool.query(
+            `UPDATE whatsapp_conversations 
+             SET last_message = $1, last_message_at = NOW(), status = 'OPEN', user_id = COALESCE(user_id, $2)
+             WHERE id = $3`,
+            [messageContent, (req as any).user.id, conversationId]
+          );
         } else {
+          // Create new conversation as OPEN and assigned to the sender
           const newConv = await pool.query(
-            'INSERT INTO whatsapp_conversations (external_id, phone, contact_name, instance) VALUES ($1, $2, $3, $4) RETURNING id',
-            [remoteJid, safePhone, safePhone, EVOLUTION_INSTANCE]
+            `INSERT INTO whatsapp_conversations (external_id, phone, contact_name, instance, status, user_id, last_message, last_message_at) 
+             VALUES ($1, $2, $3, $4, 'OPEN', $5, $6, NOW()) RETURNING id`,
+            [remoteJid, safePhone, safePhone, EVOLUTION_INSTANCE, (req as any).user.id, messageContent]
           );
           conversationId = newConv.rows[0].id;
         }
@@ -315,6 +324,7 @@ export const sendEvolutionMessage = async (req: Request, res: Response) => {
         return res.status(200).json({
           ...data,
           databaseId: insertedMsg.rows[0].id,
+          conversationId: conversationId,
           external_id: externalMessageId
         });
 

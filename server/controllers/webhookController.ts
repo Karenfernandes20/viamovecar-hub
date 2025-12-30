@@ -100,17 +100,17 @@ export const handleWebhook = async (req: Request, res: Response) => {
             if (direction === 'inbound') {
                 await pool.query(
                     `UPDATE whatsapp_conversations 
-                     SET last_message_at = $1, unread_count = unread_count + 1 
-                     WHERE id = $2`,
-                    [sent_at, conversationId]
+                     SET last_message_at = $1, last_message = $2, unread_count = unread_count + 1 
+                     WHERE id = $3`,
+                    [sent_at, content, conversationId]
                 );
             } else {
-                // Outbound, just update time
+                // Outbound, just update time and message
                 await pool.query(
                     `UPDATE whatsapp_conversations 
-                     SET last_message_at = $1
-                     WHERE id = $2`,
-                    [sent_at, conversationId]
+                     SET last_message_at = $1, last_message = $2
+                     WHERE id = $3`,
+                    [sent_at, content, conversationId]
                 );
             }
 

@@ -823,6 +823,7 @@ const AtendimentoPage = () => {
       } else {
         const data = await res.json();
         const dbId = data.databaseId;
+        const convId = data.conversationId;
         const externalId = data.external_id;
 
         console.log("Mensagem enviada com sucesso!", data);
@@ -831,6 +832,31 @@ const AtendimentoPage = () => {
         setMessages(prev => prev.map(m =>
           m.id === tempMessageId ? { ...m, id: dbId, external_id: externalId, status: 'sent' } : m
         ));
+
+        // Update the conversation in the list (crucial for persisting temp chats)
+        setConversations(prev => {
+          return prev.map(c => {
+            if (c.phone === targetPhone || c.id === selectedConversation.id) {
+              return {
+                ...c,
+                id: convId || c.id,
+                last_message: messageContent,
+                last_message_at: new Date().toISOString(),
+                status: 'OPEN' as 'OPEN' // Force open status locally
+              };
+            }
+            return c;
+          }).sort((a, b) => new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime());
+        });
+
+        // Ensure selected conversation matches the new ID if it was temp
+        setSelectedConversation(prev => prev ? {
+          ...prev,
+          id: convId || prev.id,
+          last_message: messageContent,
+          last_message_at: new Date().toISOString(),
+          status: 'OPEN' as 'OPEN'
+        } : null);
 
         setNewMessage(""); // Clear input ONLY on success as requested
       }
