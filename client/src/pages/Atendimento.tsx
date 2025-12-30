@@ -1002,7 +1002,7 @@ const AtendimentoPage = () => {
     }
   };
 
-  const [viewMode, setViewMode] = useState<'PENDING' | 'OPEN' | 'CLOSED'>('OPEN');
+  const [viewMode, setViewMode] = useState<'ALL' | 'PENDING' | 'OPEN' | 'CLOSED'>('PENDING');
 
   // Check Permissions
   const isMyAttendance = selectedConversation?.user_id === user?.id;
@@ -1026,7 +1026,7 @@ const AtendimentoPage = () => {
       key={conv.id}
       onClick={() => {
         setSelectedConversation(conv);
-        if (conv.status) setViewMode(conv.status as any);
+        if (viewMode !== 'ALL' && conv.status) setViewMode(conv.status as any);
       }}
       className={cn(
         "group mx-3 my-1 p-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent flex flex-col gap-2",
@@ -1078,6 +1078,20 @@ const AtendimentoPage = () => {
               </div>
             ) : null}
           </div>
+
+          {/* Status Badge - Only in 'ALL' view */}
+          {viewMode === 'ALL' && (
+            <div className="mt-1">
+              <span className={cn(
+                "text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase",
+                (conv.status === 'PENDING' || !conv.status) && "bg-zinc-100 text-zinc-600",
+                conv.status === 'OPEN' && "bg-[#e7fce3] text-[#008069]",
+                conv.status === 'CLOSED' && "bg-red-50 text-red-600"
+              )}>
+                {conv.status === 'OPEN' ? 'Em Aberto' : conv.status === 'CLOSED' ? 'Finalizado' : 'Pendente'}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1119,17 +1133,8 @@ const AtendimentoPage = () => {
             <CheckCircle2 className="h-3 w-3" /> ENCERRAR
           </Button>
         )}
-        {conv.status === 'CLOSED' && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 px-2 text-[10px] gap-1 text-blue-500 hover:bg-blue-50 font-bold"
-            onClick={(e) => { e.stopPropagation(); handleStartAtendimento(conv); }}
-            title="Reabrir Atendimento"
-          >
-            <RotateCcw className="h-3 w-3" /> REABRIR
-          </Button>
-        )}
+        {/* In Closed mode, no actions shown as per spec 2.3 */}
+        {conv.status === 'CLOSED' && null}
       </div>
     </div>
   );
@@ -1187,89 +1192,78 @@ const AtendimentoPage = () => {
               />
             </div>
 
-            {/* Quick Filter Selection */}
-            <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg self-start">
+            {/* QUICK NAVIGATION TABS (Top Bar Style) */}
+            <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900/50 p-1 rounded-xl shadow-inner border border-zinc-200/50 dark:border-zinc-800/50">
+              <button
+                onClick={() => setViewMode('ALL')}
+                className={cn(
+                  "text-[11px] px-4 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center gap-2",
+                  viewMode === 'ALL' ? "bg-white dark:bg-zinc-800 text-[#008069] shadow-sm" : "text-zinc-500 hover:text-zinc-700"
+                )}
+              >
+                Tudo
+              </button>
               <button
                 onClick={() => setViewMode('PENDING')}
-                className={cn("text-[10px] px-2 py-1 rounded font-bold uppercase transition-all", viewMode === 'PENDING' ? "bg-zinc-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700")}
+                className={cn(
+                  "text-[11px] px-4 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center gap-2",
+                  viewMode === 'PENDING' ? "bg-zinc-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700"
+                )}
               >
-                Pendentes ({pendingConversations.length})
+                Pendentes <span className="opacity-50 text-[9px] bg-black/10 px-1.5 rounded">{pendingConversations.length}</span>
               </button>
               <button
                 onClick={() => setViewMode('OPEN')}
-                className={cn("text-[10px] px-2 py-1 rounded font-bold uppercase transition-all", viewMode === 'OPEN' ? "bg-[#008069] text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700")}
+                className={cn(
+                  "text-[11px] px-4 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center gap-2",
+                  viewMode === 'OPEN' ? "bg-[#008069] text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700"
+                )}
               >
-                Abertos ({openConversations.length})
+                Abertos <span className="opacity-60 text-[9px] bg-white/20 px-1.5 rounded">{openConversations.length}</span>
               </button>
               <button
                 onClick={() => setViewMode('CLOSED')}
-                className={cn("text-[10px] px-2 py-1 rounded font-bold uppercase transition-all", viewMode === 'CLOSED' ? "bg-zinc-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700")}
+                className={cn(
+                  "text-[11px] px-4 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center gap-2",
+                  viewMode === 'CLOSED' ? "bg-red-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700"
+                )}
               >
-                Fechados ({closedConversations.length})
+                Fechados
               </button>
             </div>
           </div>
 
           <CardContent className="flex-1 overflow-hidden p-0">
-            {/* Aba CONVERSAS - Grid Kanban se não houver chat selecionado, ou Lista Única com Filtro */}
+            {/* Aba CONVERSAS - SINGLE COLUMN Vertical List */}
             <TabsContent value="conversas" className="h-full flex flex-col m-0">
-              <div className={cn(
-                "flex-1 divide-x divide-zinc-100 dark:divide-zinc-800 h-full overflow-hidden",
-                !selectedConversation ? "grid grid-cols-3" : "flex"
-              )}>
+              <ScrollArea className="flex-1">
+                <div className="flex flex-col py-3">
+                  {/* DYNAMIC LIST BASED ON VIEWMODE */}
+                  {viewMode === 'ALL' && (
+                    conversations.map(conv => renderConversationCard(conv))
+                  )}
+                  {viewMode === 'PENDING' && (
+                    pendingConversations.map(conv => renderConversationCard(conv))
+                  )}
+                  {viewMode === 'OPEN' && (
+                    openConversations.map(conv => renderConversationCard(conv))
+                  )}
+                  {viewMode === 'CLOSED' && (
+                    closedConversations.map(conv => renderConversationCard(conv))
+                  )}
 
-                {/* COLUNA PENDENTES */}
-                {(!selectedConversation || viewMode === 'PENDING') && (
-                  <div className="flex flex-col h-full overflow-hidden flex-1">
-                    <div className="flex items-center justify-between px-4 py-3 bg-zinc-50/50 dark:bg-zinc-900/50 border-b">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Pendentes</span>
-                    </div>
-                    <ScrollArea className="flex-1">
-                      <div className="flex flex-col py-2">
-                        {pendingConversations.map(conv => renderConversationCard(conv))}
-                        {pendingConversations.length === 0 && (
-                          <div className="text-center text-[11px] text-muted-foreground p-8 opacity-60">Vazio</div>
-                        )}
+                  {/* EMPTY STATES */}
+                  {((viewMode === 'ALL' && conversations.length === 0) ||
+                    (viewMode === 'PENDING' && pendingConversations.length === 0) ||
+                    (viewMode === 'OPEN' && openConversations.length === 0) ||
+                    (viewMode === 'CLOSED' && closedConversations.length === 0)) && (
+                      <div className="flex flex-col items-center justify-center p-12 opacity-40">
+                        <Search className="h-12 w-12 mb-4 text-zinc-300" />
+                        <p className="text-sm font-medium">Nenhuma conversa encontrada</p>
                       </div>
-                    </ScrollArea>
-                  </div>
-                )}
-
-                {/* COLUNA ABERTOS */}
-                {(!selectedConversation || viewMode === 'OPEN') && (
-                  <div className="flex flex-col h-full overflow-hidden flex-1">
-                    <div className="flex items-center justify-between px-4 py-3 bg-[#e7fce3]/40 dark:bg-[#005c4b]/10 border-b">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#008069]">Abertos</span>
-                    </div>
-                    <ScrollArea className="flex-1">
-                      <div className="flex flex-col py-2">
-                        {openConversations.map(conv => renderConversationCard(conv))}
-                        {openConversations.length === 0 && (
-                          <div className="text-center text-[11px] text-muted-foreground p-8 opacity-60">Vazio</div>
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </div>
-                )}
-
-                {/* COLUNA FECHADOS */}
-                {(!selectedConversation || viewMode === 'CLOSED') && (
-                  <div className="flex flex-col h-full overflow-hidden flex-1">
-                    <div className="flex items-center justify-between px-4 py-3 bg-zinc-50/50 dark:bg-zinc-900/50 border-b">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Fechados</span>
-                    </div>
-                    <ScrollArea className="flex-1">
-                      <div className="flex flex-col py-2">
-                        {closedConversations.map(conv => renderConversationCard(conv))}
-                        {closedConversations.length === 0 && (
-                          <div className="text-center text-[11px] text-muted-foreground p-8 opacity-60">Vazio</div>
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </div>
-                )}
-
-              </div>
+                    )}
+                </div>
+              </ScrollArea>
             </TabsContent>
 
             {/* Aba NOVA CONVERSA / CONTATOS */}
