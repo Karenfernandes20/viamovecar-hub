@@ -809,6 +809,8 @@ export const deleteEvolutionMessage = async (req: Request, res: Response) => {
   try {
     if (!pool) return res.status(500).json({ error: "DB not configured" });
 
+    console.log(`[Delete] Request to delete message ${messageId} in conversation ${conversationId}`);
+
     // 1. Get message info for API deletion
     const msgQuery = await pool.query(`
       SELECT m.external_id, c.external_id as remote_jid, m.direction
@@ -819,8 +821,9 @@ export const deleteEvolutionMessage = async (req: Request, res: Response) => {
 
     if (msgQuery.rows.length > 0) {
       const { external_id, remote_jid, direction } = msgQuery.rows[0];
+      console.log(`[Delete] Found message in DB. Direction: ${direction}, ExternalID: ${external_id}`);
 
-      if (direction === 'outbound' && external_id) {
+      if (external_id) {
         const config = await getEvolutionConfig((req as any).user, 'deleteMessage');
         const EVOLUTION_API_URL = config.url;
         const EVOLUTION_API_KEY = config.apikey;
@@ -828,25 +831,46 @@ export const deleteEvolutionMessage = async (req: Request, res: Response) => {
 
         if (EVOLUTION_API_URL && EVOLUTION_API_KEY) {
           const url = `${EVOLUTION_API_URL.replace(/\/$/, "")}/chat/deleteMessage/${EVOLUTION_INSTANCE}`;
-          await fetch(url, {
+
+          // Determine if we delete for everyone (only for outbound)
+          const deleteForEveryone = direction === 'outbound';
+
+          console.log(`[Delete] Calling Evolution API: ${url} (Everyone: ${deleteForEveryone})`);
+
+          const evoRes = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json", apikey: EVOLUTION_API_KEY },
             body: JSON.stringify({
               number: remote_jid.split('@')[0],
               key: {
                 remoteJid: remote_jid,
-                fromMe: true,
+                fromMe: direction === 'outbound',
                 id: external_id
               },
-              everyone: true
+              everyone: deleteForEveryone
             })
           });
+
+          if (!evoRes.ok) {
+            const errText = await evoRes.text();
+            console.error(`[Delete] Evolution API Error (${evoRes.status}):`, errText);
+            // We continue to delete locally anyway
+          } else {
+            console.log(`[Delete] Evolution API success.`);
+          }
+        } else {
+          console.warn(`[Delete] Evolution API not configured for this user/action.`);
         }
+      } else {
+        console.warn(`[Delete] Message has no external_id (too old or not tracked). Deleting only local historical record.`);
       }
+    } else {
+      console.warn(`[Delete] Message ${messageId} not found in DB.`);
     }
 
     // 2. Delete locally
     await pool.query('DELETE FROM whatsapp_messages WHERE id = $1', [messageId]);
+    console.log(`[Delete] Message ${messageId} removed from local DB.`);
 
     return res.json({ status: "deleted", id: messageId });
   } catch (error) {

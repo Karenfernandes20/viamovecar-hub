@@ -643,7 +643,12 @@ const AtendimentoPage = () => {
       setMessages(prev => prev.filter(m => m.id !== msgId));
       return;
     }
-    if (!confirm("Deseja apagar esta mensagem? (Isso apenas remove do histórico local por enquanto)")) return;
+    const isOutbound = messages.find(m => m.id === msgId)?.direction === 'outbound';
+    const confirmMsg = isOutbound
+      ? "Deseja apagar esta mensagem para TODOS no WhatsApp?"
+      : "Deseja apagar esta mensagem do histórico? (Isso não apagará no celular do remetente)";
+
+    if (!confirm(confirmMsg)) return;
 
     try {
       // Optimistic update
