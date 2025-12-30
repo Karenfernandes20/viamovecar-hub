@@ -1212,61 +1212,63 @@ const AtendimentoPage = () => {
             </div>
           </div>
 
-          <div className="px-3 py-2 flex flex-col gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Pesquisar..."
-                className="pl-9 h-9 bg-zinc-100 dark:bg-zinc-900 border-none rounded-lg text-sm"
-                value={conversationSearchTerm}
-                onChange={(e) => setConversationSearchTerm(e.target.value)}
-              />
-            </div>
 
-            {/* QUICK NAVIGATION TABS (Top Bar Style) */}
-            <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900/50 p-1 rounded-xl shadow-inner border border-zinc-200/50 dark:border-zinc-800/50">
-              <button
-                onClick={() => setViewMode('ALL')}
-                className={cn(
-                  "text-[11px] px-4 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center gap-2",
-                  viewMode === 'ALL' ? "bg-white dark:bg-zinc-800 text-[#008069] shadow-sm" : "text-zinc-500 hover:text-zinc-700"
-                )}
-              >
-                Tudo
-              </button>
-              <button
-                onClick={() => setViewMode('PENDING')}
-                className={cn(
-                  "text-[11px] px-4 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center gap-2",
-                  viewMode === 'PENDING' ? "bg-zinc-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700"
-                )}
-              >
-                Pendentes <span className="opacity-50 text-[9px] bg-black/10 px-1.5 rounded">{pendingConversations.length}</span>
-              </button>
-              <button
-                onClick={() => setViewMode('OPEN')}
-                className={cn(
-                  "text-[11px] px-4 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center gap-2",
-                  viewMode === 'OPEN' ? "bg-[#008069] text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700"
-                )}
-              >
-                Abertos <span className="opacity-60 text-[9px] bg-white/20 px-1.5 rounded">{openConversations.length}</span>
-              </button>
-              <button
-                onClick={() => setViewMode('CLOSED')}
-                className={cn(
-                  "text-[11px] px-4 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center gap-2",
-                  viewMode === 'CLOSED' ? "bg-red-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700"
-                )}
-              >
-                Fechados
-              </button>
-            </div>
-          </div>
 
           <CardContent className="flex-1 overflow-hidden p-0">
             {/* Aba CONVERSAS - SINGLE COLUMN Vertical List */}
             <TabsContent value="conversas" className="h-full flex flex-col m-0">
+              <div className="px-3 py-2 flex flex-col gap-2 border-b">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Pesquisar..."
+                    className="pl-9 h-9 bg-zinc-100 dark:bg-zinc-900 border-none rounded-lg text-sm"
+                    value={conversationSearchTerm}
+                    onChange={(e) => setConversationSearchTerm(e.target.value)}
+                  />
+                </div>
+
+                {/* QUICK NAVIGATION TABS (Top Bar Style) */}
+                <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900/50 p-1 rounded-xl shadow-inner border border-zinc-200/50 dark:border-zinc-800/50">
+                  <button
+                    onClick={() => setViewMode('ALL')}
+                    className={cn(
+                      "text-[11px] px-4 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center gap-2",
+                      viewMode === 'ALL' ? "bg-white dark:bg-zinc-800 text-[#008069] shadow-sm" : "text-zinc-500 hover:text-zinc-700"
+                    )}
+                  >
+                    Tudo
+                  </button>
+                  <button
+                    onClick={() => setViewMode('PENDING')}
+                    className={cn(
+                      "text-[11px] px-4 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center gap-2",
+                      viewMode === 'PENDING' ? "bg-zinc-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700"
+                    )}
+                  >
+                    Pendentes <span className="opacity-50 text-[9px] bg-black/10 px-1.5 rounded">{pendingConversations.length}</span>
+                  </button>
+                  <button
+                    onClick={() => setViewMode('OPEN')}
+                    className={cn(
+                      "text-[11px] px-4 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center gap-2",
+                      viewMode === 'OPEN' ? "bg-[#008069] text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700"
+                    )}
+                  >
+                    Abertos <span className="opacity-60 text-[9px] bg-white/20 px-1.5 rounded">{openConversations.length}</span>
+                  </button>
+                  <button
+                    onClick={() => setViewMode('CLOSED')}
+                    className={cn(
+                      "text-[11px] px-4 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center gap-2",
+                      viewMode === 'CLOSED' ? "bg-red-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700"
+                    )}
+                  >
+                    Fechados
+                  </button>
+                </div>
+              </div>
+
               <ScrollArea className="flex-1">
                 <div className="flex flex-col py-3">
                   {/* DYNAMIC LIST BASED ON VIEWMODE */}
