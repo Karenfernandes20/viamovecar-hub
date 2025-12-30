@@ -75,7 +75,10 @@ const AtendimentoPage = () => {
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [statusFilter, setStatusFilter] = useState<'PENDING' | 'OPEN' | 'CLOSED'>('OPEN');
-  const [filteredConversations, setFilteredConversations] = useState<Conversation[]>([]);
+  const [pendingConversations, setPendingConversations] = useState<Conversation[]>([]);
+  const [openConversations, setOpenConversations] = useState<Conversation[]>([]);
+  const [closedConversations, setClosedConversations] = useState<Conversation[]>([]);
+  const [activeTab, setActiveTab] = useState<"conversas" | "contatos">("conversas");
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
 
@@ -83,7 +86,6 @@ const AtendimentoPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [activeTab, setActiveTab] = useState<"conversas" | "contatos">("conversas");
   const [newContactName, setNewContactName] = useState("");
   const [newContactPhone, setNewContactPhone] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
@@ -106,6 +108,62 @@ const AtendimentoPage = () => {
   const [whatsappStatus, setWhatsappStatus] = useState<"open" | "close" | "connecting" | "unknown">("unknown");
   const [apiError, setApiError] = useState<string | null>(null);
 
+  // Helper para resolver o nome do contato baseado no banco de dados sincronizado
+  // Otimizado com useMemo para não recalcular o mapa a cada render
+  const contactMap = useMemo(() => {
+    const map = new Map<string, string>();
+    importedContacts.forEach(c => {
+      if (!c.phone) return;
+      const raw = c.phone.replace(/\D/g, "");
+      if (c.name && c.name.trim() !== "" && c.name !== c.phone) {
+        map.set(raw, c.name);
+      }
+    });
+    return map;
+  }, [importedContacts]);
+
+  const getDisplayName = useMemo(() => (conv: Conversation | null): string => {
+    if (!conv) return "";
+
+    // 1. Tenta encontrar no mapa de contatos sincronizados
+    const raw = conv.phone.replace(/\D/g, "");
+    const contactName = contactMap.get(raw);
+
+    if (contactName) {
+      return contactName;
+    }
+
+    // 2. Fallback para o nome que veio na conversa (se existir e não for o número)
+    if (conv.contact_name && conv.contact_name !== conv.phone) {
+      return conv.contact_name;
+    }
+
+    // 3. Exibe o número formatado (ou como veio)
+    return conv.phone;
+  }, [contactMap]);
+
+  // Filter Conversations Logic for 3 columns
+  useEffect(() => {
+    const filterByStatusAndSearch = (status: "PENDING" | "OPEN" | "CLOSED") => {
+      return conversations.filter(c => {
+        const s = c.status || 'PENDING';
+        if (s !== status) return false;
+        if (conversationSearchTerm) {
+          const search = conversationSearchTerm.toLowerCase();
+          const name = getDisplayName(c).toLowerCase();
+          const phone = (c.phone || "").toLowerCase();
+          return name.includes(search) || phone.includes(search);
+        }
+        return true;
+      }).sort((a, b) => new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime());
+    };
+
+    setPendingConversations(filterByStatusAndSearch('PENDING'));
+    setOpenConversations(filterByStatusAndSearch('OPEN'));
+    setClosedConversations(filterByStatusAndSearch('CLOSED'));
+
+  }, [conversations, conversationSearchTerm, getDisplayName]); // getDisplayName is a dependency because it uses contactMap which is memoized
+
   // Persistence: Save active conversation to localStorage
   useEffect(() => {
     if (selectedConversation) {
@@ -119,33 +177,6 @@ const AtendimentoPage = () => {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, selectedConversation]);
-
-  // Filter Conversations Logic
-  useEffect(() => {
-    let filtered = conversations;
-
-    // 1. Filter by Status
-    // Se filtro for OPEN, mostra Abertos (meus e outros) ou talvez separar?
-    // O requisito diz: "Abertos" (exibir nome do atendente).
-    // Vamos filtrar estritamente pelo status do DB.
-    // Se status for indefinido (legado), tratamos como PENDING ou OPEN? Vamos assumir PENDING se null.
-
-    // Fallback: se status null, considera PENDING para aparecer em algum lugar
-    filtered = filtered.filter(c => {
-      const s = c.status || 'PENDING';
-      return s === statusFilter;
-    });
-
-    // 2. Filter by Search
-    if (conversationSearchTerm) {
-      const lower = conversationSearchTerm.toLowerCase();
-      filtered = filtered.filter(c =>
-        (getDisplayName(c).toLowerCase().includes(lower)) ||
-        (c.phone && c.phone.includes(lower))
-      );
-    }
-    setFilteredConversations(filtered);
-  }, [conversationSearchTerm, conversations, statusFilter, importedContacts]); // importedContacts dependency added for getDisplayName updates
 
   // Handle Query Params AND Persistence for Auto-Selection
   useEffect(() => {
@@ -239,7 +270,7 @@ const AtendimentoPage = () => {
         }, { replace: true });
       }
     }
-  }, [searchParams, conversations, isLoadingConversations, importedContacts, contacts, setSearchParams, selectedConversation, statusFilter]);
+  }, [searchParams, conversations, isLoadingConversations, importedContacts, contacts, setSearchParams, selectedConversation, statusFilter, user?.id]);
 
   // ... (Rest of the component)
 
@@ -354,7 +385,7 @@ const AtendimentoPage = () => {
     return () => {
       socket.disconnect();
     };
-  }, [selectedConversation]); // Re-bind socket listeners if selectedConversation changes (to capture closure correctly) OR better: use refs
+  }, [selectedConversation, user?.id]); // Re-bind socket listeners if selectedConversation changes (to capture closure correctly) OR better: use refs
 
 
   // Automatic fetch when switching to 'contatos' tab
@@ -543,7 +574,7 @@ const AtendimentoPage = () => {
     };
 
     fetchMessages();
-  }, [selectedConversation?.id]); // Depender de ID é melhor que objeto inteiro
+  }, [selectedConversation?.id, token]); // Depender de ID é melhor que objeto inteiro
 
 
   // DDDs brasileiros conhecidos
@@ -978,44 +1009,75 @@ const AtendimentoPage = () => {
 
 
 
-  // Helper para resolver o nome do contato baseado no banco de dados sincronizado
-  // Otimizado com useMemo para não recalcular o mapa a cada render
-  const contactMap = useMemo(() => {
-    const map = new Map<string, string>();
-    importedContacts.forEach(c => {
-      if (!c.phone) return;
-      const raw = c.phone.replace(/\D/g, "");
-      if (c.name && c.name.trim() !== "" && c.name !== c.phone) {
-        map.set(raw, c.name);
-      }
-    });
-    return map;
-  }, [importedContacts]);
+  // Helper para resolver o nome do contato baseado no banco de dados sincronizado (Declaração movida para o topo)
 
-  const getDisplayName = (conv: Conversation | null): string => {
-    if (!conv) return "";
 
-    // 1. Tenta encontrar no mapa de contatos sincronizados
-    const raw = conv.phone.replace(/\D/g, "");
-    const contactName = contactMap.get(raw);
+  const renderConversationCard = (conv: Conversation) => (
+    <div
+      key={conv.id}
+      onClick={() => setSelectedConversation(conv)}
+      className={cn(
+        "group mx-3 my-1 p-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent",
+        selectedConversation?.id === conv.id
+          ? "bg-[#e7fce3] dark:bg-[#005c4b]/30 border-[#00a884]/20 shadow-sm"
+          : "hover:bg-zinc-50 dark:hover:bg-zinc-900 border-zinc-100/50 dark:border-zinc-800/50"
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <div className="relative shrink-0">
+          <Avatar className="h-12 w-12 border-2 border-white dark:border-zinc-900 shadow-sm">
+            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${getDisplayName(conv)}`} />
+            <AvatarFallback className="bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 font-bold">
+              {(getDisplayName(conv)?.[0] || "?").toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          {/* Online status indicator placeholder */}
+          <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></div>
+        </div>
 
-    if (contactName) {
-      return contactName;
-    }
+        <div className="flex-1 min-w-0">
+          <div className="flex justify-between items-center mb-0.5">
+            <span className={cn(
+              "font-semibold truncate text-[15px]",
+              selectedConversation?.id === conv.id ? "text-[#008069] dark:text-[#00a884]" : "text-zinc-900 dark:text-zinc-100"
+            )}>
+              {getDisplayName(conv)}
+            </span>
+            <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap ml-2 opacity-80">
+              {conv.last_message_at ? formatTime(conv.last_message_at) : ""}
+            </span>
+          </div>
 
-    // 2. Fallback para o nome que veio na conversa (se existir e não for o número)
-    if (conv.contact_name && conv.contact_name !== conv.phone) {
-      return conv.contact_name;
-    }
+          <div className="flex justify-between items-center gap-2">
+            <div className="flex items-center gap-1 flex-1 min-w-0">
+              {conv.status === 'OPEN' && conv.user_id && (
+                <div className="shrink-0 h-1.5 w-1.5 rounded-full bg-[#00a884] animate-pulse" title="Em atendimento"></div>
+              )}
+              <p className="text-[13px] text-muted-foreground truncate leading-snug">
+                {conv.last_message || <span className="italic opacity-60">Iniciar conversa...</span>}
+              </p>
+            </div>
 
-    // 3. Exibe o número formatado (ou como veio)
-    return conv.phone;
-  };
+            {conv.unread_count && conv.unread_count > 0 ? (
+              <div className="shrink-0 min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-[#25D366] shadow-sm animate-in fade-in zoom-in duration-300">
+                <span className="text-[10px] font-bold text-white">
+                  {conv.unread_count}
+                </span>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="flex h-[calc(100vh-2rem)] overflow-hidden bg-background rounded-xl border shadow-sm" onClick={() => setShowEmojiPicker(false)}>
       {/* Sidebar - Lista de Conversas / Contatos */}
-      <div className="w-[400px] flex flex-col border-r bg-white dark:bg-zinc-950">
+      <div className={cn(
+        "flex flex-col border-r bg-white dark:bg-zinc-950 transition-all duration-300",
+        selectedConversation ? "w-[600px]" : "flex-1"
+      )}>
         <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as "conversas" | "contatos")}
@@ -1040,12 +1102,12 @@ const AtendimentoPage = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <TabsList className="grid grid-cols-2 h-8 gap-2">
-                <TabsTrigger value="conversas" className="text-xs">
+              <TabsList className="grid grid-cols-2 h-9 gap-2 bg-zinc-200/50 dark:bg-zinc-800/50 p-1">
+                <TabsTrigger value="conversas" className="text-xs font-semibold">
                   Conversas
                 </TabsTrigger>
-                <TabsTrigger value="contatos" className="text-xs">
-                  Novo +
+                <TabsTrigger value="contatos" className="text-xs font-semibold">
+                  Novas Conversas
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -1064,80 +1126,59 @@ const AtendimentoPage = () => {
           </div>
 
           <CardContent className="flex-1 overflow-hidden p-0">
-            {/* Aba CONVERSAS */}
+            {/* Aba CONVERSAS - 3 COLUNAS */}
             <TabsContent value="conversas" className="h-full flex flex-col m-0">
-              <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/20">
-                <button onClick={() => setStatusFilter('OPEN')} className={cn("text-xs px-2 py-1 rounded transition-colors", statusFilter === 'OPEN' ? "bg-[#008069] text-white" : "hover:bg-zinc-200 dark:hover:bg-zinc-800")}>Abertos</button>
-                <button onClick={() => setStatusFilter('PENDING')} className={cn("text-xs px-2 py-1 rounded transition-colors", statusFilter === 'PENDING' ? "bg-[#008069] text-white" : "hover:bg-zinc-200 dark:hover:bg-zinc-800")}>Pendentes</button>
-                <button onClick={() => setStatusFilter('CLOSED')} className={cn("text-xs px-2 py-1 rounded transition-colors", statusFilter === 'CLOSED' ? "bg-[#008069] text-white" : "hover:bg-zinc-200 dark:hover:bg-zinc-800")}>Fechados</button>
-              </div>
-              <ScrollArea className="h-full">
-                <div className="flex flex-col">
-                  {filteredConversations.length === 0 && (
-                    <div className="text-center text-xs text-muted-foreground p-8">
-                      {conversations.length === 0 ? "Nenhuma conversa encontrada." : "Nenhuma conversa corresponde à pesquisa."}
-                    </div>
-                  )}
-                  {filteredConversations.map((conv) => (
-                    <div
-                      key={conv.id}
-                      onClick={() => setSelectedConversation(conv)}
-                      className={cn(
-                        "group mx-3 my-1 p-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent",
-                        selectedConversation?.id === conv.id
-                          ? "bg-[#e7fce3] dark:bg-[#005c4b]/30 border-[#00a884]/20 shadow-sm"
-                          : "hover:bg-zinc-50 dark:hover:bg-zinc-900 border-zinc-100/50 dark:border-zinc-800/50"
+              <div className="flex-1 grid grid-cols-3 divide-x divide-zinc-100 dark:divide-zinc-800 h-full overflow-hidden">
+
+                {/* COLUNA PENDENTES */}
+                <div className="flex flex-col h-full overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 bg-zinc-50/50 dark:bg-zinc-900/50 border-b">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Pendentes</span>
+                    <span className="px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[10px] font-medium">{pendingConversations.length}</span>
+                  </div>
+                  <ScrollArea className="flex-1">
+                    <div className="flex flex-col py-2">
+                      {pendingConversations.map(conv => renderConversationCard(conv))}
+                      {pendingConversations.length === 0 && (
+                        <div className="text-center text-[11px] text-muted-foreground p-8 opacity-60">Vazio</div>
                       )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="relative shrink-0">
-                          <Avatar className="h-12 w-12 border-2 border-white dark:border-zinc-900 shadow-sm">
-                            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${getDisplayName(conv)}`} />
-                            <AvatarFallback className="bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 font-bold">
-                              {(getDisplayName(conv)?.[0] || "?").toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          {/* Online status indicator placeholder */}
-                          <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></div>
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-center mb-0.5">
-                            <span className={cn(
-                              "font-semibold truncate text-[15px]",
-                              selectedConversation?.id === conv.id ? "text-[#008069] dark:text-[#00a884]" : "text-zinc-900 dark:text-zinc-100"
-                            )}>
-                              {getDisplayName(conv)}
-                            </span>
-                            <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap ml-2 opacity-80">
-                              {conv.last_message_at ? formatTime(conv.last_message_at) : ""}
-                            </span>
-                          </div>
-
-                          <div className="flex justify-between items-center gap-2">
-                            <div className="flex items-center gap-1 flex-1 min-w-0">
-                              {conv.status === 'OPEN' && conv.user_id && (
-                                <div className="shrink-0 h-1.5 w-1.5 rounded-full bg-[#00a884] animate-pulse" title="Em atendimento"></div>
-                              )}
-                              <p className="text-[13px] text-muted-foreground truncate leading-snug">
-                                {conv.last_message || <span className="italic opacity-60">Iniciar conversa...</span>}
-                              </p>
-                            </div>
-
-                            {conv.unread_count && conv.unread_count > 0 ? (
-                              <div className="shrink-0 min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-[#25D366] shadow-sm animate-in fade-in zoom-in duration-300">
-                                <span className="text-[10px] font-bold text-white">
-                                  {conv.unread_count}
-                                </span>
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
                     </div>
-                  ))}
+                  </ScrollArea>
                 </div>
-              </ScrollArea>
+
+                {/* COLUNA ABERTOS */}
+                <div className="flex flex-col h-full overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 bg-[#e7fce3]/40 dark:bg-[#005c4b]/10 border-b">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#008069]">Abertos</span>
+                    <span className="px-1.5 py-0.5 rounded-full bg-[#008069]/10 text-[#008069] text-[10px] font-medium">{openConversations.length}</span>
+                  </div>
+                  <ScrollArea className="flex-1">
+                    <div className="flex flex-col py-2">
+                      {openConversations.map(conv => renderConversationCard(conv))}
+                      {openConversations.length === 0 && (
+                        <div className="text-center text-[11px] text-muted-foreground p-8 opacity-60">Vazio</div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+
+                {/* COLUNA FECHADOS */}
+                <div className="flex flex-col h-full overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 bg-zinc-50/50 dark:bg-zinc-900/50 border-b">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Fechados</span>
+                    <span className="px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[10px] font-medium">{closedConversations.length}</span>
+                  </div>
+                  <ScrollArea className="flex-1">
+                    <div className="flex flex-col py-2">
+                      {closedConversations.map(conv => renderConversationCard(conv))}
+                      {closedConversations.length === 0 && (
+                        <div className="text-center text-[11px] text-muted-foreground p-8 opacity-60">Vazio</div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+
+              </div>
             </TabsContent>
 
             {/* Aba NOVA CONVERSA / CONTATOS */}
