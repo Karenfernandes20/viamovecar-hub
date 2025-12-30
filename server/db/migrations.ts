@@ -193,6 +193,7 @@ const runWhatsappMigrations = async () => {
                 status VARCHAR(20) DEFAULT 'received', -- sent, delivered, read
                 message_type VARCHAR(50) DEFAULT 'text',
                 media_url TEXT,
+                external_id VARCHAR(100), -- WhatsApp message key id
                 sent_at TIMESTAMP DEFAULT NOW()
             );
         `);
@@ -214,6 +215,7 @@ const runWhatsappMigrations = async () => {
         await addColumn('whatsapp_conversations', 'started_at', 'TIMESTAMP');
         await addColumn('whatsapp_conversations', 'closed_at', 'TIMESTAMP');
         await addColumn('whatsapp_conversations', 'last_message', 'TEXT');
+        await addColumn('whatsapp_messages', 'external_id', 'VARCHAR(100)');
 
         // Audit Logs
         await pool.query(`

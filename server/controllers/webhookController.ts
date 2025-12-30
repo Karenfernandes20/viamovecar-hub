@@ -90,10 +90,10 @@ export const handleWebhook = async (req: Request, res: Response) => {
             // Avoid duplicating messages if Evolution sends same ID twice
             // Ideally we check if message key.id exists for this conversation? For now just insert.
             const insertedMsg = await pool.query(
-                `INSERT INTO whatsapp_messages (conversation_id, direction, content, sent_at, status) 
-                 VALUES ($1, $2, $3, $4, 'received') 
-                 RETURNING id, conversation_id, direction, content, sent_at, status`,
-                [conversationId, direction, content, sent_at]
+                `INSERT INTO whatsapp_messages (conversation_id, direction, content, sent_at, status, external_id) 
+                 VALUES ($1, $2, $3, $4, 'received', $5) 
+                 RETURNING id, conversation_id, direction, content, sent_at, status, external_id`,
+                [conversationId, direction, content, sent_at, msg.key.id]
             );
 
             // Update metadata

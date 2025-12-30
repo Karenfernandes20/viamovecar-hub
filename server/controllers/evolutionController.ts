@@ -302,12 +302,21 @@ export const sendEvolutionMessage = async (req: Request, res: Response) => {
           conversationId = newConv.rows[0].id;
         }
 
+        const externalMessageId = data?.key?.id;
+
         // Insert message
-        await pool.query(
-          'INSERT INTO whatsapp_messages (conversation_id, direction, content, sent_at, status) VALUES ($1, $2, $3, NOW(), $4)',
-          [conversationId, 'outbound', messageContent, 'sent']
+        const insertedMsg = await pool.query(
+          'INSERT INTO whatsapp_messages (conversation_id, direction, content, sent_at, status, external_id) VALUES ($1, $2, $3, NOW(), $4, $5) RETURNING id',
+          [conversationId, 'outbound', messageContent, 'sent', externalMessageId]
         );
-        console.log(`[Evolution] Saved message to DB successfully.`);
+        console.log(`[Evolution] Saved message to DB successfully with ID: ${insertedMsg.rows[0].id}.`);
+
+        // Include the DB ID and external ID in the response so frontend can use them
+        return res.status(200).json({
+          ...data,
+          databaseId: insertedMsg.rows[0].id,
+          external_id: externalMessageId
+        });
 
       } catch (dbError) {
         console.error("Failed to save sent message to DB:", dbError);
@@ -797,10 +806,46 @@ export const handleEvolutionWebhook = async (req: Request, res: Response) => {
 export const deleteEvolutionMessage = async (req: Request, res: Response) => {
   const { conversationId, messageId } = req.params;
 
-  // As we don't store external WAMID yet, we only delete locally.
   try {
     if (!pool) return res.status(500).json({ error: "DB not configured" });
 
+    // 1. Get message info for API deletion
+    const msgQuery = await pool.query(`
+      SELECT m.external_id, c.external_id as remote_jid, m.direction
+      FROM whatsapp_messages m
+      JOIN whatsapp_conversations c ON m.conversation_id = c.id
+      WHERE m.id = $1
+    `, [messageId]);
+
+    if (msgQuery.rows.length > 0) {
+      const { external_id, remote_jid, direction } = msgQuery.rows[0];
+
+      if (direction === 'outbound' && external_id) {
+        const config = await getEvolutionConfig((req as any).user, 'deleteMessage');
+        const EVOLUTION_API_URL = config.url;
+        const EVOLUTION_API_KEY = config.apikey;
+        const EVOLUTION_INSTANCE = config.instance;
+
+        if (EVOLUTION_API_URL && EVOLUTION_API_KEY) {
+          const url = `${EVOLUTION_API_URL.replace(/\/$/, "")}/chat/deleteMessage/${EVOLUTION_INSTANCE}`;
+          await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", apikey: EVOLUTION_API_KEY },
+            body: JSON.stringify({
+              number: remote_jid.split('@')[0],
+              key: {
+                remoteJid: remote_jid,
+                fromMe: true,
+                id: external_id
+              },
+              everyone: true
+            })
+          });
+        }
+      }
+    }
+
+    // 2. Delete locally
     await pool.query('DELETE FROM whatsapp_messages WHERE id = $1', [messageId]);
 
     return res.json({ status: "deleted", id: messageId });
@@ -819,6 +864,52 @@ export const editEvolutionMessage = async (req: Request, res: Response) => {
   try {
     if (!pool) return res.status(500).json({ error: "DB not configured" });
 
+    // 1. Get message info from DB (external_id and remoteJid)
+    const msgQuery = await pool.query(`
+      SELECT m.external_id, c.external_id as remote_jid, m.direction
+      FROM whatsapp_messages m
+      JOIN whatsapp_conversations c ON m.conversation_id = c.id
+      WHERE m.id = $1
+    `, [messageId]);
+
+    if (msgQuery.rows.length === 0) {
+      // If it's a temp ID or just not found, we can try to update by ID if it's numeric
+      if (!isNaN(Number(messageId))) {
+        await pool.query('UPDATE whatsapp_messages SET content = $1 WHERE id = $2', [content, messageId]);
+        return res.json({ status: "updated_local_only", id: messageId });
+      }
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    const { external_id, remote_jid, direction } = msgQuery.rows[0];
+
+    // Only allow editing outbound messages via API
+    if (direction === 'outbound' && external_id) {
+      const config = await getEvolutionConfig((req as any).user, 'editMessage');
+      const EVOLUTION_API_URL = config.url;
+      const EVOLUTION_API_KEY = config.apikey;
+      const EVOLUTION_INSTANCE = config.instance;
+
+      if (EVOLUTION_API_URL && EVOLUTION_API_KEY) {
+        const url = `${EVOLUTION_API_URL.replace(/\/$/, "")}/chat/updateMessage/${EVOLUTION_INSTANCE}`;
+
+        await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", apikey: EVOLUTION_API_KEY },
+          body: JSON.stringify({
+            number: remote_jid.split('@')[0],
+            key: {
+              remoteJid: remote_jid,
+              fromMe: true,
+              id: external_id
+            },
+            text: content
+          })
+        });
+      }
+    }
+
+    // 2. Update local DB
     await pool.query('UPDATE whatsapp_messages SET content = $1 WHERE id = $2', [content, messageId]);
 
     return res.json({ status: "updated", id: messageId, content });

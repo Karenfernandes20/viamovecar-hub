@@ -46,11 +46,12 @@ interface Conversation {
 }
 
 interface Message {
-  id: number;
+  id: number | string;
   direction: "inbound" | "outbound";
   content: string;
   sent_at: string;
   status?: string;
+  external_id?: string;
 }
 
 interface Contact {
@@ -637,7 +638,11 @@ const AtendimentoPage = () => {
   };
 
 
-  const handleDeleteMessage = async (msgId: number) => {
+  const handleDeleteMessage = async (msgId: number | string) => {
+    if (typeof msgId === 'string' && msgId.startsWith('temp')) {
+      setMessages(prev => prev.filter(m => m.id !== msgId));
+      return;
+    }
     if (!confirm("Deseja apagar esta mensagem? (Isso apenas remove do histórico local por enquanto)")) return;
 
     try {
@@ -697,6 +702,12 @@ const AtendimentoPage = () => {
   };
 
   const handleEditMessage = async (msg: Message) => {
+    // Prevent editing temp messages
+    if (typeof msg.id === 'string' && msg.id.startsWith('temp')) {
+      alert("Aguarde a mensagem ser enviada completamente antes de editar.");
+      return;
+    }
+
     const newContent = prompt("Editar mensagem:", msg.content);
     if (newContent === null || newContent === msg.content) return; // Cancelled or same
 
@@ -805,7 +816,17 @@ const AtendimentoPage = () => {
           }
         }
       } else {
-        console.log("Mensagem enviada com sucesso!");
+        const data = await res.json();
+        const dbId = data.databaseId;
+        const externalId = data.external_id;
+
+        console.log("Mensagem enviada com sucesso!", data);
+
+        // Update the temp message with real IDs
+        setMessages(prev => prev.map(m =>
+          m.id === tempMessageId ? { ...m, id: dbId, external_id: externalId, status: 'sent' } : m
+        ));
+
         setNewMessage(""); // Clear input ONLY on success as requested
       }
     } catch (err) {
