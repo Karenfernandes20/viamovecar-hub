@@ -14,9 +14,26 @@ export const login = async (req: Request, res: Response) => {
         const isSecondAdmin = email === 'integraiempresa01@gmail.com' && password === 'integr1234';
 
         if (isFirstAdmin || isSecondAdmin) {
+            if (!pool) return res.status(500).json({ error: 'Database not configured' });
+
+            // Ensure these users exist in DB to get a numeric ID for foreign keys
+            let userRes = await pool.query('SELECT id, full_name, email, role, email_validated, user_type FROM app_users WHERE email = $1', [email]);
+            let dbUser;
+
+            if (userRes.rows.length === 0) {
+                const name = isFirstAdmin ? 'Superadmin ViaMoveCar' : 'Integrai Empresa 01';
+                const insertRes = await pool.query(
+                    'INSERT INTO app_users (full_name, email, role, is_active, email_validated, user_type) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+                    [name, email, 'SUPERADMIN', true, true, 'superadmin']
+                );
+                dbUser = insertRes.rows[0];
+            } else {
+                dbUser = userRes.rows[0];
+            }
+
             const superadminPayload = {
-                id: isFirstAdmin ? 'superadmin-fixed' : 'superadmin-fixed-2',
-                email,
+                id: dbUser.id,
+                email: dbUser.email,
                 role: 'SUPERADMIN',
             };
 
@@ -25,10 +42,10 @@ export const login = async (req: Request, res: Response) => {
             return res.json({
                 token,
                 user: {
-                    id: superadminPayload.id,
-                    full_name: isFirstAdmin ? 'Superadmin ViaMoveCar' : 'Integrai Empresa 01',
-                    email: superadminPayload.email,
-                    role: superadminPayload.role,
+                    id: dbUser.id,
+                    full_name: dbUser.full_name,
+                    email: dbUser.email,
+                    role: dbUser.role,
                     email_validated: true,
                     user_type: 'superadmin',
                 },
