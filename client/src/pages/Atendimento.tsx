@@ -1001,7 +1001,7 @@ const AtendimentoPage = () => {
     }
   };
 
-  const [viewMode, setViewMode] = useState<'ALL' | 'PENDING' | 'OPEN' | 'CLOSED'>('ALL');
+  const [viewMode, setViewMode] = useState<'PENDING' | 'OPEN' | 'CLOSED'>('OPEN');
 
   // Check Permissions
   const isMyAttendance = selectedConversation?.user_id === user?.id;
@@ -1023,7 +1023,10 @@ const AtendimentoPage = () => {
   const renderConversationCard = (conv: Conversation) => (
     <div
       key={conv.id}
-      onClick={() => setSelectedConversation(conv)}
+      onClick={() => {
+        setSelectedConversation(conv);
+        if (conv.status) setViewMode(conv.status as any);
+      }}
       className={cn(
         "group mx-3 my-1 p-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent flex flex-col gap-2",
         selectedConversation?.id === conv.id
@@ -1186,46 +1189,39 @@ const AtendimentoPage = () => {
             {/* Quick Filter Selection */}
             <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg self-start">
               <button
-                onClick={() => setViewMode('ALL')}
-                className={cn("text-[10px] px-2 py-1 rounded font-bold uppercase", viewMode === 'ALL' ? "bg-white dark:bg-zinc-800 shadow-sm text-zinc-900" : "text-zinc-500")}
-              >
-                Tudo
-              </button>
-              <button
                 onClick={() => setViewMode('PENDING')}
-                className={cn("text-[10px] px-2 py-1 rounded font-bold uppercase", viewMode === 'PENDING' ? "bg-zinc-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700")}
+                className={cn("text-[10px] px-2 py-1 rounded font-bold uppercase transition-all", viewMode === 'PENDING' ? "bg-zinc-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700")}
               >
-                Pendentes
+                Pendentes ({pendingConversations.length})
               </button>
               <button
                 onClick={() => setViewMode('OPEN')}
-                className={cn("text-[10px] px-2 py-1 rounded font-bold uppercase", viewMode === 'OPEN' ? "bg-[#008069] text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700")}
+                className={cn("text-[10px] px-2 py-1 rounded font-bold uppercase transition-all", viewMode === 'OPEN' ? "bg-[#008069] text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700")}
               >
-                Abertos
+                Abertos ({openConversations.length})
               </button>
               <button
                 onClick={() => setViewMode('CLOSED')}
-                className={cn("text-[10px] px-2 py-1 rounded font-bold uppercase", viewMode === 'CLOSED' ? "bg-zinc-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700")}
+                className={cn("text-[10px] px-2 py-1 rounded font-bold uppercase transition-all", viewMode === 'CLOSED' ? "bg-zinc-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700")}
               >
-                Fechados
+                Fechados ({closedConversations.length})
               </button>
             </div>
           </div>
 
           <CardContent className="flex-1 overflow-hidden p-0">
-            {/* Aba CONVERSAS - 3 COLUNAS ou Filtro Único */}
+            {/* Aba CONVERSAS - Grid Kanban se não houver chat selecionado, ou Lista Única com Filtro */}
             <TabsContent value="conversas" className="h-full flex flex-col m-0">
               <div className={cn(
                 "flex-1 divide-x divide-zinc-100 dark:divide-zinc-800 h-full overflow-hidden",
-                viewMode === 'ALL' ? "grid grid-cols-3" : "flex"
+                !selectedConversation ? "grid grid-cols-3" : "flex"
               )}>
 
                 {/* COLUNA PENDENTES */}
-                {(viewMode === 'ALL' || viewMode === 'PENDING') && (
+                {(!selectedConversation || viewMode === 'PENDING') && (
                   <div className="flex flex-col h-full overflow-hidden flex-1">
                     <div className="flex items-center justify-between px-4 py-3 bg-zinc-50/50 dark:bg-zinc-900/50 border-b">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Pendentes</span>
-                      <span className="px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[10px] font-medium">{pendingConversations.length}</span>
                     </div>
                     <ScrollArea className="flex-1">
                       <div className="flex flex-col py-2">
@@ -1239,11 +1235,10 @@ const AtendimentoPage = () => {
                 )}
 
                 {/* COLUNA ABERTOS */}
-                {(viewMode === 'ALL' || viewMode === 'OPEN') && (
+                {(!selectedConversation || viewMode === 'OPEN') && (
                   <div className="flex flex-col h-full overflow-hidden flex-1">
                     <div className="flex items-center justify-between px-4 py-3 bg-[#e7fce3]/40 dark:bg-[#005c4b]/10 border-b">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-[#008069]">Abertos</span>
-                      <span className="px-1.5 py-0.5 rounded-full bg-[#008069]/10 text-[#008069] text-[10px] font-medium">{openConversations.length}</span>
                     </div>
                     <ScrollArea className="flex-1">
                       <div className="flex flex-col py-2">
@@ -1257,11 +1252,10 @@ const AtendimentoPage = () => {
                 )}
 
                 {/* COLUNA FECHADOS */}
-                {(viewMode === 'ALL' || viewMode === 'CLOSED') && (
+                {(!selectedConversation || viewMode === 'CLOSED') && (
                   <div className="flex flex-col h-full overflow-hidden flex-1">
                     <div className="flex items-center justify-between px-4 py-3 bg-zinc-50/50 dark:bg-zinc-900/50 border-b">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Fechados</span>
-                      <span className="px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[10px] font-medium">{closedConversations.length}</span>
                     </div>
                     <ScrollArea className="flex-1">
                       <div className="flex flex-col py-2">
