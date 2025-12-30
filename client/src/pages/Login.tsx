@@ -65,11 +65,14 @@ const LoginPage = () => {
             >
                 <X className="h-6 w-6 text-zinc-600 dark:text-zinc-400" />
             </Button>
-            <Card className="w-full max-w-md">
-                <CardHeader className="text-center">
-                    <CardTitle className="text-2xl">Integrai Hub</CardTitle>
-                    <CardDescription>Entre com suas credenciais de acesso</CardDescription>
-                </CardHeader>
+            <Card className="w-full max-w-md shadow-lg border-primary/10">
+                <div className="flex flex-col items-center gap-2 pt-8">
+                    <img src="/logo-integrai.jpg" alt="Logo Integrai" className="h-16 w-16 rounded-2xl shadow-sm border p-1 bg-white" />
+                    <CardHeader className="text-center p-0 pb-4">
+                        <CardTitle className="text-2xl font-bold tracking-tight">Integrai Hub</CardTitle>
+                        <CardDescription>Entre com suas credenciais de acesso</CardDescription>
+                    </CardHeader>
+                </div>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="space-y-2">

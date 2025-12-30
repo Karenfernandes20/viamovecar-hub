@@ -47,10 +47,16 @@ type Stage = {
 };
 
 const pastelOptions = [
-  "bg-primary-soft/40 border-primary-soft",
-  "bg-muted/60 border-muted",
-  "bg-accent/40 border-accent",
-  "bg-emerald-500/10 border-emerald-500/30",
+  "bg-blue-500/10 border-blue-500/30 text-blue-700",      // Azul
+  "bg-emerald-500/10 border-emerald-500/30 text-emerald-700", // Verde
+  "bg-pink-500/10 border-pink-500/30 text-pink-700",     // Rosa
+  "bg-amber-500/10 border-amber-500/30 text-amber-700",   // Amarelo
+  "bg-purple-500/10 border-purple-500/30 text-purple-700", // Roxo
+  "bg-red-500/10 border-red-500/30 text-red-700",       // Vermelho
+  "bg-indigo-500/10 border-indigo-500/30 text-indigo-700", // Indigo
+  "bg-orange-500/10 border-orange-500/30 text-orange-700", // Laranja
+  "bg-cyan-500/10 border-cyan-500/30 text-cyan-700",     // Ciano
+  "bg-teal-500/10 border-teal-500/30 text-teal-700",     // Teal
 ];
 
 // Componente Sortable Item (Card)
@@ -411,19 +417,19 @@ const CrmPage = () => {
               </div>
               <div className="space-y-1">
                 <p className="text-[11px] text-muted-foreground">Cor do card (tons pastéis)</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-5 gap-2">
                   {pastelOptions.map((opt) => (
                     <button
                       key={opt}
                       type="button"
                       onClick={() => setSelectedColor(opt)}
                       className={cn(
-                        "h-7 w-10 rounded-md border text-[10px] flex items-center justify-center",
+                        "h-8 w-full rounded-full border transition-all hover:scale-110",
                         opt,
-                        selectedColor === opt && "ring-2 ring-primary"
+                        selectedColor === opt ? "ring-2 ring-primary ring-offset-2 border-transparent" : "border-transparent"
                       )}
                     >
-                      {selectedColor === opt ? "✓" : ""}
+                      {selectedColor === opt && <span className="text-[10px] font-bold">✓</span>}
                     </button>
                   ))}
                 </div>

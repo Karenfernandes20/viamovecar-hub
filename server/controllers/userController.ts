@@ -6,7 +6,12 @@ export const getUsers = async (req: Request, res: Response) => {
   try {
     if (!pool) return res.status(500).json({ error: 'Database not configured' });
 
-    const result = await pool.query('SELECT * FROM app_users ORDER BY created_at DESC');
+    let result;
+    if (req.user?.role === 'SUPERADMIN') {
+      result = await pool.query('SELECT * FROM app_users ORDER BY created_at DESC');
+    } else {
+      result = await pool.query('SELECT * FROM app_users WHERE company_id = $1 ORDER BY created_at DESC', [req.user?.company_id]);
+    }
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -18,14 +23,18 @@ export const createUser = async (req: Request, res: Response) => {
   try {
     if (!pool) return res.status(500).json({ error: 'Database not configured' });
 
-    const { full_name, email, phone, user_type, city_id, state, company_id, password, role, permissions } = req.body;
+    let { full_name, email, phone, user_type, city_id, state, company_id, password, role, permissions } = req.body;
 
-    // Optional: hash password if provided, otherwise default
-    let hash = null;
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      hash = await bcrypt.hash(password, salt);
+    // If not superadmin, force company_id to be the same as the creator
+    if (req.user?.role !== 'SUPERADMIN') {
+      company_id = req.user?.company_id;
     }
+
+    // Optional: hash password if provided, otherwise default '123456'
+    let hash = null;
+    const passToHash = password || '123456';
+    const salt = await bcrypt.genSalt(10);
+    hash = await bcrypt.hash(passToHash, salt);
 
     const result = await pool.query(
       'INSERT INTO app_users (full_name, email, phone, user_type, city_id, state, company_id, password_hash, role, permissions) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',

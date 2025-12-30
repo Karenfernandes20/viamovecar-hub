@@ -73,6 +73,7 @@ export const runMigrations = async () => {
                 amount DECIMAL(12, 2) NOT NULL,
                 status VARCHAR(20) DEFAULT 'pending',
                 due_date TIMESTAMP,
+                issue_date TIMESTAMP DEFAULT NOW(),
                 paid_at TIMESTAMP,
                 city_id INTEGER,
                 category VARCHAR(100),
@@ -81,19 +82,16 @@ export const runMigrations = async () => {
             );
         `);
 
-        // 2. Add category column if missing
-        try {
-            await pool.query(`ALTER TABLE financial_transactions ADD COLUMN category VARCHAR(100);`);
-        } catch (e: any) {
-            // Ignore duplicate_column error
-        }
+        // 2. Add columns if missing
+        const addColumnSimple = async (col: string, type: string) => {
+            try {
+                await pool.query(`ALTER TABLE financial_transactions ADD COLUMN ${col} ${type};`);
+            } catch (e) { }
+        };
 
-        // 3. Add paid_at column if missing
-        try {
-            await pool.query(`ALTER TABLE financial_transactions ADD COLUMN paid_at TIMESTAMP;`);
-        } catch (e: any) {
-            // Ignore duplicate_column error
-        }
+        await addColumnSimple('category', 'VARCHAR(100)');
+        await addColumnSimple('paid_at', 'TIMESTAMP');
+        await addColumnSimple('issue_date', 'TIMESTAMP DEFAULT NOW()');
 
         // 4. CRM Tables
         await pool.query(`

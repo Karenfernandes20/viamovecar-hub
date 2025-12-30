@@ -1,7 +1,12 @@
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+} from "../components/ui/tabs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { userService, User } from "../services/userService";
 import { Loader2, Trash2 } from "lucide-react";
@@ -9,20 +14,21 @@ import { useState } from "react";
 
 const UsuariosPage = () => {
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState("all");
   const [newUser, setNewUser] = useState<{
     full_name: string;
     email: string;
     phone: string;
-    user_type: "passenger" | "driver";
-    city_id?: number;
-    state?: string;
+    user_type: "passenger" | "driver" | "system";
+    role: "ADMIN" | "USUARIO";
+    password?: string;
   }>({
     full_name: "",
     email: "",
     phone: "",
-    user_type: "passenger",
-    city_id: undefined,
-    state: "",
+    user_type: "system",
+    role: "USUARIO",
+    password: "",
   });
 
   const { data: users = [], isLoading, error } = useQuery<User[]>({
@@ -34,7 +40,7 @@ const UsuariosPage = () => {
     mutationFn: userService.createUser,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      setNewUser({ full_name: "", email: "", phone: "", user_type: "passenger", city_id: undefined, state: "" });
+      setNewUser({ full_name: "", email: "", phone: "", user_type: "system", role: "USUARIO", password: "" });
     },
   });
 
@@ -48,14 +54,23 @@ const UsuariosPage = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUser.full_name || !newUser.phone) return;
-    createMutation.mutate({
+
+    const payload: any = {
       full_name: newUser.full_name,
       email: newUser.email,
       phone: newUser.phone,
-      user_type: newUser.user_type,
-      city_id: newUser.city_id ?? 0,
-      state: newUser.state ?? "",
-    });
+    };
+
+    if (newUser.user_type === 'system') {
+      payload.role = newUser.role;
+      payload.user_type = null;
+      payload.password = newUser.password || '123456';
+    } else {
+      payload.user_type = newUser.user_type;
+      payload.role = 'USUARIO';
+    }
+
+    createMutation.mutate(payload);
   };
 
   if (isLoading) {
@@ -72,122 +87,199 @@ const UsuariosPage = () => {
 
   const passengers = users.filter((u) => u.user_type === "passenger");
   const drivers = users.filter((u) => u.user_type === "driver");
+  const systemUsers = users.filter((u) => !u.user_type || (u.role === 'ADMIN' || u.role === 'USUARIO' && !u.user_type));
+
+  const filteredUsers = activeTab === 'all' ? users :
+    activeTab === 'passengers' ? passengers :
+      activeTab === 'drivers' ? drivers : systemUsers;
 
   return (
-    <div className="space-y-4">
-      <header className="flex flex-wrap items-center justify-between gap-3">
+    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-base font-semibold tracking-tight">Gestão de usuários</h2>
-          <p className="text-xs text-muted-foreground">
-            Cadastre e remova passageiros e motoristas vinculados às suas cidades.
+          <h1 className="text-2xl font-bold tracking-tight">Gestão de Usuários</h1>
+          <p className="text-sm text-muted-foreground">
+            Gerencie passageiros, motoristas e usuários administrativos do sistema.
           </p>
         </div>
       </header>
 
-      <section className="rounded-md border bg-background/70 p-4 space-y-3">
-        <h3 className="text-sm font-medium">Adicionar usuário</h3>
-        <form onSubmit={handleSubmit} className="grid gap-3 md:grid-cols-4 items-end">
-          <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground">Nome</label>
-            <Input
-              value={newUser.full_name}
-              onChange={(e) => setNewUser((u) => ({ ...u, full_name: e.target.value }))}
-              className="h-8 text-xs"
-              placeholder="Nome completo"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground">Telefone</label>
-            <Input
-              value={newUser.phone}
-              onChange={(e) => setNewUser((u) => ({ ...u, phone: e.target.value }))}
-              className="h-8 text-xs"
-              placeholder="(00) 00000-0000"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground">Tipo</label>
-            <select
-              value={newUser.user_type}
-              onChange={(e) => setNewUser((u) => ({ ...u, user_type: e.target.value as "passenger" | "driver" }))}
-              className="h-8 rounded-md border bg-background px-2 text-xs"
-            >
-              <option value="passenger">Passageiro</option>
-              <option value="driver">Motorista</option>
-            </select>
-          </div>
-          <Button type="submit" size="sm" disabled={createMutation.isPending}>
-            {createMutation.isPending ? "Salvando..." : "Cadastrar"}
-          </Button>
-        </form>
-      </section>
-
-      <section className="grid gap-3 md:grid-cols-3">
-        <Card className="border-dashed bg-background/70">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Passageiros ({passengers.length})</CardTitle>
+      {/* DASHBOARD SUMMARY */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="border-none shadow-sm bg-blue-50 dark:bg-blue-950/20">
+          <CardHeader className="p-4 pb-2">
+            <CardDescription className="text-[10px] font-bold uppercase">Total Usuários</CardDescription>
+            <CardTitle className="text-xl font-extrabold">{users.length}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-xs">
-            <p className="text-muted-foreground">Lista de passageiros cadastrados na base.</p>
-            <Badge variant="outline" className="badge-pill text-[11px]">
-              Filtros por cidade e estado
-            </Badge>
-          </CardContent>
         </Card>
-
-        <Card className="border-dashed bg-background/70">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Motoristas ({drivers.length})</CardTitle>
+        <Card className="border-none shadow-sm bg-emerald-50 dark:bg-emerald-950/20">
+          <CardHeader className="p-4 pb-2">
+            <CardDescription className="text-[10px] font-bold uppercase">Passageiros</CardDescription>
+            <CardTitle className="text-xl font-extrabold text-emerald-600">{passengers.length}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-xs">
-            <p className="text-muted-foreground">Gestão de cadastros, documentos e status.</p>
-            <Badge variant="outline" className="badge-pill text-[11px]">
-              Status: ativo, pendente, bloqueado
-            </Badge>
-          </CardContent>
         </Card>
-
-        <Card className="border-dashed bg-background/70">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Administradores</CardTitle>
+        <Card className="border-none shadow-sm bg-amber-50 dark:bg-amber-950/20">
+          <CardHeader className="p-4 pb-2">
+            <CardDescription className="text-[10px] font-bold uppercase">Motoristas</CardDescription>
+            <CardTitle className="text-xl font-extrabold text-amber-600">{drivers.length}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-xs">
-            <p className="text-muted-foreground">
-              Gestão de acessos internos será configurada em uma próxima etapa.
-            </p>
-          </CardContent>
         </Card>
-      </section>
+        <Card className="border-none shadow-sm bg-purple-50 dark:bg-purple-950/20">
+          <CardHeader className="p-4 pb-2">
+            <CardDescription className="text-[10px] font-bold uppercase">Equipe / Sistema</CardDescription>
+            <CardTitle className="text-xl font-extrabold text-purple-600">{systemUsers.length}</CardTitle>
+          </CardHeader>
+        </Card>
+      </div>
 
-      <div className="rounded-md border p-4">
-        <h3 className="mb-4 text-sm font-medium">Usuários cadastrados</h3>
-        {users.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Nenhum usuário cadastrado ainda.</p>
-        ) : (
-          <div className="space-y-2 text-xs">
-            {users.map((user) => (
-              <div
-                key={user.id}
-                className="flex items-center justify-between rounded-md bg-background/70 px-3 py-2"
-              >
-                <div>
-                  <p className="font-medium text-foreground">{user.full_name || user.phone}</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {user.user_type === "passenger" ? "Passageiro" : "Motorista"}
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-destructive"
-                  onClick={() => deleteMutation.mutate(user.id)}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* FORM SIDE */}
+        <Card className="lg:col-span-1 shadow-sm h-fit">
+          <CardHeader>
+            <CardTitle className="text-base">Adicionar Novo Usuário</CardTitle>
+            <CardDescription className="text-xs">Cadastre novos acessos ou clientes.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase text-muted-foreground">Tipo de Usuário</label>
+                <select
+                  value={newUser.user_type}
+                  onChange={(e) => setNewUser((u) => ({ ...u, user_type: e.target.value as any }))}
+                  className="w-full h-9 rounded-md border bg-background px-3 text-xs"
                 >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                  <option value="system">Usuário do Sistema (Admin/Colaborador)</option>
+                  <option value="passenger">Passageiro (Cliente)</option>
+                  <option value="driver">Motorista</option>
+                </select>
               </div>
-            ))}
-          </div>
-        )}
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase text-muted-foreground">Nome Completo</label>
+                <Input
+                  value={newUser.full_name}
+                  onChange={(e) => setNewUser((u) => ({ ...u, full_name: e.target.value }))}
+                  placeholder="Ex: João Silva"
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase text-muted-foreground">Email (Login)</label>
+                <Input
+                  type="email"
+                  value={newUser.email}
+                  onChange={(e) => setNewUser((u) => ({ ...u, email: e.target.value }))}
+                  placeholder="joao@email.com"
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase text-muted-foreground">Telefone / WhatsApp</label>
+                <Input
+                  value={newUser.phone}
+                  onChange={(e) => setNewUser((u) => ({ ...u, phone: e.target.value }))}
+                  placeholder="(00) 00000-0000"
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              {newUser.user_type === 'system' && (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold uppercase text-muted-foreground">Nível de Acesso</label>
+                    <select
+                      value={newUser.role}
+                      onChange={(e) => setNewUser((u) => ({ ...u, role: e.target.value as any }))}
+                      className="w-full h-9 rounded-md border bg-background px-3 text-xs"
+                    >
+                      <option value="USUARIO">Colaborador (Padrão)</option>
+                      <option value="ADMIN">Administrador</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold uppercase text-muted-foreground">Senha Inicial</label>
+                    <Input
+                      type="password"
+                      value={newUser.password}
+                      onChange={(e) => setNewUser((u) => ({ ...u, password: e.target.value }))}
+                      placeholder="Padrão: 123456"
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                </>
+              )}
+
+              <Button type="submit" className="w-full bg-[#008069] hover:bg-[#006d59] font-bold" disabled={createMutation.isPending}>
+                {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                {createMutation.isPending ? "Salvando..." : "CADASTRAR USUÁRIO"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* LIST SIDE */}
+        <div className="lg:col-span-2 space-y-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-4 h-10">
+              <TabsTrigger value="all" className="text-[10px] font-bold uppercase">Todos</TabsTrigger>
+              <TabsTrigger value="system" className="text-[10px] font-bold uppercase text-purple-600">Equipe</TabsTrigger>
+              <TabsTrigger value="passengers" className="text-[10px] font-bold uppercase text-emerald-600">Passageiros</TabsTrigger>
+              <TabsTrigger value="drivers" className="text-[10px] font-bold uppercase text-amber-600">Motoristas</TabsTrigger>
+            </TabsList>
+
+            <div className="mt-4 rounded-xl border bg-background shadow-sm overflow-hidden">
+              <div className="p-4 border-b bg-muted/30">
+                <h3 className="text-sm font-bold uppercase tracking-wider">Lista de Usuários ({filteredUsers.length})</h3>
+              </div>
+
+              <div className="divide-y max-h-[600px] overflow-y-auto">
+                {filteredUsers.length === 0 ? (
+                  <div className="p-10 text-center text-muted-foreground">
+                    <p className="text-xs">Nenhum usuário encontrado nesta categoria.</p>
+                  </div>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <div key={user.id} className="p-4 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-900 group">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white font-bold text-sm ${user.user_type === 'passenger' ? 'bg-emerald-500' :
+                          user.user_type === 'driver' ? 'bg-amber-500' : 'bg-purple-500'
+                          }`}>
+                          {(user.full_name || 'U').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-sm">{user.full_name || 'Usuário sem nome'}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-muted-foreground">{user.email || user.phone}</span>
+                            <Badge variant="outline" className={`text-[9px] h-4 font-bold border-none uppercase px-1.5 ${user.user_type === 'passenger' ? 'bg-emerald-100 text-emerald-700' :
+                              user.user_type === 'driver' ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'
+                              }`}>
+                              {user.user_type ? (user.user_type === 'passenger' ? 'Passageiro' : 'Motorista') : `SISTEMA (${user.role})`}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => {
+                            if (confirm(`Excluir ${user.full_name}?`)) deleteMutation.mutate(user.id);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </Tabs>
+        </div>
       </div>
     </div>
   );

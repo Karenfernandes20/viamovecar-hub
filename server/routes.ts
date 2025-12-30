@@ -10,7 +10,6 @@ import {
 import { getStages, getLeads, updateLeadStage, createStage, deleteStage, getCrmDashboardStats } from './controllers/crmController';
 import { handleWebhook, getConversations, getMessages } from './controllers/webhookController';
 import { getCities, createCity } from './controllers/cityController';
-import { getPayables, getReceivablesByCity, getCashFlow, createExpense } from './controllers/financialController';
 import { login, register } from './controllers/authController';
 import { authenticateToken, authorizeRole } from './middleware/authMiddleware';
 import { getCompanies, createCompany, updateCompany, deleteCompany, getCompanyUsers, getCompany } from './controllers/companyController';
@@ -33,11 +32,11 @@ router.put('/companies/:id', authenticateToken, authorizeRole(['SUPERADMIN']), u
 router.delete('/companies/:id', authenticateToken, authorizeRole(['SUPERADMIN']), deleteCompany);
 
 // User routes (Protected)
-router.get('/users', authenticateToken, authorizeRole(['SUPERADMIN']), getUsers);
-router.post('/users', authenticateToken, authorizeRole(['SUPERADMIN']), createUser);
-router.put('/users/:id', authenticateToken, authorizeRole(['SUPERADMIN']), updateUser);
-router.delete('/users/:id', authenticateToken, authorizeRole(['SUPERADMIN']), deleteUser);
-router.post('/users/:id/reset-password', authenticateToken, authorizeRole(['SUPERADMIN']), resetUserPassword);
+router.get('/users', authenticateToken, authorizeRole(['SUPERADMIN', 'ADMIN']), getUsers);
+router.post('/users', authenticateToken, authorizeRole(['SUPERADMIN', 'ADMIN']), createUser);
+router.put('/users/:id', authenticateToken, authorizeRole(['SUPERADMIN', 'ADMIN']), updateUser);
+router.delete('/users/:id', authenticateToken, authorizeRole(['SUPERADMIN', 'ADMIN']), deleteUser);
+router.post('/users/:id/reset-password', authenticateToken, authorizeRole(['SUPERADMIN', 'ADMIN']), resetUserPassword);
 // router.delete('/users', clearUsers); // Disable dangerous bulk delete without stronger protection or manual only
 
 
@@ -84,11 +83,15 @@ router.get('/reports/dre', authenticateToken, authorizeRole(['SUPERADMIN', 'ADMI
 router.get('/reports/breakdown', authenticateToken, authorizeRole(['SUPERADMIN', 'ADMIN']), getBreakdown);
 router.get('/reports/indicators', authenticateToken, authorizeRole(['SUPERADMIN', 'ADMIN']), getFinancialIndicators);
 
+import { getPayables, getReceivablesByCity, getCashFlow, createFinancialTransaction, updateFinancialTransaction, deleteFinancialTransaction, markAsPaid } from './controllers/financialController';
 // Financial routes
 router.get('/financial/payables', getPayables);
 router.get('/financial/receivables-by-city', getReceivablesByCity);
 router.get('/financial/cashflow', getCashFlow);
-router.post('/financial/expenses', createExpense);
+router.post('/financial/transactions', createFinancialTransaction);
+router.put('/financial/transactions/:id', updateFinancialTransaction);
+router.delete('/financial/transactions/:id', deleteFinancialTransaction);
+router.post('/financial/transactions/:id/pay', markAsPaid);
 
 // Placeholder for other routes
 router.get('/rides', (req, res) => res.json({ message: 'Rides endpoint' }));

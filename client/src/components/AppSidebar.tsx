@@ -94,16 +94,24 @@ export function AppSidebar() {
     <Sidebar className="data-[variant=sidebar]:border-r data-[variant=sidebar]:border-sidebar-border" collapsible="offcanvas">
       <SidebarHeader className="gap-3 border-b border-sidebar-border/60 pb-4">
         <div className="flex items-center gap-3">
-          {user?.company?.logo_url ? (
+          {user?.role === 'SUPERADMIN' ? (
+            <img
+              src="/logo-integrai.jpg"
+              alt="Logo Integrai"
+              className="h-9 w-9 rounded-xl object-contain bg-white"
+            />
+          ) : user?.company?.logo_url ? (
             <img
               src={user.company.logo_url}
               alt="Logo"
               className="h-9 w-9 rounded-xl object-cover bg-white"
             />
           ) : (
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sidebar-primary/20 text-sidebar-primary-foreground">
-              <span className="text-lg font-semibold">IN</span>
-            </div>
+            <img
+              src="/logo-integrai.jpg"
+              alt="Logo Integrai"
+              className="h-9 w-9 rounded-xl object-contain bg-white"
+            />
           )}
           <div className="flex flex-col text-xs">
             <span className="text-sm font-semibold tracking-tight truncate max-w-[150px]">

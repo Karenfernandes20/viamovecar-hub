@@ -1533,10 +1533,15 @@ const AtendimentoPage = () => {
                   <div
                     key={msg.id}
                     className={cn(
-                      "flex w-full group relative",
-                      msg.direction === "outbound" ? "justify-end" : "justify-start"
+                      "flex flex-col w-full group relative mb-2",
+                      msg.direction === "outbound" ? "items-end" : "items-start"
                     )}
                   >
+                    {msg.direction === "outbound" && (
+                      <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 mb-0.5 px-1 uppercase tracking-wider">
+                        {user?.full_name || "Usuário"}
+                      </span>
+                    )}
                     <div
                       className={cn(
                         "relative max-w-[85%] sm:max-w-[65%] px-3 py-1.5 shadow-sm text-sm break-words",

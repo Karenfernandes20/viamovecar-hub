@@ -71,10 +71,13 @@ const SuperAdminLoginPage = () => {
                 <X className="h-6 w-6" />
             </Button>
             <Card className="w-full max-w-md border-amber-500/30 bg-zinc-900/50 backdrop-blur-sm">
-                <CardHeader className="text-center">
-                    <CardTitle className="text-2xl text-amber-500 font-bold tracking-wide">SuperAdmin Integrai</CardTitle>
-                    <CardDescription className="text-amber-500/60">Acesso restrito administrativo</CardDescription>
-                </CardHeader>
+                <div className="flex flex-col items-center gap-4 pt-6">
+                    <img src="/logo-integrai.jpg" alt="Logo Integrai" className="h-20 w-20 rounded-2xl shadow-lg border-2 border-amber-500/20 bg-white p-1" />
+                    <CardHeader className="text-center p-0">
+                        <CardTitle className="text-2xl text-amber-500 font-bold tracking-wide">SuperAdmin Integrai</CardTitle>
+                        <CardDescription className="text-amber-500/60">Acesso restrito administrativo</CardDescription>
+                    </CardHeader>
+                </div>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="space-y-2">

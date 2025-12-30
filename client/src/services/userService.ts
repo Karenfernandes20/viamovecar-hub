@@ -5,7 +5,9 @@ export interface User {
   full_name: string;
   email: string;
   phone: string;
-  user_type: 'passenger' | 'driver';
+  user_type: 'passenger' | 'driver' | null;
+  role: 'SUPERADMIN' | 'ADMIN' | 'USUARIO';
+  company_id: number;
   city_id: number;
   state: string;
   status: string;
@@ -14,18 +16,21 @@ export interface User {
 
 export const userService = {
   getUsers: async (): Promise<User[]> => {
-    const response = await fetch(`${API_URL}/users`);
+    const response = await fetch(`${API_URL}/users`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
     if (!response.ok) {
       throw new Error('Network response was not ok');
     }
     return response.json();
   },
 
-  createUser: async (user: Omit<User, 'id' | 'created_at' | 'status'>): Promise<User> => {
+  createUser: async (user: Partial<User> & { password?: string }): Promise<User> => {
     const response = await fetch(`${API_URL}/users`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
       },
       body: JSON.stringify(user),
     });
@@ -38,6 +43,7 @@ export const userService = {
   deleteUser: async (id: number): Promise<void> => {
     const response = await fetch(`${API_URL}/users/${id}`, {
       method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
     });
     if (!response.ok) {
       throw new Error('Failed to delete user');
