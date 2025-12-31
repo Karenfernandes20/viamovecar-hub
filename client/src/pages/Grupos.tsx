@@ -49,6 +49,46 @@ interface Message {
     sender_name?: string;
 }
 
+// Helper component for authenticated media
+const AuthImage = ({ src, alt, className, token }: { src: string, alt: string, className?: string, token: string }) => {
+    const [imgSrc, setImgSrc] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!src) return;
+        if (src.startsWith('data:')) {
+            setImgSrc(src);
+            return;
+        }
+
+        fetch(src, { headers: { 'Authorization': `Bearer ${token}` } })
+            .then(res => res.blob())
+            .then(blob => setImgSrc(URL.createObjectURL(blob)))
+            .catch(() => setImgSrc(null));
+    }, [src, token]);
+
+    if (!imgSrc) return <div className="w-full h-32 bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-xs text-zinc-500">Imagem indisponível</div>;
+    return <img src={imgSrc} alt={alt} className={className} />;
+};
+
+const AuthAudio = ({ src, token }: { src: string, token: string }) => {
+    const [audioSrc, setAudioSrc] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!src) return;
+        if (src.startsWith('data:')) {
+            setAudioSrc(src);
+            return;
+        }
+        fetch(src, { headers: { 'Authorization': `Bearer ${token}` } })
+            .then(res => res.blob())
+            .then(blob => setAudioSrc(URL.createObjectURL(blob)))
+            .catch(err => console.error("Audio fetch error", err));
+    }, [src, token]);
+
+    if (!audioSrc) return <span className="text-xs text-red-500">Erro áudio</span>;
+    return <audio controls src={audioSrc} className="w-64 h-8" />;
+};
+
 const GruposPage = () => {
     const { token, user } = useAuth();
     const [groups, setGroups] = useState<GroupConversation[]>([]);
@@ -114,7 +154,7 @@ const GruposPage = () => {
 
     useEffect(() => {
         fetchGroups();
-        const interval = setInterval(fetchGroups, 10000); // 10s refresh for sidebar
+        const interval = setInterval(fetchGroups, 10000);
 
         const socket = io({
             transports: ["websocket"],
@@ -127,7 +167,6 @@ const GruposPage = () => {
         });
 
         socket.on("message:received", (msg: any) => {
-            // Update messages if it's for the selected group
             if (selectedGroupRef.current && (selectedGroupRef.current.phone === msg.phone || selectedGroupRef.current.id === msg.conversation_id)) {
                 setMessages(prev => {
                     if (prev.find(m => m.id === msg.id)) return prev;
@@ -139,8 +178,6 @@ const GruposPage = () => {
                     }
                 }, 100);
             }
-
-            // Refresh group list to update last message/unread
             fetchGroups();
         });
 
@@ -174,8 +211,6 @@ const GruposPage = () => {
 
             if (!res.ok) {
                 toast.error("Erro ao enviar mensagem");
-            } else {
-                // The message will come back via socket
             }
         } catch (error) {
             console.error("Error sending message:", error);
@@ -316,7 +351,7 @@ const GruposPage = () => {
 
             {/* Main Chat Area */}
             <div className="flex-1 flex flex-col bg-[#efeae2] dark:bg-zinc-950 relative">
-                {/* Background Pattern Overlay (Optional, like WhatsApp) */}
+                {/* Background Pattern Overlay */}
                 <div className="absolute inset-0 opacity-[0.05] dark:opacity-[0.03] pointer-events-none bg-[url('https://w0.peakpx.com/wallpaper/818/148/wallpaper-whatsapp-background.jpg')] bg-repeat"></div>
 
                 {!selectedGroup ? (
@@ -382,26 +417,38 @@ const GruposPage = () => {
                                                 </span>
                                             )}
 
-                                            {/* Render simplified content for groups */}
+                                            {/* Render Content with Proxy */}
                                             {(() => {
                                                 const type = msg.message_type || 'text';
+
+                                                // Proxy URL
+                                                const proxyUrl = `/api/evolution/media/${msg.id}`;
 
                                                 if (type === 'image') {
                                                     return (
                                                         <div className="flex flex-col gap-1">
-                                                            {msg.media_url ? (
-                                                                <img src={msg.media_url} alt="Image" className="max-w-full rounded h-auto max-h-[300px]" />
-                                                            ) : <span className="italic opacity-60">Imagem</span>}
-                                                            {msg.content && <span>{msg.content}</span>}
+                                                            {msg.id ? (
+                                                                <AuthImage src={proxyUrl} alt="Image" className="max-w-full rounded h-auto max-h-[300px]" token={token || ""} />
+                                                            ) : (
+                                                                <span className="italic opacity-60">Imagem sem ID</span>
+                                                            )}
+                                                            {msg.content && msg.content !== '[Imagem]' && <span>{msg.content}</span>}
                                                         </div>
                                                     );
                                                 }
+                                                if (type === 'audio') {
+                                                    return (
+                                                        <div className="flex flex-col gap-1 min-w-[200px]">
+                                                            <AuthAudio src={proxyUrl} token={token || ""} />
+                                                        </div>
+                                                    )
+                                                }
                                                 // Simplified other types
-                                                if (['audio', 'video', 'document', 'sticker'].includes(type) && msg.media_url) {
+                                                if (['video', 'document', 'sticker'].includes(type) && msg.media_url) {
                                                     return (
                                                         <div className="flex items-center gap-2 p-1">
                                                             <div className="p-2 bg-black/10 rounded"><FileText className="h-5 w-5" /></div>
-                                                            <a href={msg.media_url} target="_blank" className="underline text-xs">{type.toUpperCase()} recebido</a>
+                                                            <a href={proxyUrl} target="_blank" className="underline text-xs">{type.toUpperCase()} recebido</a>
                                                         </div>
                                                     )
                                                 }
@@ -474,5 +521,4 @@ const GruposPage = () => {
         </div>
     );
 };
-
 export default GruposPage;

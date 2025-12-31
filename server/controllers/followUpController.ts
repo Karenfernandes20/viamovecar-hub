@@ -16,7 +16,8 @@ export const getFollowUps = async (req: Request, res: Response) => {
                 l.phone as lead_phone,
                 s.name as stage_name,
                 u.full_name as responsible_name,
-                c.contact_name as whatsapp_contact_name
+                c.contact_name as whatsapp_contact_name,
+                c.phone as conversation_phone
             FROM crm_follow_ups f
             LEFT JOIN crm_leads l ON f.lead_id = l.id
             LEFT JOIN crm_stages s ON l.stage_id = s.id

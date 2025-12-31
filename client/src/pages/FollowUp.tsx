@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     CalendarCheck,
@@ -38,6 +39,7 @@ import { FollowUpModal } from "../components/follow-up/FollowUpModal";
 
 const FollowUpPage = () => {
     const { token, user } = useAuth();
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
@@ -152,6 +154,19 @@ const FollowUpPage = () => {
             updateMutation.mutate({ id, data: { status: 'completed', completed_at: new Date() } });
         } else if (action === 'cancel') {
             updateMutation.mutate({ id, data: { status: 'cancelled' } });
+        }
+    };
+
+    const handleChat = (f: any) => {
+        // Prefer lead phone, then conversation phone
+        const phone = f.lead_phone || f.conversation_phone;
+        // Prefer lead name, then whatsapp contact name, then phone fallback
+        const name = f.lead_name || f.whatsapp_contact_name || f.conversation_phone || "Contato";
+
+        if (phone) {
+            navigate(`/app/atendimento?phone=${phone}&name=${encodeURIComponent(name)}`);
+        } else {
+            toast.error("Telefone não disponível para este follow-up");
         }
     };
 
@@ -336,7 +351,12 @@ const FollowUpPage = () => {
                                                     <CheckCircle2 className="h-4 w-4" />
                                                 </Button>
                                                 {f.type === 'whatsapp' && (
-                                                    <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-emerald-50 hover:text-emerald-600 transition-colors">
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-8 w-8 hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                                                        onClick={() => handleChat(f)}
+                                                    >
                                                         <MessageSquare className="h-4 w-4" />
                                                     </Button>
                                                 )}

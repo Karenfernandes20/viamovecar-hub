@@ -199,6 +199,11 @@ export const deleteEvolutionInstance = async (req: Request, res: Response) => {
 
 // ... existing imports
 
+// ... existing imports
+import { Readable } from 'stream';
+
+
+
 export const getEvolutionConnectionState = async (req: Request, res: Response) => {
   const targetCompanyId = req.query.companyId as string;
   const config = await getEvolutionConfig((req as any).user, 'status_poll', targetCompanyId);
@@ -1040,5 +1045,113 @@ export const deleteEvolutionContact = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error deleting contact:", error);
     return res.status(500).json({ error: "Failed to delete contact" });
+  }
+};
+
+export const getEvolutionMedia = async (req: Request, res: Response) => {
+  const { messageId } = req.params;
+  try {
+    if (!pool) return res.status(500).json({ error: "DB not configured" });
+
+    // 1. Get message details
+    const msgQuery = await pool.query(
+      "SELECT external_id, direction, conversation_id, message_type FROM whatsapp_messages WHERE id = $1",
+      [messageId]
+    );
+    if (msgQuery.rows.length === 0) return res.status(404).send("Message not found");
+
+    const { external_id, direction, conversation_id, message_type } = msgQuery.rows[0];
+
+    // 2. Get instance from conversation
+    const convQuery = await pool.query("SELECT instance, phone, external_id as remote_jid FROM whatsapp_conversations WHERE id = $1", [conversation_id]);
+    if (convQuery.rows.length === 0) return res.status(404).send("Conversation not found");
+
+    const { instance, remote_jid } = convQuery.rows[0];
+
+    // 3. Config
+    const config = await getEvolutionConfig((req as any).user, 'getMedia');
+    const EVOLUTION_API_URL = config.url;
+    const EVOLUTION_API_KEY = config.apikey;
+
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) return res.status(500).send("Evolution not configured");
+
+    const url = `${EVOLUTION_API_URL.replace(/\/$/, "")}/chat/getBase64FromMediaMessage/${instance}`;
+
+    const payload = {
+      message: {
+        key: {
+          id: external_id,
+          fromMe: direction === 'outbound',
+          remoteJid: remote_jid
+        }
+      },
+      convertToMp4: false
+    };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": EVOLUTION_API_KEY },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      console.error(`[Media Proxy] Evolution Error ${response.status}:`, await response.text());
+      return res.status(response.status).send("Failed to fetch media from provider");
+    }
+
+    const data = await response.json();
+
+    if (!data.base64) return res.status(404).send("Media content not found");
+
+    const imgBuffer = Buffer.from(data.base64, 'base64');
+
+    // Set content type based on message type if possible
+    if (message_type === 'image') res.setHeader('Content-Type', 'image/jpeg');
+    else if (message_type === 'audio') res.setHeader('Content-Type', 'audio/mp3'); // or ogg
+    else if (message_type === 'video') res.setHeader('Content-Type', 'video/mp4');
+    else res.setHeader('Content-Type', 'application/octet-stream');
+
+    return res.send(imgBuffer);
+
+  } catch (error) {
+    console.error("Media proxy error:", error);
+    return res.status(500).send("Internal Server Error");
+  }
+};
+
+export const getEvolutionProfilePic = async (req: Request, res: Response) => {
+  const { phone } = req.params;
+  try {
+    const config = await getEvolutionConfig((req as any).user, 'getProfilePic');
+    const EVOLUTION_API_URL = config.url;
+    const EVOLUTION_API_KEY = config.apikey;
+    const EVOLUTION_INSTANCE = config.instance;
+
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) return res.status(500).json({ error: "Config missing" });
+
+    const url = `${EVOLUTION_API_URL.replace(/\/$/, "")}/chat/fetchProfilePictureUrl/${EVOLUTION_INSTANCE}`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": EVOLUTION_API_KEY },
+      body: JSON.stringify({ number: phone })
+    });
+
+    if (!response.ok) return res.status(404).send("Pic not found");
+
+    const data = await response.json();
+    const picUrl = data.profilePictureUrl;
+
+    if (picUrl && pool) {
+      // Update DB cache
+      const jid = `${phone}@s.whatsapp.net`; // Simple assumption, might need refinement for groups
+      await pool.query("UPDATE whatsapp_contacts SET profile_pic_url = $1 WHERE phone = $2 OR jid = $3", [picUrl, phone, jid]);
+    }
+
+    return res.json({ url: picUrl });
+
+  } catch (error) {
+    console.error("Profile pic error:", error);
+    return res.status(500).json({ error: "Internal Error" });
   }
 };
