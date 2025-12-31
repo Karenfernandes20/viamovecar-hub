@@ -57,6 +57,8 @@ interface Conversation {
   user_id?: number; // ID do atendente responsável
   started_at?: string;
   closed_at?: string;
+  is_group?: boolean;
+  group_name?: string;
 }
 
 interface Message {
@@ -93,7 +95,7 @@ const AtendimentoPage = () => {
   const [pendingConversations, setPendingConversations] = useState<Conversation[]>([]);
   const [openConversations, setOpenConversations] = useState<Conversation[]>([]);
   const [closedConversations, setClosedConversations] = useState<Conversation[]>([]);
-  const [activeTab, setActiveTab] = useState<"conversas" | "contatos">("conversas");
+  const [activeTab, setActiveTab] = useState<"conversas" | "grupos" | "contatos">("conversas");
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
 
@@ -141,12 +143,16 @@ const AtendimentoPage = () => {
   const getDisplayName = useMemo(() => (conv: Conversation | null): string => {
     if (!conv) return "";
 
-    // 1. Tenta encontrar no mapa de contatos sincronizados
-    const raw = conv.phone.replace(/\D/g, "");
-    const contactName = contactMap.get(raw);
+    // For groups, prioritize group_name
+    if (conv.is_group) {
+      return conv.group_name || conv.contact_name || 'Grupo';
+    }
 
-    if (contactName) {
-      return contactName;
+    // 1. Tentar buscar no mapa de contatos (sincronizados)
+    const raw = conv.phone.replace(/\D/g, "");
+    const fromDB = contactMap.get(raw);
+    if (fromDB) {
+      return fromDB;
     }
 
     // 2. Fallback para o nome que veio na conversa (se existir e não for o número)
@@ -158,10 +164,13 @@ const AtendimentoPage = () => {
     return conv.phone;
   }, [contactMap]);
 
-  // Filter Conversations Logic for 3 columns
+  // Filter Conversations Logic for 3 columns (individual chats only)
   useEffect(() => {
     const filterByStatusAndSearch = (status: "PENDING" | "OPEN" | "CLOSED") => {
       return conversations.filter(c => {
+        // Exclude groups from individual conversations
+        if (c.is_group) return false;
+
         const s = c.status || 'PENDING';
         if (s !== status) return false;
         if (conversationSearchTerm) {
@@ -1014,14 +1023,26 @@ const AtendimentoPage = () => {
 
   const handleStartAtendimento = async (conversation?: Conversation) => {
     const conv = conversation || selectedConversation;
-    if (!conv) return;
+    console.log('[handleStartAtendimento] Called with:', { conv, conversation, selectedConversation });
+
+    if (!conv) {
+      console.warn('[handleStartAtendimento] No conversation found');
+      return;
+    }
+
     try {
+      console.log('[handleStartAtendimento] Making POST request to:', `/api/crm/conversations/${conv.id}/start`);
       const res = await fetch(`/api/crm/conversations/${conv.id}/start`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` }
       });
+
+      console.log('[handleStartAtendimento] Response status:', res.status);
+
       if (res.ok) {
         const userId = user?.id ? Number(user.id) : undefined;
+        console.log('[handleStartAtendimento] Success! Updating conversation to OPEN, userId:', userId);
+
         // Atualiza localmente
         setConversations(prev => prev.map(c =>
           c.id === conv.id ? { ...c, status: 'OPEN' as const, user_id: userId } : c
@@ -1037,14 +1058,19 @@ const AtendimentoPage = () => {
         }
 
         // Switch view to Open
+        console.log('[handleStartAtendimento] Switching to OPEN view');
         setViewMode('OPEN');
         setActiveTab('conversas');
 
       } else {
         const err = await res.json();
+        console.error('[handleStartAtendimento] Error response:', err);
         alert(err.error || "Erro ao iniciar atendimento");
       }
-    } catch (e) { console.error(e); alert("Erro ao conectar."); }
+    } catch (e) {
+      console.error('[handleStartAtendimento] Exception:', e);
+      alert("Erro ao conectar.");
+    }
   };
 
   const handleCloseAtendimento = async (conversation?: Conversation) => {
@@ -1135,7 +1161,7 @@ const AtendimentoPage = () => {
               {conv.status === 'OPEN' && conv.user_id && (
                 <div className="shrink-0 h-1.5 w-1.5 rounded-full bg-[#00a884] animate-pulse" title="Em atendimento"></div>
               )}
-              <p className="text-[13px] text-muted-foreground truncate leading-snug">
+              <p className="text-[13px] text-muted-foreground leading-snug line-clamp-2">
                 {conv.last_message || <span className="italic opacity-60">Iniciar conversa...</span>}
               </p>
             </div>
@@ -1221,7 +1247,7 @@ const AtendimentoPage = () => {
       )}>
         <Tabs
           value={activeTab}
-          onValueChange={(value) => setActiveTab(value as "conversas" | "contatos")}
+          onValueChange={(value) => setActiveTab(value as "conversas" | "grupos" | "contatos")}
           className="flex flex-1 flex-col"
         >
           {/* Header da Sidebar */}
@@ -1243,9 +1269,12 @@ const AtendimentoPage = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <TabsList className="grid grid-cols-2 h-9 gap-2 bg-zinc-200/50 dark:bg-zinc-800/50 p-1">
+              <TabsList className="grid grid-cols-3 h-9 gap-2 bg-zinc-200/50 dark:bg-zinc-800/50 p-1">
                 <TabsTrigger value="conversas" className="text-xs font-semibold">
                   Conversas
+                </TabsTrigger>
+                <TabsTrigger value="grupos" className="text-xs font-semibold">
+                  Grupos
                 </TabsTrigger>
                 <TabsTrigger value="contatos" className="text-xs font-semibold">
                   Novas Conversas
@@ -1326,6 +1355,25 @@ const AtendimentoPage = () => {
                         <p className="text-sm font-medium">Nenhuma conversa encontrada</p>
                       </div>
                     )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* Aba GRUPOS */}
+            <TabsContent value="grupos" className="h-full flex flex-col m-0">
+              <ScrollArea className="flex-1">
+                <div className="flex flex-col py-3">
+                  {conversations
+                    .filter(c => c.is_group)
+                    .sort((a, b) => new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime())
+                    .map(conv => renderConversationCard(conv))}
+
+                  {conversations.filter(c => c.is_group).length === 0 && (
+                    <div className="flex flex-col items-center justify-center p-12 opacity-40">
+                      <Search className="h-12 w-12 mb-4 text-zinc-300" />
+                      <p className="text-sm font-medium">Nenhum grupo encontrado</p>
+                    </div>
+                  )}
                 </div>
               </ScrollArea>
             </TabsContent>

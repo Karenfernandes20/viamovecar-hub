@@ -72,12 +72,12 @@ router.get('/cities', getCities);
 router.post('/cities', createCity);
 
 // CRM routes
-router.get('/crm/stages', getStages);
-router.post('/crm/stages', createStage);
-router.delete('/crm/stages/:id', deleteStage);
-router.get('/crm/leads', getLeads);
-router.put('/crm/leads/:id', updateLead);
-router.put('/crm/leads/:id/move', updateLeadStage);
+router.get('/crm/stages', authenticateToken, getStages);
+router.post('/crm/stages', authenticateToken, createStage);
+router.delete('/crm/stages/:id', authenticateToken, deleteStage);
+router.get('/crm/leads', authenticateToken, getLeads);
+router.put('/crm/leads/:id', authenticateToken, updateLead);
+router.put('/crm/leads/:id/move', authenticateToken, updateLeadStage);
 
 // Follow-up Routes
 router.get('/crm/follow-ups', authenticateToken, getFollowUps);

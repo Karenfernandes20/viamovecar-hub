@@ -221,6 +221,8 @@ const runWhatsappMigrations = async () => {
         await addColumn('whatsapp_messages', 'external_id', 'VARCHAR(100)');
         await addColumn('whatsapp_conversations', 'company_id', 'INTEGER REFERENCES companies(id)');
         await addColumn('whatsapp_contacts', 'company_id', 'INTEGER REFERENCES companies(id)');
+        await addColumn('whatsapp_conversations', 'is_group', 'BOOLEAN DEFAULT FALSE');
+        await addColumn('whatsapp_conversations', 'group_name', 'VARCHAR(255)');
 
         // Audit Logs
         await pool.query(`

@@ -164,10 +164,16 @@ export const getLeads = async (req: Request, res: Response) => {
         `;
         const params: any[] = [];
 
-        if (user.role !== 'SUPERADMIN' || companyId) {
+        // If user is NOT a SuperAdmin, OR if they have a company_id, filter by company
+        if (user.role !== 'SUPERADMIN') {
+            query += ` AND l.company_id = $1`;
+            params.push(companyId);
+        } else if (companyId) {
+            // SuperAdmin with company_id: show only that company's leads
             query += ` AND l.company_id = $1`;
             params.push(companyId);
         }
+        // SuperAdmin without company_id: show ALL leads (no filter)
 
         query += ` ORDER BY l.updated_at DESC`;
 

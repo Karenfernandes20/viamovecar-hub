@@ -49,10 +49,13 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
             const remoteJid = msg.key.remoteJid;
 
-            // Ignore status/groups
-            if (remoteJid.includes('@g.us') || remoteJid === 'status@broadcast') {
+            // Ignore only status broadcasts
+            if (remoteJid === 'status@broadcast') {
                 return res.status(200).send();
             }
+
+            // Detect if this is a group
+            const isGroup = remoteJid.includes('@g.us');
 
             const isFromMe = msg.key.fromMe;
             const direction = isFromMe ? 'outbound' : 'inbound';
@@ -74,7 +77,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
             let currentStatus: string = 'PENDING';
 
             const checkConv = await pool.query(
-                `SELECT id, status FROM whatsapp_conversations WHERE external_id = $1 AND instance = $2`,
+                `SELECT id, status, is_group FROM whatsapp_conversations WHERE external_id = $1 AND instance = $2`,
                 [remoteJid, instance]
             );
 
@@ -107,10 +110,17 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 }
             } else {
                 currentStatus = direction === 'outbound' ? 'OPEN' : 'PENDING';
+
+                // For groups, extract group name if available
+                let groupName = null;
+                if (isGroup) {
+                    groupName = name; // Will be improved with actual group metadata
+                }
+
                 const newConv = await pool.query(
-                    `INSERT INTO whatsapp_conversations (external_id, phone, contact_name, instance, status, company_id) 
-                     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-                    [remoteJid, phone, name, instance, currentStatus, companyId]
+                    `INSERT INTO whatsapp_conversations (external_id, phone, contact_name, instance, status, company_id, is_group, group_name) 
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+                    [remoteJid, phone, name, instance, currentStatus, companyId, isGroup, groupName]
                 );
                 conversationId = newConv.rows[0].id;
             }
