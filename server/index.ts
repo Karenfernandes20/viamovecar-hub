@@ -5,6 +5,7 @@ import express from "express";
 import cors from "cors";
 import { pool } from "./db";
 import routes from "./routes";
+import { checkAndStartScheduledCampaigns } from "./controllers/campaignController";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -112,7 +113,6 @@ runMigrations().then(() => {
 
     // Start Campaign Scheduler (every minute)
     console.log("Starting Campaign Scheduler...");
-    const { checkAndStartScheduledCampaigns } = require('./controllers/campaignController');
     setInterval(() => {
       checkAndStartScheduledCampaigns();
     }, 60000);
