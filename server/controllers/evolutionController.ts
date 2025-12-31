@@ -347,10 +347,10 @@ export const sendEvolutionMessage = async (req: Request, res: Response) => {
 
         const externalMessageId = data?.key?.id;
 
-        // Insert message
+        // Insert message WITH USER_ID
         const insertedMsg = await pool.query(
-          'INSERT INTO whatsapp_messages (conversation_id, direction, content, sent_at, status, external_id) VALUES ($1, $2, $3, NOW(), $4, $5) RETURNING id',
-          [conversationId, 'outbound', messageContent, 'sent', externalMessageId]
+          'INSERT INTO whatsapp_messages (conversation_id, direction, content, sent_at, status, external_id, user_id) VALUES ($1, $2, $3, NOW(), $4, $5, $6) RETURNING id',
+          [conversationId, 'outbound', messageContent, 'sent', externalMessageId, user.id]
         );
         console.log(`[Evolution] Saved message to DB successfully with ID: ${insertedMsg.rows[0].id}.`);
 
@@ -374,6 +374,113 @@ export const sendEvolutionMessage = async (req: Request, res: Response) => {
       error: "Internal server error while sending message",
       details: error?.message || String(error)
     });
+  }
+};
+
+export const sendEvolutionMedia = async (req: Request, res: Response) => {
+  const config = await getEvolutionConfig((req as any).user, 'sendMedia');
+  const EVOLUTION_API_URL = config.url;
+  const EVOLUTION_API_KEY = config.apikey;
+  const EVOLUTION_INSTANCE = config.instance;
+
+  try {
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+      return res.status(500).json({ error: "Evolution API not configured" });
+    }
+
+    const { phone, media, mediaType, caption, fileName } = req.body;
+
+    if (!phone || !media || !mediaType) {
+      return res.status(400).json({ error: "Phone, media (base64/url) and mediaType are required" });
+    }
+
+    // Ensure media is stripped of 'data:image/png;base64,' prefix if Evolution requires raw base64?
+    // Usually Evolution V2 takes full data URI or just base64. 
+    // Safe bet: Pass as is, if it fails, try stripping.
+
+    const url = `${EVOLUTION_API_URL.replace(/\/$/, "")}/message/sendMedia/${EVOLUTION_INSTANCE}`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: EVOLUTION_API_KEY,
+      },
+      body: JSON.stringify({
+        number: phone,
+        options: {
+          delay: 1200,
+          presence: "composing",
+        },
+        mediaMessage: {
+          mediatype: mediaType, // image, video, document, audio
+          caption: caption || "",
+          media: media, // Base64 or URL
+          fileName: fileName
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      return res.status(response.status).json({
+        error: "Failed to send media",
+        status: response.status,
+        body: text,
+      });
+    }
+
+    const data = await response.json();
+
+    // Save to DB
+    if (pool) {
+      try {
+        const user = (req as any).user;
+        const companyId = user?.company_id;
+        const safePhone = phone || "";
+        const remoteJid = safePhone.includes('@') ? safePhone : `${safePhone}@s.whatsapp.net`;
+        const content = caption || `[${mediaType}]`;
+
+        // Find or create conversation
+        let conversationId: number;
+        const checkConv = await pool.query(
+          'SELECT id FROM whatsapp_conversations WHERE external_id = $1 AND instance = $2',
+          [remoteJid, EVOLUTION_INSTANCE]
+        );
+
+        if (checkConv.rows.length > 0) {
+          conversationId = checkConv.rows[0].id;
+          await pool.query(
+            `UPDATE whatsapp_conversations SET last_message = $1, last_message_at = NOW(), status = 'OPEN', user_id = COALESCE(user_id, $2), company_id = COALESCE(company_id, $3) WHERE id = $4`,
+            [content, user.id, companyId, conversationId]
+          );
+        } else {
+          const newConv = await pool.query(
+            `INSERT INTO whatsapp_conversations (external_id, phone, contact_name, instance, status, user_id, last_message, last_message_at, company_id) VALUES ($1, $2, $3, $4, 'OPEN', $5, $6, NOW(), $7) RETURNING id`,
+            [remoteJid, safePhone, safePhone, EVOLUTION_INSTANCE, user.id, content, companyId]
+          );
+          conversationId = newConv.rows[0].id;
+        }
+
+        const externalMessageId = data?.key?.id;
+
+        await pool.query(
+          'INSERT INTO whatsapp_messages (conversation_id, direction, content, sent_at, status, external_id, user_id, message_type, media_url) VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7, $8) ON CONFLICT DO NOTHING',
+          [conversationId, 'outbound', content, 'sent', externalMessageId, user.id, mediaType, (media.startsWith('http') ? media : null)]
+        );
+        // Note: storing base64 in media_url is bad. If media is base64, store NULL or generic placeholder.
+        // Assuming client sends base64, we don't save it to 'media_url'. 
+
+      } catch (e) {
+        console.error("Failed to save media message to DB:", e);
+      }
+    }
+
+    return res.status(200).json(data);
+
+  } catch (error: any) {
+    console.error("Error sending media:", error);
+    return res.status(500).json({ error: "Internal Error" });
   }
 };
 

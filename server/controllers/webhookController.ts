@@ -427,7 +427,11 @@ export const getMessages = async (req: Request, res: Response) => {
         }
 
         const result = await pool.query(
-            'SELECT * FROM whatsapp_messages WHERE conversation_id = $1 ORDER BY sent_at ASC',
+            `SELECT m.*, u.full_name as sender_name 
+             FROM whatsapp_messages m 
+             LEFT JOIN app_users u ON m.user_id = u.id 
+             WHERE m.conversation_id = $1 
+             ORDER BY m.sent_at ASC`,
             [conversationId]
         );
 

@@ -42,7 +42,7 @@ router.post('/users/:id/reset-password', authenticateToken, authorizeRole(['SUPE
 
 
 // Evolution routes
-import { getEvolutionQrCode, deleteEvolutionInstance, sendEvolutionMessage, getEvolutionConnectionState, getEvolutionContacts, createEvolutionContact, updateEvolutionContact, deleteEvolutionContact, editEvolutionMessage, syncEvolutionContacts, handleEvolutionWebhook, getEvolutionContactsLive, deleteEvolutionMessage, getEvolutionConfig, getEvolutionMedia, getEvolutionProfilePic, syncAllProfilePics } from './controllers/evolutionController';
+import { getEvolutionQrCode, deleteEvolutionInstance, sendEvolutionMessage, getEvolutionConnectionState, getEvolutionContacts, createEvolutionContact, updateEvolutionContact, deleteEvolutionContact, editEvolutionMessage, syncEvolutionContacts, handleEvolutionWebhook, getEvolutionContactsLive, deleteEvolutionMessage, getEvolutionConfig, getEvolutionMedia, getEvolutionProfilePic, syncAllProfilePics, sendEvolutionMedia } from './controllers/evolutionController';
 router.get('/evolution/qrcode', authenticateToken, getEvolutionQrCode);
 router.get('/evolution/status', authenticateToken, getEvolutionConnectionState);
 router.get('/evolution/contacts', authenticateToken, getEvolutionContacts);
@@ -53,6 +53,7 @@ router.put('/evolution/contacts/:id', authenticateToken, updateEvolutionContact)
 router.delete('/evolution/contacts/:id', authenticateToken, deleteEvolutionContact);
 router.delete('/evolution/disconnect', authenticateToken, deleteEvolutionInstance);
 router.post('/evolution/messages/send', authenticateToken, sendEvolutionMessage);
+router.post('/evolution/messages/media', authenticateToken, sendEvolutionMedia);
 router.put('/evolution/messages/:conversationId/:messageId', authenticateToken, editEvolutionMessage);
 router.delete('/evolution/messages/:conversationId/:messageId', authenticateToken, deleteEvolutionMessage);
 router.post('/evolution/webhook', handleWebhook); // Using unified and robust handler

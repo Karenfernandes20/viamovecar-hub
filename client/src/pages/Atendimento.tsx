@@ -746,6 +746,50 @@ const AtendimentoPage = () => {
   }, [token]);
 
 
+  const fetchMessages = async (conversationId: number | string) => {
+    try {
+      // Don't clear messages here if we want to keep them while loading? 
+      // Logic asked to clear: setMessages([]); 
+      // But if refreshing after upload, maybe better not to clear?
+      // The original logic cleared it. I will keep it for consistency or make it optional?
+      // For upload refresh, clearing is jarring.
+      // But for switching conversation, clearing is good.
+      // I'll stick to logic: if it's a refresh, maybe we shouldn't clear?
+      // But the previous implementation cleared it INSIDE the fetch for the effect.
+
+      // I will MODIFY logic: Only clear if message list is empty or different ID?
+      // Simpler: Just Fetch. UI can handle flicker.
+      // Or better: The useEffect clears it before calling maybe?
+
+      // Original: setMessages([]); BEFORE fetch.
+
+      // I will keep original behavior:
+      // setMessages([]); // removed from here to allow background refresh
+
+      setIsLoadingMessages(true);
+      const res = await fetch(`/api/evolution/messages/${conversationId}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMessages(data);
+
+        // Reset unread count localmente
+        setConversations(prev => prev.map(c =>
+          c.id === conversationId ? { ...c, unread_count: 0 } : c
+        ));
+      } else {
+        console.error("Erro ao buscar mensagens:", res.status);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar mensagens (Network):", error);
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
+
   // Fetch messages on select
   useEffect(() => {
     if (!selectedConversation) return;
@@ -756,35 +800,9 @@ const AtendimentoPage = () => {
       return;
     }
 
-    const fetchMessages = async () => {
-      try {
-        setMessages([]); // Limpa mensagens anteriores ao trocar
-        setIsLoadingMessages(true);
-        const res = await fetch(`/api/evolution/messages/${selectedConversation.id}`, {
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setMessages(data);
-
-          // Reset unread count localmente
-          setConversations(prev => prev.map(c =>
-            c.id === selectedConversation.id ? { ...c, unread_count: 0 } : c
-          ));
-        } else {
-          console.error("Erro ao buscar mensagens:", res.status, await res.text());
-        }
-      } catch (error) {
-        console.error("Erro ao buscar mensagens (Network):", error);
-      } finally {
-        setIsLoadingMessages(false);
-      }
-    };
-
-    fetchMessages();
-  }, [selectedConversation?.id, token]); // Depender de ID é melhor que objeto inteiro
+    setMessages([]); // Clear previous messages when switching
+    fetchMessages(selectedConversation.id);
+  }, [selectedConversation?.id, token]);
 
 
   // DDDs brasileiros conhecidos
@@ -1164,11 +1182,69 @@ const AtendimentoPage = () => {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      alert(`Arquivo selecionado: ${e.target.files[0].name}. (Envio em breve)`);
-      e.target.value = "";
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedConversation) return;
+
+    // Validate size (e.g. 15MB)
+    if (file.size > 15 * 1024 * 1024) {
+      alert("Arquivo muito grande. Máximo 15MB.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
     }
+
+    // Determine type
+    let mediaType = 'document';
+    if (file.type.startsWith('image/')) mediaType = 'image';
+    else if (file.type.startsWith('video/')) mediaType = 'video';
+    else if (file.type.startsWith('audio/')) mediaType = 'audio';
+
+    const toastId = toast.loading(`Enviando ${mediaType}...`);
+
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const base64 = reader.result as string;
+
+        // Optimistic update could be complex for media, let's wait for server or use placeholder
+        // Check handleSendMessage for optimistic structure if desired. For now, rely on fetch.
+
+        const res = await fetch("/api/evolution/messages/media", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            phone: selectedConversation.phone,
+            media: base64,
+            mediaType,
+            fileName: file.name,
+            caption: file.name
+          })
+        });
+
+        if (res.ok) {
+          toast.success("Arquivo enviado!", { id: toastId });
+          // Refresh messages to show the new media
+          fetchMessages(selectedConversation.id);
+        } else {
+          const err = await res.json();
+          toast.error(`Erro: ${err.error || "Falha no envio"}`, { id: toastId });
+        }
+      };
+
+      reader.onerror = () => {
+        toast.error("Erro ao ler arquivo", { id: toastId });
+      };
+
+    } catch (error) {
+      toast.error("Erro ao processar envio", { id: toastId });
+    }
+
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleStartAtendimento = async (conversation?: Conversation) => {
@@ -1930,7 +2006,7 @@ const AtendimentoPage = () => {
                   >
                     {msg.direction === "outbound" && (
                       <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 mb-0.5 px-1 uppercase tracking-wider">
-                        {user?.full_name || "Usuário"}
+                        {(msg as any).sender_name || ((msg as any).user_id ? "Usuário" : "(celular)")}
                       </span>
                     )}
                     <div
