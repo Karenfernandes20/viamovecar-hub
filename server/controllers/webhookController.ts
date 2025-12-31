@@ -312,10 +312,22 @@ export const getConversations = async (req: Request, res: Response) => {
         if (user.role !== 'SUPERADMIN') {
             query += ` AND c.company_id = $1`;
             params.push(companyId);
-        } else if (companyId) {
-            // SuperAdmin viewing a specific company
-            query += ` AND c.company_id = $1`;
-            params.push(companyId);
+        } else {
+            // SUPERADMIN:
+            // The user requested to see ONLY their instance ("integrai"). 
+            // This means we must filter by their company_id as well.
+            // If we ever want a "Global View" feature, we should pass a specific query param or flag.
+            // For now, we enforce isolation to prevent data mixing.
+
+            if (companyId) {
+                query += ` AND c.company_id = $1`;
+                params.push(companyId);
+            } else {
+                // If SuperAdmin has NO company_id (rare, but possible), we might choose to show all or nothing.
+                // Given the strict request, let's filter for NULL company_id or block.
+                // For safety, let's default to SHOWING ONLY UNASSIGNED (if any) rather than EVERYTHING.
+                query += ` AND c.company_id IS NULL`;
+            }
         }
 
         query += ` ORDER BY c.last_message_at DESC NULLS LAST`;
@@ -340,9 +352,30 @@ export const getMessages = async (req: Request, res: Response) => {
         const check = await pool.query('SELECT company_id FROM whatsapp_conversations WHERE id = $1', [conversationId]);
         if (check.rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
 
-        if (user.role !== 'SUPERADMIN') {
-            if (!check.rows[0].company_id || check.rows[0].company_id !== companyId) {
+        // Enforce strict check for EVERYONE, including SuperAdmin, unless they are explicitly in "Audit Mode" (not implemented yet).
+        // This fixes the issue of SuperAdmin seeing "karen" messages.
+        const msgCompanyId = check.rows[0].company_id;
+
+        // Logic:
+        // 1. If user has a company_id, they can ONLY see messages of that company_id.
+        // 2. If message has NO company_id (orphan before migration), maybe allow? (We decided to block/hide orphans usually).
+        // 3. If User is SuperAdmin AND has company_id, they are restricted to that company.
+
+        const userHasCompany = !!companyId;
+        const msgHasCompany = !!msgCompanyId;
+
+        if (userHasCompany) {
+            if (msgCompanyId !== companyId) {
                 return res.status(403).json({ error: 'Você não tem permissão para acessar estas mensagens.' });
+            }
+        } else {
+            // User has NO company (Global SuperAdmin?)
+            // If they are SuperAdmin, maybe they can see everything?
+            // BUT the user specifically asked to NOT see "karen" messages if they are "integrai".
+            // Since "Integrai" user implies company_id=1, they fall into the 'userHasCompany' block above.
+            // If we are here, it's a truly unassigned user.
+            if (user.role !== 'SUPERADMIN') {
+                return res.status(403).json({ error: 'Acesso negado.' });
             }
         }
 
