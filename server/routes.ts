@@ -42,7 +42,7 @@ router.post('/users/:id/reset-password', authenticateToken, authorizeRole(['SUPE
 
 
 // Evolution routes
-import { getEvolutionQrCode, deleteEvolutionInstance, sendEvolutionMessage, getEvolutionConnectionState, getEvolutionContacts, createEvolutionContact, updateEvolutionContact, deleteEvolutionContact, editEvolutionMessage, syncEvolutionContacts, handleEvolutionWebhook, getEvolutionContactsLive, deleteEvolutionMessage, getEvolutionConfig, getEvolutionMedia, getEvolutionProfilePic, syncAllProfilePics, sendEvolutionMedia } from './controllers/evolutionController';
+import { getEvolutionQrCode, deleteEvolutionInstance, sendEvolutionMessage, getEvolutionConnectionState, getEvolutionContacts, createEvolutionContact, updateEvolutionContact, deleteEvolutionContact, editEvolutionMessage, syncEvolutionContacts, handleEvolutionWebhook, getEvolutionContactsLive, deleteEvolutionMessage, getEvolutionConfig, getEvolutionMedia, getEvolutionProfilePic, syncAllProfilePics, sendEvolutionMedia, refreshConversationMetadata } from './controllers/evolutionController';
 router.get('/evolution/qrcode', authenticateToken, getEvolutionQrCode);
 router.get('/evolution/status', authenticateToken, getEvolutionConnectionState);
 router.get('/evolution/contacts', authenticateToken, getEvolutionContacts);
@@ -58,6 +58,7 @@ router.put('/evolution/messages/:conversationId/:messageId', authenticateToken, 
 router.delete('/evolution/messages/:conversationId/:messageId', authenticateToken, deleteEvolutionMessage);
 router.post('/evolution/webhook', handleWebhook); // Using unified and robust handler
 router.get('/evolution/conversations', authenticateToken, getConversations);
+router.post('/evolution/conversations/:conversationId/refresh', authenticateToken, refreshConversationMetadata);
 router.get('/evolution/messages/:conversationId', authenticateToken, getMessages);
 router.get('/evolution/media/:messageId', authenticateToken, getEvolutionMedia);
 router.get('/evolution/profile-pic/:phone', authenticateToken, getEvolutionProfilePic);

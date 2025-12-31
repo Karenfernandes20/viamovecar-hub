@@ -1333,3 +1333,88 @@ export const syncAllProfilePics = async (req: Request, res: Response) => {
     if (!res.headersSent) return res.status(500).json({ error: "Internal Error" });
   }
 };
+
+export const refreshConversationMetadata = async (req: Request, res: Response) => {
+  try {
+    if (!pool) return res.status(500).json({ error: "Database not configured" });
+
+    const { conversationId } = req.params;
+    const user = (req as any).user;
+    const config = await getEvolutionConfig(user, 'refreshMetadata');
+    const { url: EVOLUTION_API_URL, apikey: EVOLUTION_API_KEY, instance: EVOLUTION_INSTANCE } = config;
+
+    // 1. Get Conversation
+    const convRes = await pool.query('SELECT * FROM whatsapp_conversations WHERE id = $1', [conversationId]);
+    if (convRes.rows.length === 0) return res.status(404).json({ error: "Conversation not found" });
+    const conv = convRes.rows[0];
+    const remoteJid = conv.external_id;
+
+    // 2. Fetch Group Metadata if Group
+    let updatedName = conv.contact_name;
+    let updatedPic = conv.profile_pic_url;
+
+    if (conv.is_group) {
+      console.log(`[Refresh] Fetching Group Info for ${remoteJid}`);
+      const groupUrl = `${EVOLUTION_API_URL.replace(/\/$/, "")}/group/findGroup/${EVOLUTION_INSTANCE}?groupJid=${remoteJid}`;
+      const gRes = await fetch(groupUrl, {
+        method: "GET",
+        headers: { "Content-Type": "application/json", "apikey": EVOLUTION_API_KEY || "" }
+      });
+
+      if (gRes.ok) {
+        const gData = await gRes.json();
+        const subject = gData.subject || gData.name;
+        if (subject) {
+          updatedName = subject;
+          await pool.query('UPDATE whatsapp_conversations SET contact_name = $1, group_name = $1 WHERE id = $2', [subject, conversationId]);
+          console.log(`[Refresh] Updated group name: ${subject}`);
+        }
+      } else {
+        console.warn(`[Refresh] Failed to fetch group info: ${gRes.status}`);
+      }
+    }
+
+    // 3. Fetch Profile Picture (Always try)
+    console.log(`[Refresh] Fetching Profile Pic for ${remoteJid}`);
+    // Endpoint might be /chat/fetchProfilePictureUrl or similar. Code uses that elsewhere.
+    const picUrlEndpoint = `${EVOLUTION_API_URL.replace(/\/$/, "")}/chat/fetchProfilePictureUrl/${EVOLUTION_INSTANCE}`;
+    const picRes = await fetch(picUrlEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": EVOLUTION_API_KEY || "" },
+      body: JSON.stringify({ number: remoteJid })
+    });
+
+    if (picRes.ok) {
+      const pData = await picRes.json();
+      const url = pData.profilePictureUrl || pData.url;
+      if (url) {
+        updatedPic = url;
+        await pool.query('UPDATE whatsapp_conversations SET profile_pic_url = $1 WHERE id = $2', [url, conversationId]);
+        // Also update contacts if not group
+        if (!conv.is_group) {
+          await pool.query('UPDATE whatsapp_contacts SET profile_pic_url = $1 WHERE jid = $2 AND instance = $3', [url, remoteJid, EVOLUTION_INSTANCE]);
+        }
+        console.log(`[Refresh] Updated profile pic: ${url}`);
+      }
+    } else {
+      console.warn(`[Refresh] Failed to fetch pic: ${picRes.status}`);
+    }
+
+    // 4. Emit update
+    const io = req.app.get('io');
+    if (io && user.company_id) {
+      io.to(`company_${user.company_id}`).emit('conversation:update', {
+        id: conversationId,
+        contact_name: updatedName,
+        group_name: updatedName,
+        profile_pic_url: updatedPic
+      });
+    }
+
+    return res.json({ status: "success", name: updatedName, pic: updatedPic });
+
+  } catch (e: any) {
+    console.error("Error refreshing metadata:", e);
+    return res.status(500).json({ error: "Internal Error", details: e.message });
+  }
+};

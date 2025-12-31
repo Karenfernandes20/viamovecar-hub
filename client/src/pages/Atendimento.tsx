@@ -26,8 +26,10 @@ import {
   VolumeX,
   Volume1,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  MessageSquare // Added
 } from "lucide-react";
+import { Badge } from "../components/ui/badge";
 import { FollowUpModal } from "../components/follow-up/FollowUpModal";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -251,14 +253,38 @@ const AtendimentoPage = () => {
       return fromDB;
     }
 
-    // 2. Fallback para o nome que veio na conversa (se existir e não for o número)
+    // 2. Se não, usa contact_name do banco (conversas)
     if (conv.contact_name && conv.contact_name !== conv.phone) {
       return conv.contact_name;
     }
 
-    // 3. Exibe o número formatado (ou como veio)
-    return conv.phone;
+    return formatBrazilianPhone(conv.phone);
   }, [contactMap]);
+
+  const handleRefreshMetadata = async () => {
+    if (!selectedConversation) return;
+    const toastId = toast.loading("Atualizando dados...");
+    try {
+      const res = await fetch(`/api/evolution/conversations/${selectedConversation.id}/refresh`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`Atualizado: ${data.name || 'Sem nome'}`, { id: toastId });
+        // Local update
+        setConversations(prev => prev.map(c =>
+          c.id === selectedConversation.id ? { ...c, contact_name: data.name, group_name: data.name, profile_pic_url: data.pic } : c
+        ));
+        setSelectedConversation(prev => prev ? { ...prev, contact_name: data.name, group_name: data.name, profile_pic_url: data.pic } : null);
+      } else {
+        toast.error("Falha ao atualizar", { id: toastId });
+      }
+    } catch (e) {
+      toast.error("Erro de conexão", { id: toastId });
+    }
+  };
+
 
   // Reset pagination when viewMode changes
   useEffect(() => {
@@ -514,8 +540,23 @@ const AtendimentoPage = () => {
     });
 
     socket.on("conversation:update", (data: any) => {
-      setConversations(prev => prev.map(c => c.id == data.id ? { ...c, status: data.status, user_id: data.user_id } : c));
-      setSelectedConversation(curr => curr && curr.id == data.id ? { ...curr, status: data.status, user_id: data.user_id } : curr);
+      setConversations(prev => prev.map(c => c.id == data.id ? {
+        ...c,
+        status: data.status !== undefined ? data.status : c.status,
+        user_id: data.user_id !== undefined ? data.user_id : c.user_id,
+        contact_name: data.contact_name !== undefined ? data.contact_name : c.contact_name,
+        group_name: data.group_name !== undefined ? data.group_name : c.group_name,
+        profile_pic_url: data.profile_pic_url !== undefined ? data.profile_pic_url : c.profile_pic_url
+      } : c));
+
+      setSelectedConversation(curr => curr && curr.id == data.id ? {
+        ...curr,
+        status: data.status !== undefined ? data.status : curr.status,
+        user_id: data.user_id !== undefined ? data.user_id : curr.user_id,
+        contact_name: data.contact_name !== undefined ? data.contact_name : curr.contact_name,
+        group_name: data.group_name !== undefined ? data.group_name : curr.group_name,
+        profile_pic_url: data.profile_pic_url !== undefined ? data.profile_pic_url : curr.profile_pic_url
+      } : curr);
     });
 
     socket.on("conversation:delete", (data: any) => {
@@ -1607,6 +1648,15 @@ const AtendimentoPage = () => {
                   >
                     Fechados
                   </button>
+                  <button
+                    onClick={() => setViewMode('GROUPS')}
+                    className={cn(
+                      "text-[11px] px-1 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center justify-center gap-2 flex-1",
+                      viewMode === 'GROUPS' ? "bg-violet-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700 hover:bg-black/5"
+                    )}
+                  >
+                    Grupos
+                  </button>
 
                 </div>
               </div>
@@ -1726,6 +1776,65 @@ const AtendimentoPage = () => {
                               size="icon"
                               onClick={() => setClosedPage(p => Math.min(totalPages, p + 1))}
                               disabled={closedPage === totalPages}
+                              className="h-7 w-7"
+                              title="Próxima Página"
+                            >
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+
+                  {viewMode === 'GROUPS' && (() => {
+                    const groups = conversations.filter(c => c.is_group);
+
+                    // Filter by search term
+                    const filteredGroups = groups.filter(c => {
+                      if (!conversationSearchTerm) return true;
+                      const term = conversationSearchTerm.toLowerCase();
+                      const name = getDisplayName(c).toLowerCase();
+                      return name.includes(term) || c.phone.includes(term);
+                    });
+
+                    const startIndex = (groupPage - 1) * ITEMS_PER_PAGE;
+                    const endIndex = startIndex + ITEMS_PER_PAGE;
+                    const paginatedItems = filteredGroups.slice(startIndex, endIndex);
+                    const totalPages = Math.ceil(filteredGroups.length / ITEMS_PER_PAGE);
+
+                    if (filteredGroups.length === 0) {
+                      return (
+                        <div className="flex flex-col items-center justify-center py-10 text-muted-foreground opacity-50">
+                          <MessageSquare className="h-8 w-8 mb-2" />
+                          <span className="text-xs">Nenhum grupo encontrado</span>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <>
+                        {paginatedItems.map(conv => renderConversationCard(conv))}
+                        {totalPages > 1 && (
+                          <div className="flex items-center justify-center gap-1 mt-2 mb-2 p-2 pt-0">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => setGroupPage(p => Math.max(1, p - 1))}
+                              disabled={groupPage === 1}
+                              className="h-7 w-7"
+                              title="Página Anterior"
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <span className="text-[10px] text-muted-foreground font-medium px-2 min-w-[3rem] text-center">
+                              {groupPage} / {totalPages}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => setGroupPage(p => Math.min(totalPages, p + 1))}
+                              disabled={groupPage === totalPages}
                               className="h-7 w-7"
                               title="Próxima Página"
                             >
@@ -1905,9 +2014,14 @@ const AtendimentoPage = () => {
                   <AvatarImage src={selectedConversation.profile_pic_url || `https://api.dicebear.com/7.x/initials/svg?seed=${getDisplayName(selectedConversation)}`} />
                   <AvatarFallback>{(getDisplayName(selectedConversation)?.[0] || "?").toUpperCase()}</AvatarFallback>
                 </Avatar>
-                <div className="flex flex-col cursor-pointer">
+                <div className="flex flex-col cursor-pointer" onClick={() => {
+                  if (selectedConversation.is_group) handleRefreshMetadata();
+                }}>
                   <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                     {getDisplayName(selectedConversation)}
+                    {selectedConversation.is_group && (
+                      <Badge variant="outline" className="text-[9px] h-4 px-1 bg-violet-50 text-violet-700 border-violet-200">GRUPO</Badge>
+                    )}
                     {!selectedConversation.is_group && selectedConversation.status === 'CLOSED' && (
                       <div className="flex items-center gap-2">
                         <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-600 text-[9px] uppercase border border-red-200">Fechado</span>
@@ -1937,9 +2051,16 @@ const AtendimentoPage = () => {
                       </div>
                     )} */}
                   </span>
-                  <span className="text-[10px] text-muted-foreground flex gap-1">
-                    {selectedConversation.phone}
-                    {selectedConversation.user_id && <span className="font-bold">• Atendente: {selectedConversation.user_id === user?.id ? "Você" : `ID ${selectedConversation.user_id}`}</span>}
+                  <span className="text-[10px] text-muted-foreground flex gap-1 items-center">
+                    {selectedConversation.is_group ? (
+                      <span className="italic flex items-center gap-1 hover:text-green-600 transition-colors" title="Clique para atualizar">
+                        <RefreshCcw className="h-3 w-3" />
+                        Atualizar dados do grupo
+                      </span>
+                    ) : (
+                      <span>{selectedConversation.phone}</span>
+                    )}
+                    {selectedConversation.user_id && <span className="font-bold ml-1">• Atendente: {selectedConversation.user_id === user?.id ? "Você" : `ID ${selectedConversation.user_id}`}</span>}
                   </span>
                 </div>
               </div>
