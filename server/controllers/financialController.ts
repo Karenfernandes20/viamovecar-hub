@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
 import { pool } from '../db';
 
-export const getTransactions = async (req: Request, res: Response) => {
+export const getTransactions = async (req: Request, res: Response, forcedType?: string) => {
   try {
     if (!pool) return res.status(500).json({ error: 'Database not configured' });
 
-    const { startDate, endDate, status, category, search, type } = req.query;
+    const { startDate, endDate, status, category, search } = req.query as any;
+    const type = forcedType || (req.query as any).type;
     const conditions: string[] = [];
     const params: any[] = [];
 
@@ -68,13 +69,11 @@ export const getTransactions = async (req: Request, res: Response) => {
 
 // Keep old names for compatibility if needed, or update routes
 export const getPayables = (req: Request, res: Response) => {
-  req.query.type = 'payable';
-  return getTransactions(req, res);
+  return getTransactions(req, res, 'payable');
 };
 
 export const getReceivables = (req: Request, res: Response) => {
-  req.query.type = 'receivable';
-  return getTransactions(req, res);
+  return getTransactions(req, res, 'receivable');
 };
 
 export const getFinancialStats = async (req: Request, res: Response) => {

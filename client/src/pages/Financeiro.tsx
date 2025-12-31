@@ -557,12 +557,16 @@ const FinanceiroPage = () => {
   const filteredData = useMemo(() => {
     if (!Array.isArray(transactions)) return [];
     return transactions.filter(t => {
+      // Strict tab filtering to prevent cross-data display
+      if (mainTab === "expenses" && t.type !== "payable") return false;
+      if (mainTab === "revenues" && t.type !== "receivable") return false;
+
       const descLower = (t.description || "").toLowerCase();
       const catLower = (t.category || "").toLowerCase();
       const searchLower = searchTerm.toLowerCase();
       return descLower.includes(searchLower) || catLower.includes(searchLower);
     });
-  }, [transactions, searchTerm]);
+  }, [transactions, searchTerm, mainTab]);
 
   const totals = useMemo(() => {
     if (!Array.isArray(filteredData)) return { pending: 0, paid: 0, overdue: 0, total: 0 };
