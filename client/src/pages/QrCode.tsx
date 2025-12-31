@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { QrCode as QrIcon, RefreshCcw, Instagram, MessageCircle, MessageSquare, Building2 } from "lucide-react";
+import { QrCode as QrIcon, RefreshCcw, Instagram, MessageCircle, MessageSquare } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { cn } from "../lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 
 const QrCodePage = () => {
   const { token, user } = useAuth();
@@ -17,34 +15,10 @@ const QrCodePage = () => {
   const [error, setError] = useState<string | null>(null);
   const [activePlatform, setActivePlatform] = useState<string>("whatsapp");
 
-  // SuperAdmin specific state
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
-  const [searchParams] = useSearchParams();
-
-  useEffect(() => {
-    const urlCompanyId = searchParams.get('companyId');
-    if (urlCompanyId) setSelectedCompanyId(urlCompanyId);
-  }, [searchParams]);
-
-  useEffect(() => {
-    if (user?.role === 'SUPERADMIN') {
-      fetch('/api/companies', { headers: { Authorization: `Bearer ${token}` } })
-        .then(res => res.json())
-        .then(data => setCompanies(data))
-        .catch(err => console.error("Failed to load companies", err));
-    }
-  }, [user, token]);
-
-  // Helper to build query string
-  const getQuery = () => {
-    return selectedCompanyId ? `?companyId=${selectedCompanyId}` : '';
-  };
-
   // Poll status only
   const fetchStatus = async () => {
     try {
-      const response = await fetch(`/api/evolution/status${getQuery()}`, {
+      const response = await fetch("/api/evolution/status", {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.ok) {
@@ -74,7 +48,7 @@ const QrCodePage = () => {
       setError(null);
       setQrCode(null);
 
-      const response = await fetch(`/api/evolution/qrcode${getQuery()}`, {
+      const response = await fetch("/api/evolution/qrcode", {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -110,7 +84,7 @@ const QrCodePage = () => {
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch(`/api/evolution/disconnect${getQuery()}`, {
+      const response = await fetch("/api/evolution/disconnect", {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -134,7 +108,7 @@ const QrCodePage = () => {
       const interval = setInterval(fetchStatus, 5000);
       return () => clearInterval(interval);
     }
-  }, [token, selectedCompanyId]);
+  }, [token]);
 
   const isConnected = connectionState === 'open';
 
@@ -146,35 +120,6 @@ const QrCodePage = () => {
           Conecte e gerencie seus canais de atendimento oficial.
         </p>
       </header>
-
-      {/* SuperAdmin Company Selector */}
-      {user?.role === 'SUPERADMIN' && (
-        <Card className="border-l-4 border-l-blue-500 bg-blue-50/50">
-          <CardContent className="py-4 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2 text-blue-700">
-              <Building2 className="h-5 w-5" />
-              <span className="font-semibold text-sm">Gerenciar Conexão Para:</span>
-            </div>
-            <Select value={selectedCompanyId || ""} onValueChange={(val) => {
-              setSelectedCompanyId(val === "GLOBAL" ? null : val);
-            }}>
-              <SelectTrigger className="w-[300px] bg-white">
-                <SelectValue placeholder="Selecione uma empresa" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="GLOBAL">
-                  <span className="font-medium text-blue-600">Integrai (Admin Global)</span>
-                </SelectItem>
-                {companies.map(c => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.name} - ({c.evolution_instance || 'Sem instância'})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
-      )}
 
       <Tabs defaultValue="whatsapp" value={activePlatform} onValueChange={setActivePlatform} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3 md:w-auto md:inline-flex bg-muted/50 p-1 h-auto">
