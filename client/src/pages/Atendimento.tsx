@@ -142,6 +142,7 @@ const AtendimentoPage = () => {
 
   const volumeRef = useRef(notificationVolume);
   const mutedRef = useRef(isNotificationMuted);
+  const selectedConvRef = useRef(selectedConversation);
 
   useEffect(() => {
     volumeRef.current = notificationVolume;
@@ -150,6 +151,10 @@ const AtendimentoPage = () => {
   useEffect(() => {
     mutedRef.current = isNotificationMuted;
   }, [isNotificationMuted]);
+
+  useEffect(() => {
+    selectedConvRef.current = selectedConversation;
+  }, [selectedConversation]);
 
   // Pagination states
   const [pendingPage, setPendingPage] = useState(1);
@@ -174,6 +179,7 @@ const AtendimentoPage = () => {
 
   // Notification Sound Function (iPhone-like Tri-tone synthesis)
   const playNotificationSound = async () => {
+    console.log("[Notificação] Tentando tocar som... Mudo:", mutedRef.current, "Volume:", volumeRef.current);
     if (mutedRef.current) return;
 
     try {
@@ -183,15 +189,16 @@ const AtendimentoPage = () => {
         await audioContext.resume();
       }
 
-      const playTone = (freq: number, start: number, duration: number) => {
+      const playTone = (freq: number, start: number, duration: number, volMultiplier: number = 1) => {
         const osc = audioContext.createOscillator();
         const gain = audioContext.createGain();
 
         osc.type = 'sine';
         osc.frequency.setValueAtTime(freq, start);
 
+        const finalVol = volumeRef.current * volMultiplier;
         gain.gain.setValueAtTime(0, start);
-        gain.gain.linearRampToValueAtTime(volumeRef.current, start + 0.01);
+        gain.gain.linearRampToValueAtTime(finalVol, start + 0.01);
         gain.gain.exponentialRampToValueAtTime(0.01, start + duration);
 
         osc.connect(gain);
@@ -202,12 +209,12 @@ const AtendimentoPage = () => {
       };
 
       const now = audioContext.currentTime;
-      // iPhone-like Tri-tone (approximate frequencies)
-      playTone(1050, now, 0.15);       // Note 1
-      playTone(700, now + 0.15, 0.15);   // Note 2
-      playTone(850, now + 0.3, 0.4);    // Note 3
+      // iPhone-like Tri-tone (Standard triad notes for clean alert)
+      playTone(1046, now, 0.2, 1.0);       // C6
+      playTone(784, now + 0.2, 0.2, 0.9);   // G5
+      playTone(1318, now + 0.4, 0.5, 1.1);  // E6
 
-      setTimeout(() => audioContext.close(), 2000);
+      setTimeout(() => audioContext.close(), 3000);
     } catch (error) {
       console.error('Error playing notification sound:', error);
     }
@@ -442,24 +449,15 @@ const AtendimentoPage = () => {
       }
 
       // 1. Se a mensagem for da conversa aberta, adiciona na lista
-      setSelectedConversation((currentSelected) => {
-        // Precisamos usar functional update para ter acesso ao valor atual de selectedConversation
-        // Mas como selectedConversation está no scope do useEffect se não listarmos nas dependencias...
-        // O pattern correto é atualizar messages com base no ID
-
-        // Verifica se a mensagem pertence à conversa aberta pelo telefone ou ID (se vier)
-        // O evento traz 'phone' (do remetente/conversa).
-
-        if (currentSelected && (currentSelected.phone === newMessage.phone || currentSelected.phone === newMessage.remoteJid)) {
-          setMessages((prev) => {
-            // Evitar duplicados se já tiver
-            if (prev.find(m => m.id === newMessage.id)) return prev;
-            return [...prev, newMessage];
-          });
-          // Mark as read logic could go here
-        }
-        return currentSelected;
-      });
+      const currentSelected = selectedConvRef.current;
+      if (currentSelected && (currentSelected.phone === newMessage.phone || currentSelected.phone === newMessage.remoteJid)) {
+        setMessages((prev) => {
+          // Evitar duplicados se já tiver
+          if (prev.find(m => m.id === newMessage.id)) return prev;
+          return [...prev, newMessage];
+        });
+        // Mark as read logic could go here
+      }
 
       // 2. Atualiza a lista de conversas
       setConversations((prev) => {
@@ -467,9 +465,10 @@ const AtendimentoPage = () => {
         let updatedList = [...prev];
         let conversationToUpdate: Conversation;
 
+        const isChatOpen = selectedConvRef.current?.phone === newMessage.phone;
+
         if (existingIndex >= 0) {
           const existing = prev[existingIndex];
-          const isChatOpen = selectedConversation?.phone === newMessage.phone;
 
           conversationToUpdate = {
             ...existing,
@@ -526,7 +525,7 @@ const AtendimentoPage = () => {
     return () => {
       socket.disconnect();
     };
-  }, [selectedConversation, user?.id, notificationVolume, isNotificationMuted]); // Re-bind socket listeners if selectedConversation OR sound settings change
+  }, [user?.id, user?.company_id]); // Stable: only reconnect if user changes
 
 
   // Automatic fetch when switching to 'contatos' tab
