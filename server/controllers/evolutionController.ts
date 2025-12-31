@@ -15,7 +15,7 @@ import { pool } from "../db";
 // Hardcoded fallback for this environment
 const DEFAULT_URL = "https://freelasdekaren-evolution-api.nhvvzr.easypanel.host";
 
-export const getEvolutionConfig = async (user: any, source: string = 'unknown') => {
+export const getEvolutionConfig = async (user: any, source: string = 'unknown', targetCompanyId?: number | string) => {
   let config = {
     url: process.env.EVOLUTION_API_URL || DEFAULT_URL,
     apikey: process.env.EVOLUTION_API_KEY,
@@ -26,37 +26,50 @@ export const getEvolutionConfig = async (user: any, source: string = 'unknown') 
     try {
       // SuperAdmin/Admin without company: Always use 'integrai'
       const role = (user?.role || '').toUpperCase();
-      const isMasterUser = !user || role === 'SUPERADMIN' || role === 'ADMIN';
+      const isMasterUser = !user || role === 'SUPERADMIN'; // Admin from a company is NOT a master user in this context
 
-      if (isMasterUser) {
-        config.instance = "integrai";
+      // If explicit targetCompanyId is requested, check permissions
+      let resolvedCompanyId = null;
 
-        // Priority for SuperAdmin: DB Key (Company 1) > ENV Key
-        const res = await pool.query('SELECT evolution_apikey FROM companies WHERE id = 1 LIMIT 1');
-        if (res.rows.length > 0 && res.rows[0].evolution_apikey) {
-          config.apikey = res.rows[0].evolution_apikey;
+      if (targetCompanyId) {
+        if (isMasterUser) {
+          // SuperAdmin can access any company
+          resolvedCompanyId = targetCompanyId;
+        } else {
+          // Regular user can only access their own company
+          // If they request their own id, it's fine. If they request another, ignore it or error.
+          // We'll fallback to their actual company ID safely essentially ignoring the request if it differs, or strict validation.
+          // For simplicity/safety, we re-verify:
+          if (Number(user.company_id) === Number(targetCompanyId)) {
+            resolvedCompanyId = user.company_id;
+          }
+        }
+      } else {
+        // No explicit target, determine from user
+        if (!isMasterUser && user?.company_id) {
+          resolvedCompanyId = user.company_id;
+        } else if (isMasterUser) {
+          // Master user default (Integrai), unless...
+          // Check if there is a 'companyId' in the query string at the controller level? 
+          // We moved that logic to 'targetCompanyId' arg.
         }
       }
 
-      // Regular user with company: fetch company config
-      if (user && !isMasterUser) {
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('DB_TIMEOUT')), 3000)
-        );
-        const userRes = await Promise.race([
-          pool.query('SELECT company_id FROM app_users WHERE id = $1', [user.id]),
-          timeoutPromise
-        ]) as any;
-        if (userRes && userRes.rows && userRes.rows.length > 0 && userRes.rows[0].company_id) {
-          const companyId = userRes.rows[0].company_id;
-          const compRes = await pool.query('SELECT evolution_instance, evolution_apikey FROM companies WHERE id = $1', [companyId]);
-          if (compRes.rows.length > 0) {
-            const { evolution_instance, evolution_apikey } = compRes.rows[0];
-            if (evolution_instance && evolution_apikey) {
-              config.instance = evolution_instance;
-              config.apikey = evolution_apikey;
-            }
+      if (resolvedCompanyId) {
+        const compRes = await pool.query('SELECT evolution_instance, evolution_apikey FROM companies WHERE id = $1', [resolvedCompanyId]);
+        if (compRes.rows.length > 0) {
+          const { evolution_instance, evolution_apikey } = compRes.rows[0];
+          if (evolution_instance && evolution_apikey) {
+            config.instance = evolution_instance;
+            config.apikey = evolution_apikey;
           }
+        }
+      } else if (isMasterUser && !resolvedCompanyId) {
+        // Fallback for Master User (Integrai / Company 1 Key)
+        config.instance = "integrai";
+        const res = await pool.query('SELECT evolution_apikey FROM companies WHERE id = 1 LIMIT 1');
+        if (res.rows.length > 0 && res.rows[0].evolution_apikey) {
+          config.apikey = res.rows[0].evolution_apikey;
         }
       }
     } catch (e: any) {
@@ -73,7 +86,8 @@ export const getEvolutionConfig = async (user: any, source: string = 'unknown') 
 };
 
 export const getEvolutionQrCode = async (req: Request, res: Response) => {
-  const config = await getEvolutionConfig((req as any).user, 'qrcode_connect');
+  const targetCompanyId = req.query.companyId as string;
+  const config = await getEvolutionConfig((req as any).user, 'qrcode_connect', targetCompanyId);
 
   const EVOLUTION_API_URL = config.url;
   const EVOLUTION_API_KEY = config.apikey;
@@ -137,7 +151,8 @@ export const getEvolutionQrCode = async (req: Request, res: Response) => {
 };
 
 export const deleteEvolutionInstance = async (req: Request, res: Response) => {
-  const config = await getEvolutionConfig((req as any).user, 'disconnect');
+  const targetCompanyId = req.query.companyId as string;
+  const config = await getEvolutionConfig((req as any).user, 'disconnect', targetCompanyId);
   const EVOLUTION_API_URL = config.url;
   const EVOLUTION_API_KEY = config.apikey;
   const EVOLUTION_INSTANCE = config.instance;
@@ -185,7 +200,8 @@ export const deleteEvolutionInstance = async (req: Request, res: Response) => {
 // ... existing imports
 
 export const getEvolutionConnectionState = async (req: Request, res: Response) => {
-  const config = await getEvolutionConfig((req as any).user, 'status_poll');
+  const targetCompanyId = req.query.companyId as string;
+  const config = await getEvolutionConfig((req as any).user, 'status_poll', targetCompanyId);
   const EVOLUTION_API_URL = config.url;
   const EVOLUTION_API_KEY = config.apikey;
   const EVOLUTION_INSTANCE = config.instance;
