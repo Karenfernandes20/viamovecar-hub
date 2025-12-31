@@ -140,6 +140,17 @@ const AtendimentoPage = () => {
     return saved === 'true';
   });
 
+  const volumeRef = useRef(notificationVolume);
+  const mutedRef = useRef(isNotificationMuted);
+
+  useEffect(() => {
+    volumeRef.current = notificationVolume;
+  }, [notificationVolume]);
+
+  useEffect(() => {
+    mutedRef.current = isNotificationMuted;
+  }, [isNotificationMuted]);
+
   // Pagination states
   const [pendingPage, setPendingPage] = useState(1);
   const [openPage, setOpenPage] = useState(1);
@@ -162,12 +173,16 @@ const AtendimentoPage = () => {
   }, [importedContacts]);
 
   // Notification Sound Function
-  const playNotificationSound = () => {
+  const playNotificationSound = async () => {
     // Don't play if muted
-    if (isNotificationMuted) return;
+    if (mutedRef.current) return;
 
     try {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
 
       // Create oscillator for beep sound
       const oscillator = audioContext.createOscillator();
@@ -177,18 +192,23 @@ const AtendimentoPage = () => {
       gainNode.connect(audioContext.destination);
 
       // Configure sound
-      oscillator.frequency.value = 800; // Frequency in Hz
+      oscillator.frequency.value = 1200; // Frequency in Hz - bit higher for clarity
       oscillator.type = 'sine';
 
       // Volume envelope (respecting user volume setting)
-      const maxVolume = notificationVolume; // Use user-defined volume (0-1)
+      const maxVolume = volumeRef.current; // Use latest volume
       gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-      gainNode.gain.linearRampToValueAtTime(maxVolume, audioContext.currentTime + 0.01);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+      gainNode.gain.linearRampToValueAtTime(maxVolume, audioContext.currentTime + 0.05);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
 
       // Play
       oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.3);
+      oscillator.stop(audioContext.currentTime + 0.5);
+
+      // Close context after done to free resources
+      setTimeout(() => {
+        audioContext.close();
+      }, 1000);
     } catch (error) {
       console.error('Error playing notification sound:', error);
     }
@@ -489,7 +509,7 @@ const AtendimentoPage = () => {
     return () => {
       socket.disconnect();
     };
-  }, [selectedConversation, user?.id]); // Re-bind socket listeners if selectedConversation changes (to capture closure correctly) OR better: use refs
+  }, [selectedConversation, user?.id, notificationVolume, isNotificationMuted]); // Re-bind socket listeners if selectedConversation OR sound settings change
 
 
   // Automatic fetch when switching to 'contatos' tab
