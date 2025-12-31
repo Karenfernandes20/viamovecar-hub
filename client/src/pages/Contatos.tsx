@@ -280,6 +280,14 @@ const ContatosPage = () => {
         e.preventDefault();
         if (!newContactName || !newContactPhone) return;
 
+        // Check for duplicates locally
+        const normalizedNew = newContactPhone.replace(/\D/g, '');
+        const exists = contacts.some(c => c.phone.replace(/\D/g, '') === normalizedNew);
+        if (exists) {
+            alert(`Atenção: Já existe um contato salvo com o número ${newContactPhone}.`);
+            return;
+        }
+
         try {
             setIsCreating(true);
             const res = await fetch("/api/evolution/contacts", {

@@ -226,28 +226,48 @@ export const handleWebhook = async (req: Request, res: Response) => {
             }
 
             // CRM Integration (Inbound leads)
-            // CRM Integration (Inbound leads)
             if (direction === 'inbound') {
-                const checkLead = await pool.query('SELECT id FROM crm_leads WHERE phone = $1 AND (company_id = $2 OR company_id IS NULL)', [phone, companyId]);
+                const checkLead = await pool.query(
+                    'SELECT id, stage_id FROM crm_leads WHERE phone = $1 AND (company_id = $2 OR company_id IS NULL)',
+                    [phone, companyId]
+                );
+
+                // Fetch stage IDs for names to handle movement
+                const stagesRes = await pool.query("SELECT id, name FROM crm_stages");
+                const stagesMap = stagesRes.rows.reduce((acc: any, s: any) => {
+                    acc[s.name.toUpperCase()] = s.id;
+                    return acc;
+                }, {});
+
+                const pendingStageId = stagesMap['PENDENTES'] || stagesMap['LEADS'] || null;
+                const closedStageId = stagesMap['FECHADOS'] || stagesMap['FECHADO'] || null;
 
                 if (checkLead.rows.length === 0) {
-                    // Find the Fixed 'Leads' stage
-                    const stageRes = await pool.query("SELECT id FROM crm_stages WHERE name = 'Leads' LIMIT 1");
-
-                    if (stageRes.rows.length > 0) {
-                        const stageId = stageRes.rows[0].id;
-                        console.log(`[CRM Auto-Lead] Creating new lead in 'Leads' stage (ID: ${stageId}) for ${phone}`);
-
+                    if (pendingStageId) {
+                        console.log(`[CRM Auto-Lead] Creating new lead in 'PENDENTES' stage for ${phone}`);
                         await pool.query(
                             `INSERT INTO crm_leads (name, phone, origin, stage_id, company_id, created_at, updated_at, description) 
                              VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), 'Criado automaticamente via WhatsApp')`,
-                            [name, phone, 'WhatsApp', stageId, companyId]
+                            [name, phone, 'WhatsApp', pendingStageId, companyId]
                         );
                     }
                 } else {
-                    // Optional: Update last interaction time? 
-                    // For now, strict requirement was just creation.
-                    await pool.query('UPDATE crm_leads SET updated_at = NOW(), company_id = COALESCE(company_id, $1) WHERE id = $2', [companyId, checkLead.rows[0].id]);
+                    const leadId = checkLead.rows[0].id;
+                    const currentStageId = checkLead.rows[0].stage_id;
+
+                    // Logic: If in FECHADOS, move to PENDENTES. If in ABERTOS, stay in ABERTOS.
+                    if (closedStageId && currentStageId === closedStageId && pendingStageId) {
+                        console.log(`[CRM Auto-Lead] Moving lead ${leadId} from 'FECHADOS' to 'PENDENTES'`);
+                        await pool.query(
+                            'UPDATE crm_leads SET stage_id = $1, updated_at = NOW(), company_id = COALESCE(company_id, $2) WHERE id = $3',
+                            [pendingStageId, companyId, leadId]
+                        );
+                    } else {
+                        await pool.query(
+                            'UPDATE crm_leads SET updated_at = NOW(), company_id = COALESCE(company_id, $1) WHERE id = $2',
+                            [companyId, leadId]
+                        );
+                    }
                 }
             }
         }
