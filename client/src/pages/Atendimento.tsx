@@ -1361,15 +1361,6 @@ const AtendimentoPage = () => {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 px-2 text-[10px] gap-1 text-[#008069] hover:bg-[#008069]/10 font-bold"
-                  onClick={(e) => { e.stopPropagation(); handleStartAtendimento(conv); }}
-                  title="Iniciar Atendimento"
-                >
-                  <Play className="h-3 w-3 fill-current" /> INICIAR
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
                   className="h-7 px-2 text-[10px] gap-1 text-red-500 hover:bg-red-50 font-bold"
                   onClick={(e) => { e.stopPropagation(); handleCloseAtendimento(conv); }}
                   title="Encerrar Atendimento"
