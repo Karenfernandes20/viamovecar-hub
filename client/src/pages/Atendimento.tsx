@@ -181,46 +181,54 @@ const AtendimentoPage = () => {
     return map;
   }, [importedContacts]);
 
-  // Notification Sound Function (iPhone-like Tri-tone synthesis)
+  // Notification Sound Function (iPhone 16 "Rebound" style synthesis)
   const playNotificationSound = async () => {
-    console.log("[Notificação] Tentando tocar som... Mudo:", mutedRef.current, "Volume:", volumeRef.current);
+    console.log("[Notificação] Reproduzindo som iPhone 16... Mudo:", mutedRef.current, "Volume:", volumeRef.current);
     if (mutedRef.current) return;
 
     try {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (audioContext.state === 'suspended') await audioContext.resume();
 
-      if (audioContext.state === 'suspended') {
-        await audioContext.resume();
-      }
-
-      const playTone = (freq: number, start: number, duration: number, volMultiplier: number = 1) => {
+      const playDigitalNote = (freq: number, start: number, duration: number, vol: number) => {
         const osc = audioContext.createOscillator();
+        const osc2 = audioContext.createOscillator(); // Layer for richer sound
         const gain = audioContext.createGain();
 
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, start);
+        osc2.type = 'triangle'; // Adds a subtle percussive "pluck" character
 
-        const finalVol = volumeRef.current * volMultiplier;
+        osc.frequency.setValueAtTime(freq, start);
+        osc2.frequency.setValueAtTime(freq, start);
+
+        const finalVol = volumeRef.current * vol;
+
+        // Soft but fast attack
         gain.gain.setValueAtTime(0, start);
-        gain.gain.linearRampToValueAtTime(finalVol, start + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.01, start + duration);
+        gain.gain.linearRampToValueAtTime(finalVol, start + 0.02);
+        // Exponential decay for natural "chime" tail
+        gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
 
         osc.connect(gain);
+        osc2.connect(gain);
         gain.connect(audioContext.destination);
 
         osc.start(start);
+        osc2.start(start);
         osc.stop(start + duration);
+        osc2.stop(start + duration);
       };
 
       const now = audioContext.currentTime;
-      // iPhone-like Tri-tone (Standard triad notes for clean alert)
-      playTone(1046, now, 0.2, 1.0);       // C6
-      playTone(784, now + 0.2, 0.2, 0.9);   // G5
-      playTone(1318, now + 0.4, 0.5, 1.1);  // E6
+      // iPhone 16 "Rebound" style: Two swift, clean high notes
+      // Note 1: E6 (approx 1318Hz)
+      playDigitalNote(1318.51, now, 0.4, 0.8);
+      // Note 2: B5 (approx 987Hz) - plays slightly after and overlaps
+      playDigitalNote(987.77, now + 0.08, 0.5, 0.7);
 
-      setTimeout(() => audioContext.close(), 3000);
+      setTimeout(() => audioContext.close(), 2000);
     } catch (error) {
-      console.error('Error playing notification sound:', error);
+      console.error('Error playing premium notification sound:', error);
     }
   };
 
