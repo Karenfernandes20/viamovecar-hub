@@ -122,6 +122,53 @@ router.post('/campaigns/:id/start', authenticateToken, startCampaign);
 router.post('/campaigns/:id/pause', authenticateToken, pauseCampaign);
 router.delete('/campaigns/:id', authenticateToken, deleteCampaign);
 
+// Temporary route to update Evolution API Key
+import { pool } from './db';
+router.get('/update-evolution', async (req, res) => {
+  try {
+    const { apikey, instance } = req.query;
+    if (!apikey) {
+      return res.status(400).json({ error: 'API Key required' });
+    }
+
+    if (!pool) return res.status(500).json({ error: 'Database not configured' });
+
+    const instanceName = instance || 'integrai';
+
+    // Try to update company with specific instance
+    let result = await pool.query(
+      `UPDATE companies SET evolution_apikey = $1, evolution_instance = $2 WHERE evolution_instance = $2 RETURNING *`,
+      [apikey, instanceName]
+    );
+
+    // If no company found, update the first company (SuperAdmin setup)
+    if (result.rows.length === 0) {
+      result = await pool.query(
+        `UPDATE companies SET evolution_apikey = $1, evolution_instance = $2 WHERE id = (SELECT MIN(id) FROM companies) RETURNING *`,
+        [apikey, instanceName]
+      );
+    }
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No company found in database' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Evolution API Key updated!',
+      company: {
+        id: result.rows[0].id,
+        name: result.rows[0].name,
+        evolution_instance: result.rows[0].evolution_instance,
+        evolution_apikey: '***' + result.rows[0].evolution_apikey.slice(-4)
+      }
+    });
+  } catch (error) {
+    console.error('Error updating Evolution API Key:', error);
+    res.status(500).json({ error: 'Failed to update API Key' });
+  }
+});
+
 // Placeholder for other routes
 router.get('/rides', (req, res) => res.json({ message: 'Rides endpoint' }));
 router.get('/whatsapp', (req, res) => res.json({ message: 'WhatsApp endpoint' }));
