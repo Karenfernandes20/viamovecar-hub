@@ -1,6 +1,61 @@
 import { Request, Response } from 'express';
 import { pool } from '../db';
 
+// Helper to get Evolution Config based on User Context (Replicated from evolutionController for speed/shared logic)
+const getEvolutionConfig = async (user: any) => {
+    let config = {
+        url: process.env.EVOLUTION_API_URL,
+        apikey: process.env.EVOLUTION_API_KEY,
+        instance: "integrai"
+    };
+
+    if (user && user.role !== 'SUPERADMIN' && pool) {
+        try {
+            const userRes = await pool.query('SELECT company_id FROM app_users WHERE id = $1', [user.id]);
+            if (userRes.rows.length > 0 && userRes.rows[0].company_id) {
+                const companyId = userRes.rows[0].company_id;
+                const compRes = await pool.query('SELECT evolution_instance, evolution_apikey FROM companies WHERE id = $1', [companyId]);
+                if (compRes.rows.length > 0) {
+                    const { evolution_instance, evolution_apikey } = compRes.rows[0];
+                    if (evolution_instance && evolution_apikey) {
+                        config.instance = evolution_instance;
+                        config.apikey = evolution_apikey;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Error fetching company evolution config in CRM:", e);
+        }
+    }
+    return config;
+};
+
+const getEvolutionConnectionStateInternal = async (user: any) => {
+    const config = await getEvolutionConfig(user);
+    const { url, apikey, instance } = config;
+
+    if (!url || !apikey) return 'Offline';
+
+    try {
+        const fetchUrl = `${url.replace(/\/$/, "")}/instance/connectionState/${instance}`;
+        const response = await fetch(fetchUrl, {
+            method: "GET",
+            headers: { "Content-Type": "application/json", apikey: apikey },
+        });
+
+        if (!response.ok) return 'Offline';
+        const data = await response.json();
+        // Evolution returns { instance: { state: 'open' | 'close' | 'connecting' ... } }
+        const state = data?.instance?.state || data?.state;
+
+        if (state === 'open') return 'Online';
+        if (state === 'connecting') return 'Conectando...';
+        return 'Offline';
+    } catch (error) {
+        return 'Offline';
+    }
+};
+
 // Ensure default stages exist
 const ensureDefaultStages = async () => {
     if (!pool) return;
@@ -286,6 +341,9 @@ export const getCrmDashboardStats = async (req: Request, res: Response) => {
             status: m.direction === 'inbound' ? 'w_agent' : 'w_client'
         }));
 
+        // 4. WhatsApp Status Update
+        const whatsappStatus = await getEvolutionConnectionStateInternal(user);
+
         res.json({
             funnel: funnelData,
             overview: {
@@ -293,6 +351,7 @@ export const getCrmDashboardStats = async (req: Request, res: Response) => {
                 receivedMessages: msgsTodayRes.rows[0].count,
                 attendedClients: attendedClientsRes.rows[0].count,
                 newLeads: newLeadsRes.rows[0].count,
+                whatsappStatus: whatsappStatus
             },
             activities: recentActivities
         });

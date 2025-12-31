@@ -15,24 +15,38 @@ export const CrmOverviewCards = ({ data }: { data?: any }) => {
 
     return (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8 gap-3">
-            {cards.map((card, idx) => (
-                <Card key={idx} className="border-none shadow-sm hover:shadow-md transition-all hover:-translate-y-1">
-                    <CardContent className="p-4 flex flex-col justify-between h-full">
-                        <div className="flex justify-between items-start mb-2">
-                            <div className={`p-1.5 rounded-md ${card.bg}`}>
-                                <card.icon className={`h-4 w-4 ${card.color}`} />
+            {cards.map((card, idx) => {
+                const isWhatsapp = card.label === "Conexão WhatsApp";
+                const isOnline = card.value === "Online";
+                const isConnecting = card.value === "Conectando...";
+
+                const iconColor = isWhatsapp
+                    ? (isOnline ? "text-emerald-500" : isConnecting ? "text-yellow-500" : "text-red-500")
+                    : card.color;
+
+                const bgColor = isWhatsapp
+                    ? (isOnline ? "bg-emerald-500/10" : isConnecting ? "bg-yellow-500/10" : "bg-red-500/10")
+                    : card.bg;
+
+                return (
+                    <Card key={idx} className="border-none shadow-sm hover:shadow-md transition-all hover:-translate-y-1">
+                        <CardContent className="p-4 flex flex-col justify-between h-full">
+                            <div className="flex justify-between items-start mb-2">
+                                <div className={`p-1.5 rounded-md ${bgColor}`}>
+                                    <card.icon className={`h-4 w-4 ${iconColor}`} />
+                                </div>
                             </div>
-                        </div>
-                        <div>
-                            <span className="text-2xl font-bold tracking-tight block">{card.value}</span>
-                            <div className="flex flex-col">
-                                <span className="text-[11px] font-medium text-muted-foreground leading-tight mt-1">{card.label}</span>
-                                <span className="text-[10px] text-muted-foreground/70">{card.sub}</span>
+                            <div>
+                                <span className="text-2xl font-bold tracking-tight block">{card.value}</span>
+                                <div className="flex flex-col">
+                                    <span className="text-[11px] font-medium text-muted-foreground leading-tight mt-1">{card.label}</span>
+                                    <span className="text-[10px] text-muted-foreground/70">{card.sub}</span>
+                                </div>
                             </div>
-                        </div>
-                    </CardContent>
-                </Card>
-            ))}
+                        </CardContent>
+                    </Card>
+                );
+            })}
         </div>
     );
 };
