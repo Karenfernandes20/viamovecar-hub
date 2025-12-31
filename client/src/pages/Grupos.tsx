@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { Search, Users } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { ScrollArea } from "../components/ui/scroll-area";
@@ -20,6 +21,7 @@ interface GroupConversation {
 
 const GruposPage = () => {
     const { token } = useAuth();
+    const navigate = useNavigate();
     const [groups, setGroups] = useState<GroupConversation[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [isLoading, setIsLoading] = useState(true);
@@ -109,6 +111,7 @@ const GruposPage = () => {
                                     <div
                                         key={group.id}
                                         className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer border"
+                                        onClick={() => navigate(`/app/atendimento?phone=${group.phone}&name=${encodeURIComponent(group.group_name || group.contact_name || "Grupo")}`)}
                                     >
                                         <Avatar className="h-12 w-12">
                                             <AvatarFallback className="bg-blue-100 text-blue-600">
