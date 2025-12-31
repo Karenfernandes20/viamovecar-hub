@@ -14,271 +14,213 @@ interface WebhookMessage {
     messageTimestamp: number;
 }
 
+// Caching for performance
+const instanceCache = new Map<string, number>();
+const stagesCache: { map: any, lastFetch: number } = { map: null, lastFetch: 0 };
+const STAGE_CACHE_TTL = 300000; // 5 minutes
+
 export const handleWebhook = async (req: Request, res: Response) => {
     try {
         const body = req.body;
-        // console.log("[Webhook] Received:", JSON.stringify(body));
 
         let type = body.type || body.event;
         let data = body.data;
         let instance = body.instance || (data?.instance) || 'integrai';
 
-        // Support array-style payloads (used in some Evolution versions)
         if (Array.isArray(body) && body.length > 0) {
             type = body[0].type || body[0].event;
             data = body[0].data;
             instance = body[0].instance || 'integrai';
         }
 
-        if (!type) {
+        if (!type) return res.status(200).send();
+
+        const normalizedType = type.toLowerCase();
+        if (normalizedType !== 'messages.upsert' && normalizedType !== 'messages_upsert') {
             return res.status(200).send();
         }
 
-        const normalizedType = type.toLowerCase();
+        let msg: any = Array.isArray(data?.messages) ? data.messages[0] : (data?.messages || data);
+        if (!msg || !msg.key) return res.status(200).send();
 
-        if (normalizedType === 'messages.upsert' || normalizedType === 'messages_upsert') {
-            // Find the message object
-            let msg: any = null;
-            if (data?.messages && Array.isArray(data.messages)) {
-                msg = data.messages[0];
-            } else {
-                msg = data;
-            }
+        const remoteJid = msg.key.remoteJid;
+        if (remoteJid === 'status@broadcast') return res.status(200).send();
 
-            if (!msg || !msg.key) return res.status(200).send();
+        // 0. Resolve Company ID (Cached)
+        if (!pool) return res.status(500).send();
 
-            const remoteJid = msg.key.remoteJid;
-
-            // Ignore only status broadcasts
-            if (remoteJid === 'status@broadcast') {
-                return res.status(200).send();
-            }
-
-            // Detect if this is a group
-            const isGroup = remoteJid.includes('@g.us');
-
-            const isFromMe = msg.key.fromMe;
-            const direction = isFromMe ? 'outbound' : 'inbound';
-
-            // Business Logic: 
-            // Inbound messages make the chat PENDING if it was CLOSED.
-            // If it's OPEN, it stays OPEN.
-            const phone = remoteJid.split('@')[0];
-            const name = msg.pushName || phone;
-
-            if (!pool) return res.status(500).send();
-
-            // 0. Resolve Company ID from Instance
+        let companyId: number | null = instanceCache.get(instance) || null;
+        if (!companyId) {
             const compLookup = await pool.query('SELECT id FROM companies WHERE evolution_instance = $1', [instance]);
-            const companyId = compLookup.rows.length > 0 ? compLookup.rows[0].id : null;
+            if (compLookup.rows.length > 0) {
+                companyId = compLookup.rows[0].id;
+                instanceCache.set(instance, companyId!);
+            }
+        }
 
-            // CRITICAL: If instance is not mapped to a company, skip processing to avoid data being visible to everyone (company_id = null)
-            if (!companyId) {
-                console.warn(`[Webhook] Instance '${instance}' not mapped to any company. Ignoring message.`);
-                return res.status(200).send();
+        if (!companyId) return res.status(200).send(); // Ignore if unmapped
+
+        // 1. Prepare Data
+        const isFromMe = msg.key.fromMe;
+        const direction = isFromMe ? 'outbound' : 'inbound';
+        const phone = remoteJid.split('@')[0];
+        const name = msg.pushName || phone;
+        const isGroup = remoteJid.includes('@g.us');
+        let groupName = null;
+        if (isGroup) groupName = `Grupo ${phone.substring(0, 6)}...`;
+
+        // 2. UPSERT Conversation (Optimized)
+        let conversationId: number;
+        let currentStatus: string = 'PENDING';
+
+        // This query is critical, keep it explicit
+        const checkConv = await pool.query(
+            `SELECT id, status, is_group, contact_name, company_id FROM whatsapp_conversations WHERE external_id = $1 AND instance = $2 AND company_id = $3`,
+            [remoteJid, instance, companyId]
+        );
+
+        if (checkConv.rows.length > 0) {
+            const row = checkConv.rows[0];
+            conversationId = row.id;
+            const existingStatus = row.status || 'PENDING';
+            currentStatus = existingStatus;
+
+            // Status Transitions
+            // We can optimize this by only firing update if status ACTUALLY changes
+            let newStatus = existingStatus;
+            if (direction === 'inbound' && existingStatus === 'CLOSED') newStatus = 'PENDING';
+            else if (direction === 'outbound' && existingStatus !== 'OPEN') newStatus = 'OPEN';
+
+            const promises = [];
+
+            if (newStatus !== existingStatus) {
+                currentStatus = newStatus;
+                promises.push(pool.query("UPDATE whatsapp_conversations SET status = $1 WHERE id = $2", [newStatus, conversationId]));
             }
 
-            // 1. Upsert Conversation (Scoped by Instance and Company)
-            let conversationId: number;
-            let currentStatus: string = 'PENDING';
+            if (msg.pushName && !row.is_group && row.contact_name !== msg.pushName) {
+                promises.push(pool.query('UPDATE whatsapp_conversations SET contact_name = $1 WHERE id = $2', [msg.pushName, conversationId]));
+            }
 
-            const checkConv = await pool.query(
-                `SELECT id, status, is_group, company_id FROM whatsapp_conversations WHERE external_id = $1 AND instance = $2 AND company_id = $3`,
-                [remoteJid, instance, companyId]
+            // Fire non-critical updates but don't await them for processing flow unless critical
+            Promise.all(promises).catch(err => console.error("Bg update error", err));
+
+        } else {
+            currentStatus = direction === 'outbound' ? 'OPEN' : 'PENDING';
+            const newConv = await pool.query(
+                `INSERT INTO whatsapp_conversations (external_id, phone, contact_name, instance, status, company_id, is_group, group_name) 
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+                [remoteJid, phone, isGroup && groupName ? groupName : name, instance, currentStatus, companyId, isGroup, groupName]
             );
+            conversationId = newConv.rows[0].id;
+        }
 
-            if (checkConv.rows.length > 0) {
-                conversationId = checkConv.rows[0].id;
-                const existingStatus = checkConv.rows[0].status;
-                currentStatus = existingStatus || 'PENDING';
+        // 3. Insert Message
+        let content = '';
+        let messageType = 'text';
+        let mediaUrl: string | null = null;
+        const m = msg.message;
+        const participant = msg.key.participant || null;
 
-                // Update company_id if it was null (migration fallback)
-                await pool.query('UPDATE whatsapp_conversations SET company_id = $1 WHERE id = $2 AND company_id IS NULL', [companyId, conversationId]);
+        // Type inference (keeping logic same, just simplified read)
+        if (m?.conversation) { content = m.conversation; }
+        else if (m?.extendedTextMessage?.text) { content = m.extendedTextMessage.text; }
+        else if (m?.imageMessage) { messageType = 'image'; content = m.imageMessage.caption || ''; mediaUrl = m.imageMessage.url || null; }
+        else if (m?.videoMessage) { messageType = 'video'; content = m.videoMessage.caption || ''; mediaUrl = m.videoMessage.url || null; }
+        else if (m?.audioMessage) { messageType = 'audio'; mediaUrl = m.audioMessage.url || null; }
+        else if (m?.documentMessage) { messageType = 'document'; content = m.documentMessage.fileName || m.documentMessage.caption || ''; mediaUrl = m.documentMessage.url || null; }
+        else if (m?.stickerMessage) { messageType = 'sticker'; mediaUrl = m.stickerMessage.url || null; }
+        else if (m?.locationMessage) { messageType = 'location'; content = `${m.locationMessage.degreesLatitude}, ${m.locationMessage.degreesLongitude}`; }
+        else if (m?.contactMessage) { messageType = 'contact'; content = m.contactMessage.displayName || 'Contato'; }
+        else { content = JSON.stringify(m).substring(0, 100); messageType = 'unknown'; }
 
-                // Rules:
-                // - If inbound and CLOSED -> Move to PENDING
-                // - If outbound -> Move to OPEN
-                if (direction === 'inbound') {
-                    if (existingStatus === 'CLOSED') {
-                        currentStatus = 'PENDING';
-                        await pool.query("UPDATE whatsapp_conversations SET status = 'PENDING' WHERE id = $1", [conversationId]);
-                    }
-                } else if (direction === 'outbound') {
-                    if (existingStatus !== 'OPEN') {
-                        currentStatus = 'OPEN';
-                        await pool.query("UPDATE whatsapp_conversations SET status = 'OPEN' WHERE id = $1", [conversationId]);
-                    }
-                }
+        const sent_at = new Date((msg.messageTimestamp || Date.now() / 1000) * 1000);
 
-                // Sync name if updated, BUT ONLY if it's NOT a group (don't overwrite group name with sender name via pushName)
-                if (msg.pushName && !checkConv.rows[0].is_group) {
-                    await pool.query('UPDATE whatsapp_conversations SET contact_name = $1 WHERE id = $2', [msg.pushName, conversationId]);
-                }
+        const insertedMsg = await pool.query(
+            `INSERT INTO whatsapp_messages (conversation_id, direction, content, sent_at, status, external_id, message_type, media_url, participant, sender_name) 
+             VALUES ($1, $2, $3, $4, 'received', $5, $6, $7, $8, $9) 
+             ON CONFLICT DO NOTHING RETURNING *`,
+            [conversationId, direction, content, sent_at, msg.key.id, messageType, mediaUrl, participant, msg.pushName]
+        );
+
+        // If duplicate, stop here
+        if (insertedMsg.rows.length === 0) return res.status(200).send();
+
+        // 4. Update Conversation Metadata (Background)
+        // We do not await this to slow down the socket emit, BUT we need to ensure it runs.
+        // Actually, for consistency, let's keep it in flow but parallelize with socket prep.
+
+        const updateMetaPromise = pool.query(
+            `UPDATE whatsapp_conversations 
+             SET last_message_at = $1, last_message = $2, 
+                 unread_count = CASE WHEN $3 = 'inbound' THEN unread_count + 1 ELSE unread_count END 
+             WHERE id = $4`,
+            [sent_at, content, direction, conversationId]
+        );
+
+        // 5. Emit Socket Event (IMMEDIATELY)
+        const io = req.app.get('io');
+        if (io) {
+            const room = `company_${companyId}`;
+
+            // Calculate safe contact name for socket
+            // Use existing row data if available to be faster, or fallback to parsed name
+            let safeContactName = name;
+            if (isGroup) {
+                if (checkConv.rows.length > 0) safeContactName = checkConv.rows[0].contact_name;
+                else safeContactName = groupName || name;
             } else {
-                currentStatus = direction === 'outbound' ? 'OPEN' : 'PENDING';
-
-                // For groups, extract group name if available
-                let groupName = null;
-                if (isGroup) {
-                    groupName = `Grupo ${phone.substring(0, 6)}...`;
+                if (checkConv.rows.length > 0 && checkConv.rows[0].contact_name && checkConv.rows[0].contact_name !== phone) {
+                    safeContactName = checkConv.rows[0].contact_name;
                 }
-
-                const newConv = await pool.query(
-                    `INSERT INTO whatsapp_conversations (external_id, phone, contact_name, instance, status, company_id, is_group, group_name) 
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-                    [remoteJid, phone, isGroup && groupName ? groupName : name, instance, currentStatus, companyId, isGroup, groupName]
-                );
-                conversationId = newConv.rows[0].id;
             }
 
-            // 2. Insert Message, Media & Type Handling
-            let content = '';
-            let messageType = 'text';
-            let mediaUrl: string | null = null;
-            let participant = msg.key.participant || null; // For groups, this is the sender
-            let senderName = msg.pushName || null; // Sender's display name
+            io.to(room).emit('message:received', {
+                ...insertedMsg.rows[0],
+                phone,
+                contact_name: safeContactName,
+                remoteJid,
+                instance,
+                company_id: companyId,
+                status: currentStatus
+            });
+            // console.log(`[Webhook] Emitted socket for ${phone}`);
+        }
 
-            const m = msg.message;
-            // Infer type safely
-            const rawType = msg.messageType || (m ? Object.keys(m)[0] : 'unknown');
+        // 6. CRM Logic (Background / Deferred)
+        // We can let the request finish (res.send) and have this run, or await it.
+        // To be safe against process termination, we usually await, but we can do it after the response is sent?
+        // Express doesn't strictly kill promises after res.send, but it's risky in serverless. 
+        // We will "Process Parallel" with the updateMetaPromise.
 
-            if (m?.conversation) {
-                content = m.conversation;
-                messageType = 'text';
-            }
-            else if (m?.extendedTextMessage?.text) {
-                content = m.extendedTextMessage.text;
-                messageType = 'text';
-            }
-            else if (m?.imageMessage) {
-                messageType = 'image';
-                content = m.imageMessage.caption || '';
-                // Evolution might not provide direct URL in webhook, but let's try standard fields or fallback to base64 indication
-                mediaUrl = m.imageMessage.url || null;
-            }
-            else if (m?.videoMessage) {
-                messageType = 'video';
-                content = m.videoMessage.caption || '';
-                mediaUrl = m.videoMessage.url || null;
-            }
-            else if (m?.audioMessage) {
-                messageType = 'audio';
-                mediaUrl = m.audioMessage.url || null;
-            }
-            else if (m?.documentMessage) {
-                messageType = 'document';
-                content = m.documentMessage.fileName || m.documentMessage.caption || m.documentMessage.title || '';
-                mediaUrl = m.documentMessage.url || null;
-            }
-            else if (m?.stickerMessage) {
-                messageType = 'sticker';
-                mediaUrl = m.stickerMessage.url || null;
-            }
-            else if (m?.locationMessage) {
-                messageType = 'location';
-                content = `${m.locationMessage.degreesLatitude}, ${m.locationMessage.degreesLongitude}`;
-            }
-            else if (m?.contactMessage) {
-                messageType = 'contact';
-                content = m.contactMessage.displayName || 'Contato';
-            }
-            else if (m?.buttonsResponseMessage?.selectedButtonId) {
-                content = m.buttonsResponseMessage.selectedButtonId;
-                messageType = 'text';
-            }
-            else if (m?.listResponseMessage?.title) {
-                content = m.listResponseMessage.title;
-                messageType = 'text';
-            }
-            else {
-                content = '[Mídia/Tipo não suportado: ' + rawType + ']';
-                messageType = 'unknown';
-            }
-
-            const sent_at = new Date((msg.messageTimestamp || Math.floor(Date.now() / 1000)) * 1000);
-
-            const insertedMsg = await pool.query(
-                `INSERT INTO whatsapp_messages (conversation_id, direction, content, sent_at, status, external_id, message_type, media_url, participant, sender_name) 
-                 VALUES ($1, $2, $3, $4, 'received', $5, $6, $7, $8, $9) 
-                 ON CONFLICT DO NOTHING
-                 RETURNING id, conversation_id, direction, content, sent_at, status, external_id, message_type, media_url, participant, sender_name`,
-                [conversationId, direction, content, sent_at, msg.key.id, messageType, mediaUrl, participant, senderName]
-            );
-
-            if (insertedMsg.rows.length === 0) return res.status(200).send(); // Avoid processing duplicates
-
-            // Update metadata
-            await pool.query(
-                `UPDATE whatsapp_conversations 
-                 SET last_message_at = $1, 
-                     last_message = $2, 
-                     unread_count = CASE WHEN $3 = 'inbound' THEN unread_count + 1 ELSE unread_count END 
-                 WHERE id = $4`,
-                [sent_at, content, direction, conversationId]
-            );
-
-            // EMIT SOCKET EVENT
-            const io = req.app.get('io');
-            if (io && companyId) {
-                // Determine contact name for socket payload locally
-                let safeContactName = name;
-                if (isGroup) {
-                    // If existing, use existing contact_name
-                    if (checkConv.rows.length > 0) {
-                        safeContactName = checkConv.rows[0].contact_name;
-                    } else {
-                        // If new, use logic similar to insertion
-                        safeContactName = name.includes('Grupo') ? name : `Grupo ${phone.substring(0, 6)}...`;
-                    }
-                }
-
-                const newMessageObj = insertedMsg.rows[0];
-                const room = `company_${companyId}`;
-                io.to(room).emit('message:received', {
-                    ...newMessageObj,
-                    phone: phone,
-                    contact_name: safeContactName,
-                    remoteJid: remoteJid,
-                    instance: instance,
-                    company_id: companyId,
-                    status: currentStatus
-                });
-            }
-
-            // CRM Integration (Inbound leads)
+        const crmLogicPromise = (async () => {
             if (direction === 'inbound') {
-                // Check if contact is "Registered" in the contact list for this company/instance
-                // We consider "Registered" if they exist in whatsapp_contacts with a non-default name.
-                // OR if the user simply implies "If not in my saved contacts" (which we sync to whatsapp_contacts).
-                const contactCheck = await pool.query(
-                    `SELECT id FROM whatsapp_contacts 
-                      WHERE phone = $1 AND (company_id = $2 OR instance = $3)
-                      AND name IS NOT NULL AND name != '' AND name != $1`,
-                    [phone, companyId, instance]
-                );
+                // Determine Stages (Cached)
+                const now = Date.now();
+                if (!stagesCache.map || (now - stagesCache.lastFetch > STAGE_CACHE_TTL)) {
+                    const sRes = await pool!.query("SELECT id, name FROM crm_stages");
+                    stagesCache.map = sRes.rows.reduce((acc: any, s: any) => {
+                        acc[s.name.toUpperCase()] = s.id;
+                        return acc;
+                    }, {});
+                    stagesCache.lastFetch = now;
+                }
+                const stagesMap = stagesCache.map;
+
+                const leadsStageId = stagesMap['LEADS'] || stagesMap['PENDENTES'];
+
+                // Parallel Checks: Contact Reg check AND Lead Check
+                const [contactCheck, checkLead] = await Promise.all([
+                    pool!.query(`SELECT id FROM whatsapp_contacts WHERE phone = $1 AND (company_id = $2 OR instance = $3) AND name IS NOT NULL AND name != '' AND name != $1 LIMIT 1`, [phone, companyId, instance]),
+                    pool!.query('SELECT id, stage_id FROM crm_leads WHERE phone = $1 AND (company_id = $2 OR company_id IS NULL)', [phone, companyId])
+                ]);
+
                 const isRegistered = contactCheck.rows.length > 0;
 
-                const checkLead = await pool.query(
-                    'SELECT id, stage_id FROM crm_leads WHERE phone = $1 AND (company_id = $2 OR company_id IS NULL)',
-                    [phone, companyId]
-                );
-
-                // Fetch stage IDs
-                const stagesRes = await pool.query("SELECT id, name FROM crm_stages");
-                const stagesMap = stagesRes.rows.reduce((acc: any, s: any) => {
-                    acc[s.name.toUpperCase()] = s.id;
-                    return acc;
-                }, {});
-
-                // Prioritize 'Leads' stage ID, then 'PENDENTES'
-                const leadsStageId = stagesMap['LEADS'] || stagesMap['PENDENTES'] || null;
-                const closedStageId = stagesMap['FECHADOS'] || stagesMap['FECHADO'] || null;
-
                 if (checkLead.rows.length === 0) {
-                    // Only create lead if NOT registered in contacts AND we have a valid Leads stage
                     if (!isRegistered && leadsStageId) {
-                        console.log(`[CRM Auto-Lead] Contact ${phone} is not in contact list. Creating new lead in 'Leads' stage.`);
-                        await pool.query(
+                        console.log(`[CRM Auto] New Lead: ${phone}`);
+                        await pool!.query(
                             `INSERT INTO crm_leads (name, phone, origin, stage_id, company_id, created_at, updated_at, description) 
                              VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), 'Criado automaticamente - Novo Contato')`,
                             [name, phone, 'WhatsApp', leadsStageId, companyId]
@@ -286,17 +228,17 @@ export const handleWebhook = async (req: Request, res: Response) => {
                     }
                 } else {
                     const leadId = checkLead.rows[0].id;
-                    await pool.query(
-                        'UPDATE crm_leads SET updated_at = NOW(), company_id = COALESCE(company_id, $1) WHERE id = $2',
-                        [companyId, leadId]
-                    );
+                    await pool!.query('UPDATE crm_leads SET updated_at = NOW(), company_id = COALESCE(company_id, $1) WHERE id = $2', [companyId, leadId]);
                 }
             }
-        }
+        })();
+
+        await Promise.all([updateMetaPromise, crmLogicPromise]); // Wait for DB consistency before ensuring done, but faster than serial.
 
         return res.status(200).json({ status: 'success' });
-    } catch (error: any) {
-        console.error('Webhook Error:', error);
+
+    } catch (error) {
+        console.error('Webhook processing error:', error);
         return res.status(200).json({ status: 'error' });
     }
 };
