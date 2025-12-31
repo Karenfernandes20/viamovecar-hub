@@ -1026,9 +1026,20 @@ const AtendimentoPage = () => {
         setConversations(prev => prev.map(c =>
           c.id === conv.id ? { ...c, status: 'OPEN' as const, user_id: userId } : c
         ));
+
+        // Update selected conversation if it matches
         if (selectedConversation?.id === conv.id) {
           setSelectedConversation(prev => prev ? { ...prev, status: 'OPEN' as const, user_id: userId } : null);
+        } else if (conversation) {
+          // If we started a conversation from the list (not currently selected), select it?
+          // Usually good ux to select it.
+          setSelectedConversation({ ...conversation, status: 'OPEN', user_id: userId });
         }
+
+        // Switch view to Open
+        setViewMode('OPEN');
+        setActiveTab('conversas');
+
       } else {
         const err = await res.json();
         alert(err.error || "Erro ao iniciar atendimento");
