@@ -21,7 +21,10 @@ import {
   Video,
   MapPin,
   Contact,
-  Sticker
+  Sticker,
+  Volume2,
+  VolumeX,
+  Volume1
 } from "lucide-react";
 import { FollowUpModal } from "../components/follow-up/FollowUpModal";
 import { toast } from "sonner";
@@ -95,7 +98,7 @@ const AtendimentoPage = () => {
   const [pendingConversations, setPendingConversations] = useState<Conversation[]>([]);
   const [openConversations, setOpenConversations] = useState<Conversation[]>([]);
   const [closedConversations, setClosedConversations] = useState<Conversation[]>([]);
-  const [activeTab, setActiveTab] = useState<"conversas" | "grupos" | "contatos">("conversas");
+  const [activeTab, setActiveTab] = useState<"conversas" | "contatos">("conversas");
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
 
@@ -126,6 +129,22 @@ const AtendimentoPage = () => {
   const [apiError, setApiError] = useState<string | null>(null);
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
 
+  // Notification sound settings
+  const [notificationVolume, setNotificationVolume] = useState<number>(() => {
+    const saved = localStorage.getItem('notification_volume');
+    return saved ? parseFloat(saved) : 0.5; // Default 50%
+  });
+  const [isNotificationMuted, setIsNotificationMuted] = useState<boolean>(() => {
+    const saved = localStorage.getItem('notification_muted');
+    return saved === 'true';
+  });
+
+  // Pagination states
+  const [pendingPage, setPendingPage] = useState(1);
+  const [openPage, setOpenPage] = useState(1);
+  const [closedPage, setClosedPage] = useState(1);
+  const ITEMS_PER_PAGE = 30;
+
   // Helper para resolver o nome do contato baseado no banco de dados sincronizado
   // Otimizado com useMemo para não recalcular o mapa a cada render
   const contactMap = useMemo(() => {
@@ -139,6 +158,39 @@ const AtendimentoPage = () => {
     });
     return map;
   }, [importedContacts]);
+
+  // Notification Sound Function
+  const playNotificationSound = () => {
+    // Don't play if muted
+    if (isNotificationMuted) return;
+
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+      // Create oscillator for beep sound
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      // Configure sound
+      oscillator.frequency.value = 800; // Frequency in Hz
+      oscillator.type = 'sine';
+
+      // Volume envelope (respecting user volume setting)
+      const maxVolume = notificationVolume; // Use user-defined volume (0-1)
+      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+      gainNode.gain.linearRampToValueAtTime(maxVolume, audioContext.currentTime + 0.01);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+
+      // Play
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.3);
+    } catch (error) {
+      console.error('Error playing notification sound:', error);
+    }
+  };
 
   const getDisplayName = useMemo(() => (conv: Conversation | null): string => {
     if (!conv) return "";
@@ -163,6 +215,13 @@ const AtendimentoPage = () => {
     // 3. Exibe o número formatado (ou como veio)
     return conv.phone;
   }, [contactMap]);
+
+  // Reset pagination when viewMode changes
+  useEffect(() => {
+    setPendingPage(1);
+    setOpenPage(1);
+    setClosedPage(1);
+  }, [viewMode]);
 
   // Filter Conversations Logic for 3 columns (individual chats only)
   useEffect(() => {
@@ -328,6 +387,11 @@ const AtendimentoPage = () => {
 
     socket.on("message:received", (newMessage: any) => {
       console.log("New message received via socket:", newMessage);
+
+      // Play notification sound for inbound messages
+      if (newMessage.direction === 'inbound') {
+        playNotificationSound();
+      }
 
       // 1. Se a mensagem for da conversa aberta, adiciona na lista
       setSelectedConversation((currentSelected) => {
@@ -1247,36 +1311,87 @@ const AtendimentoPage = () => {
       )}>
         <Tabs
           value={activeTab}
-          onValueChange={(value) => setActiveTab(value as "conversas" | "grupos" | "contatos")}
+          onValueChange={(value) => setActiveTab(value as "conversas" | "contatos")}
           className="flex flex-1 flex-col"
         >
           {/* Header da Sidebar */}
-          <div className="flex items-center justify-between p-4 bg-zinc-100/50 dark:bg-zinc-900/50 border-b">
-            <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10">
-                <AvatarFallback>EU</AvatarFallback>
-              </Avatar>
-              <div>
-                <CardTitle className="text-sm font-bold">Atendimentos</CardTitle>
-                <div className="flex items-center gap-2">
-                  <p className="text-xs text-muted-foreground">instancia: integrai</p>
-                  <span className={cn(
-                    "w-2 h-2 rounded-full",
-                    socketStatus === "connected" ? "bg-green-500" : "bg-red-500"
-                  )} title={`Socket: ${socketStatus}`}></span>
+          <div className="bg-zinc-100/50 dark:bg-zinc-900/50 border-b">
+            {/* Top Row: Title and Controls */}
+            <div className="flex items-center justify-between p-3">
+              <div className="flex items-center gap-2">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback>EU</AvatarFallback>
+                </Avatar>
+                <div>
+                  <CardTitle className="text-sm font-bold">Atendimentos</CardTitle>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[10px] text-muted-foreground">integrai</p>
+                    <span className={cn(
+                      "w-1.5 h-1.5 rounded-full",
+                      socketStatus === "connected" ? "bg-green-500" : "bg-red-500"
+                    )} title={`Socket: ${socketStatus}`}></span>
+                  </div>
                 </div>
-                {apiError && <p className="text-[10px] text-red-500">{apiError}</p>}
+              </div>
+
+              {/* Volume Controls */}
+              <div className="flex items-center gap-1">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7"
+                  onClick={() => {
+                    const newMuted = !isNotificationMuted;
+                    setIsNotificationMuted(newMuted);
+                    localStorage.setItem('notification_muted', String(newMuted));
+                  }}
+                  title={isNotificationMuted ? "Ativar som" : "Silenciar"}
+                >
+                  {isNotificationMuted ? (
+                    <VolumeX className="h-3.5 w-3.5 text-red-500" />
+                  ) : notificationVolume > 0.5 ? (
+                    <Volume2 className="h-3.5 w-3.5" />
+                  ) : (
+                    <Volume1 className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+                {!isNotificationMuted && (
+                  <>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={notificationVolume}
+                      onChange={(e) => {
+                        const newVolume = parseFloat(e.target.value);
+                        setNotificationVolume(newVolume);
+                        localStorage.setItem('notification_volume', String(newVolume));
+                      }}
+                      className="w-12 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                      title={`Volume: ${Math.round(notificationVolume * 100)}%`}
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0 text-[10px]"
+                      onClick={playNotificationSound}
+                      title="Testar som"
+                    >
+                      🔔
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <TabsList className="grid grid-cols-3 h-9 gap-2 bg-zinc-200/50 dark:bg-zinc-800/50 p-1">
-                <TabsTrigger value="conversas" className="text-xs font-semibold">
+
+            {/* Bottom Row: Tabs */}
+            <div className="px-3 pb-2">
+              <TabsList className="grid grid-cols-2 h-8 w-full bg-zinc-200/50 dark:bg-zinc-800/50 p-0.5">
+                <TabsTrigger value="conversas" className="text-[11px] font-semibold">
                   Conversas
                 </TabsTrigger>
-                <TabsTrigger value="grupos" className="text-xs font-semibold">
-                  Grupos
-                </TabsTrigger>
-                <TabsTrigger value="contatos" className="text-xs font-semibold">
+                <TabsTrigger value="contatos" className="text-[11px] font-semibold">
                   Novas Conversas
                 </TabsTrigger>
               </TabsList>
@@ -1336,15 +1451,107 @@ const AtendimentoPage = () => {
                 <div className="flex flex-col py-3">
                   {/* DYNAMIC LIST BASED ON VIEWMODE */}
 
-                  {viewMode === 'PENDING' && (
-                    pendingConversations.map(conv => renderConversationCard(conv))
-                  )}
-                  {viewMode === 'OPEN' && (
-                    openConversations.map(conv => renderConversationCard(conv))
-                  )}
-                  {viewMode === 'CLOSED' && (
-                    closedConversations.map(conv => renderConversationCard(conv))
-                  )}
+                  {viewMode === 'PENDING' && (() => {
+                    const startIndex = (pendingPage - 1) * ITEMS_PER_PAGE;
+                    const endIndex = startIndex + ITEMS_PER_PAGE;
+                    const paginatedItems = pendingConversations.slice(startIndex, endIndex);
+                    const totalPages = Math.ceil(pendingConversations.length / ITEMS_PER_PAGE);
+
+                    return (
+                      <>
+                        {paginatedItems.map(conv => renderConversationCard(conv))}
+                        {totalPages > 1 && (
+                          <div className="flex items-center justify-center gap-2 mt-4 mb-2">
+                            <button
+                              onClick={() => setPendingPage(p => Math.max(1, p - 1))}
+                              disabled={pendingPage === 1}
+                              className="px-3 py-1 text-xs rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Anterior
+                            </button>
+                            <span className="text-xs text-muted-foreground">
+                              &lt; {pendingPage} &gt;
+                            </span>
+                            <button
+                              onClick={() => setPendingPage(p => Math.min(totalPages, p + 1))}
+                              disabled={pendingPage === totalPages}
+                              className="px-3 py-1 text-xs rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Próxima
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+
+                  {viewMode === 'OPEN' && (() => {
+                    const startIndex = (openPage - 1) * ITEMS_PER_PAGE;
+                    const endIndex = startIndex + ITEMS_PER_PAGE;
+                    const paginatedItems = openConversations.slice(startIndex, endIndex);
+                    const totalPages = Math.ceil(openConversations.length / ITEMS_PER_PAGE);
+
+                    return (
+                      <>
+                        {paginatedItems.map(conv => renderConversationCard(conv))}
+                        {totalPages > 1 && (
+                          <div className="flex items-center justify-center gap-2 mt-4 mb-2">
+                            <button
+                              onClick={() => setOpenPage(p => Math.max(1, p - 1))}
+                              disabled={openPage === 1}
+                              className="px-3 py-1 text-xs rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Anterior
+                            </button>
+                            <span className="text-xs text-muted-foreground">
+                              &lt; {openPage} &gt;
+                            </span>
+                            <button
+                              onClick={() => setOpenPage(p => Math.min(totalPages, p + 1))}
+                              disabled={openPage === totalPages}
+                              className="px-3 py-1 text-xs rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Próxima
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+
+                  {viewMode === 'CLOSED' && (() => {
+                    const startIndex = (closedPage - 1) * ITEMS_PER_PAGE;
+                    const endIndex = startIndex + ITEMS_PER_PAGE;
+                    const paginatedItems = closedConversations.slice(startIndex, endIndex);
+                    const totalPages = Math.ceil(closedConversations.length / ITEMS_PER_PAGE);
+
+                    return (
+                      <>
+                        {paginatedItems.map(conv => renderConversationCard(conv))}
+                        {totalPages > 1 && (
+                          <div className="flex items-center justify-center gap-2 mt-4 mb-2">
+                            <button
+                              onClick={() => setClosedPage(p => Math.max(1, p - 1))}
+                              disabled={closedPage === 1}
+                              className="px-3 py-1 text-xs rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Anterior
+                            </button>
+                            <span className="text-xs text-muted-foreground">
+                              &lt; {closedPage} &gt;
+                            </span>
+                            <button
+                              onClick={() => setClosedPage(p => Math.min(totalPages, p + 1))}
+                              disabled={closedPage === totalPages}
+                              className="px-3 py-1 text-xs rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Próxima
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
 
                   {/* EMPTY STATES */}
                   {((viewMode === 'PENDING' && pendingConversations.length === 0) ||
@@ -1355,25 +1562,6 @@ const AtendimentoPage = () => {
                         <p className="text-sm font-medium">Nenhuma conversa encontrada</p>
                       </div>
                     )}
-                </div>
-              </ScrollArea>
-            </TabsContent>
-
-            {/* Aba GRUPOS */}
-            <TabsContent value="grupos" className="h-full flex flex-col m-0">
-              <ScrollArea className="flex-1">
-                <div className="flex flex-col py-3">
-                  {conversations
-                    .filter(c => c.is_group)
-                    .sort((a, b) => new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime())
-                    .map(conv => renderConversationCard(conv))}
-
-                  {conversations.filter(c => c.is_group).length === 0 && (
-                    <div className="flex flex-col items-center justify-center p-12 opacity-40">
-                      <Search className="h-12 w-12 mb-4 text-zinc-300" />
-                      <p className="text-sm font-medium">Nenhum grupo encontrado</p>
-                    </div>
-                  )}
                 </div>
               </ScrollArea>
             </TabsContent>

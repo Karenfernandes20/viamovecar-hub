@@ -20,6 +20,8 @@ import SuperadminPage from "./pages/Superadmin";
 import RelatoriosPage from "./pages/Relatorios";
 import ContatosPage from "./pages/Contatos";
 import FollowUpPage from "./pages/FollowUp";
+import GruposPage from "./pages/Grupos";
+import CampanhasPage from "./pages/Campanhas";
 
 import { AuthProvider } from "./contexts/AuthContext";
 import AdminRoute from "./components/AdminRoute";
@@ -53,6 +55,8 @@ const App = () => (
               <Route index element={<DashboardPage />} />
               <Route path="dashboard" element={<DashboardPage />} />
               <Route path="atendimento" element={<AtendimentoPage />} />
+              <Route path="grupos" element={<GruposPage />} />
+              <Route path="campanhas" element={<CampanhasPage />} />
               <Route path="crm" element={<CrmPage />} />
               <Route path="financeiro" element={<FinanceiroPage />} />
               <Route path="usuarios" element={<UsuariosPage />} />

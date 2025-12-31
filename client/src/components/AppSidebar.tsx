@@ -29,6 +29,8 @@ import { useAuth } from "../contexts/AuthContext";
 const items = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/app/dashboard" },
   { label: "Atendimento", icon: MessageCircle, to: "/app/atendimento" },
+  { label: "Grupos", icon: Users, to: "/app/grupos" },
+  { label: "Campanhas", icon: FileText, to: "/app/campanhas" },
   { label: "Follow-up", icon: CalendarCheck, to: "/app/follow-up" },
   { label: "Contatos", icon: Users, to: "/app/contatos" },
   { label: "CRM", icon: KanbanSquare, to: "/app/crm" },
@@ -76,6 +78,8 @@ export function AppSidebar() {
     switch (item.label) {
       case "Dashboard": requiredPerm = "dashboard"; break;
       case "Atendimento": requiredPerm = "atendimentos"; break;
+      case "Grupos": requiredPerm = "atendimentos"; break;
+      case "Campanhas": requiredPerm = "atendimentos"; break;
       case "Follow-up": requiredPerm = "atendimentos"; break;
       case "Contatos": requiredPerm = "atendimentos"; break;
       case "CRM": requiredPerm = "crm"; break;

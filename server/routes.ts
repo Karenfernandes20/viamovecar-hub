@@ -105,6 +105,23 @@ router.delete('/financial/transactions/:id', authenticateToken, deleteFinancialT
 router.put('/financial/transactions/:id/reactivate', authenticateToken, reactivateFinancialTransaction);
 router.post('/financial/transactions/:id/pay', authenticateToken, markAsPaid);
 
+// Campaign routes
+import {
+  createCampaign,
+  getCampaigns,
+  getCampaignById,
+  startCampaign,
+  pauseCampaign,
+  deleteCampaign
+} from './controllers/campaignController';
+
+router.post('/campaigns', authenticateToken, createCampaign);
+router.get('/campaigns', authenticateToken, getCampaigns);
+router.get('/campaigns/:id', authenticateToken, getCampaignById);
+router.post('/campaigns/:id/start', authenticateToken, startCampaign);
+router.post('/campaigns/:id/pause', authenticateToken, pauseCampaign);
+router.delete('/campaigns/:id', authenticateToken, deleteCampaign);
+
 // Placeholder for other routes
 router.get('/rides', (req, res) => res.json({ message: 'Rides endpoint' }));
 router.get('/whatsapp', (req, res) => res.json({ message: 'WhatsApp endpoint' }));

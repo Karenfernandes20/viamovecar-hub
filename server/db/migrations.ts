@@ -302,6 +302,54 @@ const runWhatsappMigrations = async () => {
         await pool.query('CREATE INDEX IF NOT EXISTS idx_follow_ups_company_user ON crm_follow_ups(company_id, user_id)');
         await pool.query('CREATE INDEX IF NOT EXISTS idx_follow_ups_status_date ON crm_follow_ups(status, scheduled_at)');
 
+        // WhatsApp Campaigns (Bulk Messaging)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS whatsapp_campaigns (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                message_template TEXT NOT NULL,
+                company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+                user_id INTEGER REFERENCES app_users(id),
+                status VARCHAR(20) DEFAULT 'draft', -- draft, scheduled, running, paused, completed, cancelled
+                scheduled_at TIMESTAMP,
+                start_time TIME, -- Daily start time (e.g., 09:00)
+                end_time TIME, -- Daily end time (e.g., 18:00)
+                frequency VARCHAR(20) DEFAULT 'once', -- once, daily, weekly, monthly
+                delay_min INTEGER DEFAULT 5, -- Min seconds between messages
+                delay_max INTEGER DEFAULT 15, -- Max seconds between messages
+                total_contacts INTEGER DEFAULT 0,
+                sent_count INTEGER DEFAULT 0,
+                delivered_count INTEGER DEFAULT 0,
+                failed_count INTEGER DEFAULT 0,
+                response_count INTEGER DEFAULT 0,
+                media_url TEXT,
+                media_type VARCHAR(20), -- image, video, audio, document
+                variables JSONB DEFAULT '[]', -- [{name: 'nome', example: 'João'}]
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                completed_at TIMESTAMP
+            );
+        `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS whatsapp_campaign_contacts (
+                id SERIAL PRIMARY KEY,
+                campaign_id INTEGER REFERENCES whatsapp_campaigns(id) ON DELETE CASCADE,
+                phone VARCHAR(50) NOT NULL,
+                name VARCHAR(255),
+                variables JSONB DEFAULT '{}', -- {nome: 'João', empresa: 'ABC'}
+                status VARCHAR(20) DEFAULT 'pending', -- pending, sent, delivered, failed, responded
+                sent_at TIMESTAMP,
+                delivered_at TIMESTAMP,
+                error_message TEXT,
+                retry_count INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
+
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_campaigns_company ON whatsapp_campaigns(company_id, status)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_campaign_contacts_campaign ON whatsapp_campaign_contacts(campaign_id, status)');
+
     } catch (error) {
         console.error("Error creating WhatsApp tables:", error);
     }
