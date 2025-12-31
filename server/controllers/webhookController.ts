@@ -110,8 +110,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
                     }
                 }
 
-                // Sync name if updated
-                if (msg.pushName) {
+                // Sync name if updated, BUT ONLY if it's NOT a group (don't overwrite group name with sender name via pushName)
+                if (msg.pushName && !checkConv.rows[0].is_group) {
                     await pool.query('UPDATE whatsapp_conversations SET contact_name = $1 WHERE id = $2', [msg.pushName, conversationId]);
                 }
             } else {
@@ -120,13 +120,13 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 // For groups, extract group name if available
                 let groupName = null;
                 if (isGroup) {
-                    groupName = name; // Will be improved with actual group metadata
+                    groupName = `Grupo ${phone.substring(0, 6)}...`;
                 }
 
                 const newConv = await pool.query(
                     `INSERT INTO whatsapp_conversations (external_id, phone, contact_name, instance, status, company_id, is_group, group_name) 
                      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-                    [remoteJid, phone, name, instance, currentStatus, companyId, isGroup, groupName]
+                    [remoteJid, phone, isGroup && groupName ? groupName : name, instance, currentStatus, companyId, isGroup, groupName]
                 );
                 conversationId = newConv.rows[0].id;
             }
@@ -135,6 +135,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
             let content = '';
             let messageType = 'text';
             let mediaUrl: string | null = null;
+            let participant = msg.key.participant || null; // For groups, this is the sender
+            let senderName = msg.pushName || null; // Sender's display name
 
             const m = msg.message;
             // Infer type safely
@@ -196,11 +198,11 @@ export const handleWebhook = async (req: Request, res: Response) => {
             const sent_at = new Date((msg.messageTimestamp || Math.floor(Date.now() / 1000)) * 1000);
 
             const insertedMsg = await pool.query(
-                `INSERT INTO whatsapp_messages (conversation_id, direction, content, sent_at, status, external_id, message_type, media_url) 
-                 VALUES ($1, $2, $3, $4, 'received', $5, $6, $7) 
+                `INSERT INTO whatsapp_messages (conversation_id, direction, content, sent_at, status, external_id, message_type, media_url, participant, sender_name) 
+                 VALUES ($1, $2, $3, $4, 'received', $5, $6, $7, $8, $9) 
                  ON CONFLICT DO NOTHING
-                 RETURNING id, conversation_id, direction, content, sent_at, status, external_id, message_type, media_url`,
-                [conversationId, direction, content, sent_at, msg.key.id, messageType, mediaUrl]
+                 RETURNING id, conversation_id, direction, content, sent_at, status, external_id, message_type, media_url, participant, sender_name`,
+                [conversationId, direction, content, sent_at, msg.key.id, messageType, mediaUrl, participant, senderName]
             );
 
             if (insertedMsg.rows.length === 0) return res.status(200).send(); // Avoid processing duplicates
@@ -218,16 +220,28 @@ export const handleWebhook = async (req: Request, res: Response) => {
             // EMIT SOCKET EVENT
             const io = req.app.get('io');
             if (io && companyId) {
+                // Determine contact name for socket payload locally
+                let safeContactName = name;
+                if (isGroup) {
+                    // If existing, use existing contact_name
+                    if (checkConv.rows.length > 0) {
+                        safeContactName = checkConv.rows[0].contact_name;
+                    } else {
+                        // If new, use logic similar to insertion
+                        safeContactName = name.includes('Grupo') ? name : `Grupo ${phone.substring(0, 6)}...`;
+                    }
+                }
+
                 const newMessageObj = insertedMsg.rows[0];
                 const room = `company_${companyId}`;
                 io.to(room).emit('message:received', {
                     ...newMessageObj,
                     phone: phone,
-                    contact_name: name,
+                    contact_name: safeContactName,
                     remoteJid: remoteJid,
                     instance: instance,
                     company_id: companyId,
-                    status: currentStatus // Send updated status to frontend
+                    status: currentStatus
                 });
             }
 

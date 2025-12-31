@@ -45,6 +45,8 @@ interface Message {
     external_id?: string;
     message_type?: string;
     media_url?: string;
+    participant?: string;
+    sender_name?: string;
 }
 
 const GruposPage = () => {
@@ -373,6 +375,13 @@ const GruposPage = () => {
                                                     : "bg-white dark:bg-[#202c33] text-zinc-900 dark:text-zinc-100 rounded-lg rounded-tl-none"
                                             )}
                                         >
+                                            {/* Render sender name for inbound group messages */}
+                                            {msg.direction === 'inbound' && (
+                                                <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400 mb-0.5 block">
+                                                    {msg.sender_name || (msg.participant ? msg.participant.split('@')[0] : 'Desconhecido')}
+                                                </span>
+                                            )}
+
                                             {/* Render simplified content for groups */}
                                             {(() => {
                                                 const type = msg.message_type || 'text';
