@@ -12,38 +12,46 @@ import { pool } from "../db";
  */
 
 // Helper to get Evolution Config based on User Context
+// Hardcoded fallback for this environment
+const DEFAULT_URL = "https://freelasdekaren-evolution-api.nhvvzr.easypanel.host";
+
 const getEvolutionConfig = async (user: any, source: string = 'unknown') => {
-  // Default Global Config (SuperAdmin)
   let config = {
-    url: process.env.EVOLUTION_API_URL,
+    url: process.env.EVOLUTION_API_URL || DEFAULT_URL,
     apikey: process.env.EVOLUTION_API_KEY,
     instance: "integrai"
   };
 
-  // If user is not SuperAdmin and database is available, look for Company config
-  // If user is not SuperAdmin and database is available, look for Company config
-  if (user && user.role !== 'SUPERADMIN' && pool) {
+  if (pool) {
     try {
-      // Create a timeout promise to prevent hanging on network issues
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('DB_TIMEOUT')), 3000)
-      );
+      // SuperAdmin fallback: fetch from company id 1 if API key missing
+      if ((!user || user.role === 'SUPERADMIN') && !config.apikey) {
+        const res = await pool.query('SELECT evolution_instance, evolution_apikey FROM companies WHERE id = 1 LIMIT 1');
+        if (res.rows.length > 0) {
+          const c = res.rows[0];
+          if (c.evolution_apikey) config.apikey = c.evolution_apikey;
+          if (c.evolution_instance) config.instance = c.evolution_instance;
+        }
+      }
 
-      // Find company_id for this user
-      const userRes = await Promise.race([
-        pool.query('SELECT company_id FROM app_users WHERE id = $1', [user.id]),
-        timeoutPromise
-      ]) as any;
-
-      if (userRes && userRes.rows && userRes.rows.length > 0 && userRes.rows[0].company_id) {
-        const companyId = userRes.rows[0].company_id;
-        const compRes = await pool.query('SELECT evolution_instance, evolution_apikey FROM companies WHERE id = $1', [companyId]);
-
-        if (compRes.rows.length > 0) {
-          const { evolution_instance, evolution_apikey } = compRes.rows[0];
-          if (evolution_instance && evolution_apikey) {
-            config.instance = evolution_instance;
-            config.apikey = evolution_apikey;
+      // Regular user: fetch company config
+      if (user && user.role !== 'SUPERADMIN') {
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('DB_TIMEOUT')), 3000)
+        );
+        const userRes = await Promise.race([
+          pool.query('SELECT company_id FROM app_users WHERE id = $1', [user.id]),
+          timeoutPromise
+        ]) as any;
+        if (userRes && userRes.rows && userRes.rows.length > 0 && userRes.rows[0].company_id) {
+          const companyId = userRes.rows[0].company_id;
+          const compRes = await pool.query('SELECT evolution_instance, evolution_apikey FROM companies WHERE id = $1', [companyId]);
+          if (compRes.rows.length > 0) {
+            const { evolution_instance, evolution_apikey } = compRes.rows[0];
+            if (evolution_instance && evolution_apikey) {
+              config.instance = evolution_instance;
+              config.apikey = evolution_apikey;
+            }
           }
         }
       }
@@ -56,9 +64,7 @@ const getEvolutionConfig = async (user: any, source: string = 'unknown') => {
     }
   }
 
-  // Log source to debug potential loops
-  console.log(`[Evolution] Config accessed by [${source}] for instance: ${config.instance}`);
-
+  console.log(`[Evolution] Config accessed by [${source}] for instance: ${config.instance}. URL: ${config.url}`);
   return config;
 };
 
