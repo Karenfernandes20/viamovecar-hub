@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { QrCode as QrIcon, RefreshCcw } from "lucide-react";
+import { QrCode as QrIcon, RefreshCcw, Instagram, MessageCircle, MessageSquare } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { cn } from "../lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 
 const QrCodePage = () => {
   const { token } = useAuth();
@@ -12,6 +13,7 @@ const QrCodePage = () => {
   const [instanceName, setInstanceName] = useState<string>("Carregando...");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activePlatform, setActivePlatform] = useState<string>("whatsapp");
 
   // Poll status only
   const fetchStatus = async () => {
@@ -110,100 +112,193 @@ const QrCodePage = () => {
   const isConnected = connectionState === 'open';
 
   return (
-    <div className="space-y-4">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold tracking-tight">Conexão da Instância: {instanceName}</h2>
-          <p className="text-xs text-muted-foreground">
-            Status atual: <span className={cn("font-bold", isConnected ? "text-green-600" : "text-amber-600")}>
-              {isConnected ? "CONECTADO" : connectionState.toUpperCase()}
-            </span>
-          </p>
-        </div>
-        {!isConnected && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="inline-flex items-center gap-1.5 text-[11px]"
-            onClick={handleGenerateQrKey}
-            disabled={isLoading}
-          >
-            <RefreshCcw className="h-3.5 w-3.5" />
-            {isLoading ? "Gerando..." : "Gerar QR Code"}
-          </Button>
-        )}
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <header className="flex flex-col gap-1">
+        <h1 className="text-2xl font-bold tracking-tight">Canais de Comunicação</h1>
+        <p className="text-sm text-muted-foreground italic">
+          Conecte e gerencie seus canais de atendimento oficial.
+        </p>
       </header>
 
-      <section className="grid gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)]">
-        <Card className="border-dashed bg-background/70">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2">
-            <CardTitle className="text-sm">QR Code / Status</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-xs">
-            <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed bg-muted/40 p-4">
+      <Tabs defaultValue="whatsapp" value={activePlatform} onValueChange={setActivePlatform} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3 md:w-auto md:inline-flex bg-muted/50 p-1 h-auto">
+          <TabsTrigger value="whatsapp" className="flex items-center gap-2 py-2">
+            <MessageSquare className="h-4 w-4" /> WhatsApp
+          </TabsTrigger>
+          <TabsTrigger value="instagram" className="flex items-center gap-2 py-2">
+            <Instagram className="h-4 w-4" /> Instagram
+          </TabsTrigger>
+          <TabsTrigger value="messenger" className="flex items-center gap-2 py-2">
+            <MessageCircle className="h-4 w-4" /> Messenger
+          </TabsTrigger>
+        </TabsList>
 
-              {isConnected ? (
-                <div className="flex flex-col items-center gap-2 text-green-600">
-                  <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-                    <QrIcon className="h-6 w-6 text-green-600" />
-                  </div>
-                  <p className="font-semibold text-sm">WhatsApp Conectado!</p>
-                  <Button
-                    onClick={handleDisconnect}
-                    variant="destructive"
-                    size="sm"
-                    className="mt-2 text-xs"
-                    disabled={isLoading}
-                  >
-                    Desconectar
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  {qrCode ? (
-                    <div className="flex flex-col items-center gap-2">
-                      <img
-                        src={qrCode}
-                        alt="QR Code"
-                        className="w-full max-w-[260px] rounded-lg border bg-white p-2 grayscale contrast-125"
-                      />
-                      <p className="max-w-xs text-center text-[11px] text-muted-foreground">
-                        Aponte a câmera do WhatsApp para conectar.
-                      </p>
+        <TabsContent value="whatsapp" className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold tracking-tight">Conexão WhatsApp: {instanceName}</h2>
+              <p className="text-xs text-muted-foreground">
+                Status atual: <span className={cn("font-bold px-2 py-0.5 rounded-full text-[10px]", isConnected ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700")}>
+                  {isConnected ? "CONECTADO" : connectionState.toUpperCase()}
+                </span>
+              </p>
+            </div>
+            {!isConnected && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="inline-flex items-center gap-1.5 text-[11px]"
+                onClick={handleGenerateQrKey}
+                disabled={isLoading}
+              >
+                <RefreshCcw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
+                {isLoading ? "Gerando..." : "Gerar novo QR Code"}
+              </Button>
+            )}
+          </div>
+
+          <section className="grid gap-4 md:grid-cols-[1fr_300px]">
+            <Card className="border-none shadow-sm bg-background/50 backdrop-blur-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Painel de Conexão WhatsApp</CardTitle>
+                <CardDescription className="text-xs text-[11px]">Digitalize o QR Code usando o aplicativo WhatsApp no seu celular.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-xs">
+                <div className="flex min-h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-muted bg-muted/40 p-4 transition-colors hover:bg-muted/50">
+
+                  {isConnected ? (
+                    <div className="flex flex-col items-center gap-3 text-center">
+                      <div className="h-20 w-20 rounded-full bg-green-100 flex items-center justify-center shadow-inner">
+                        <MessageSquare className="h-10 w-10 text-green-600" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-bold text-lg text-green-700">WhatsApp Conectado!</p>
+                        <p className="text-[11px] text-muted-foreground">Sua instância está pronta para enviar e receber mensagens.</p>
+                      </div>
+                      <Button
+                        onClick={handleDisconnect}
+                        variant="destructive"
+                        size="sm"
+                        className="mt-2 text-xs h-8 px-4"
+                        disabled={isLoading}
+                      >
+                        Desconectar Instância
+                      </Button>
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                      {isLoading ? (
-                        <QrIcon className="h-10 w-10 animate-pulse" />
+                    <>
+                      {qrCode ? (
+                        <div className="flex flex-col items-center gap-4 animate-in zoom-in-95 duration-300">
+                          <div className="bg-white p-4 rounded-2xl shadow-xl border-4 border-primary/10">
+                            <img
+                              src={qrCode}
+                              alt="QR Code"
+                              className="w-full max-w-[240px] rounded-lg"
+                            />
+                          </div>
+                          <div className="space-y-1 text-center">
+                            <p className="font-medium text-primary">Aguardando leitura...</p>
+                            <p className="max-w-xs text-[11px] text-muted-foreground leading-relaxed">
+                              Vá em Menu &gt; Dispositivos Conectados &gt; Conectar um Dispositivo no seu WhatsApp.
+                            </p>
+                          </div>
+                        </div>
                       ) : (
-                        <QrIcon className="h-10 w-10" />
+                        <div className="flex flex-col items-center gap-4 text-muted-foreground text-center">
+                          <div className={cn("h-16 w-16 rounded-full bg-muted flex items-center justify-center", isLoading && "animate-pulse")}>
+                            <QrIcon className="h-8 w-8" />
+                          </div>
+                          <div className="space-y-2">
+                            <p className="max-w-xs font-medium">
+                              {isLoading ? "Gerando credenciais..." : "Nenhuma conexão ativa"}
+                            </p>
+                            <p className="text-[10px] max-w-[200px]">
+                              Clique no botão superior para iniciar o processo de vinculação.
+                            </p>
+                          </div>
+                          {error && (
+                            <div className="bg-red-50 text-red-600 p-3 rounded-lg border border-red-100 text-[10px] mt-2 max-w-xs">
+                              {error}
+                            </div>
+                          )}
+                        </div>
                       )}
-                      <p className="max-w-xs text-center text-[11px]">
-                        {isLoading ? "Aguarde..." : "Desconectado. Clique em 'Gerar QR Code' para conectar."}
-                      </p>
-                      {error && <p className="text-red-500 font-medium">{error}</p>}
-                    </div>
+                    </>
                   )}
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                </div>
+              </CardContent>
+            </Card>
 
-        <Card className="border-dashed bg-background/70">
-          <CardContent className="pt-6 space-y-3 text-xs">
-            <p className="text-muted-foreground">
-              Dicas:
-            </p>
-            <ul className="list-disc space-y-1 pl-4 text-[11px] text-muted-foreground">
-              <li>Mantenha o celular conectado à internet.</li>
-              <li>Se desconectar, clique em "Gerar QR Code" e leia-o novamente.</li>
-              <li>Status 'open' indica funcionamento normal.</li>
-            </ul>
-          </CardContent>
-        </Card>
-      </section>
+            <div className="space-y-4">
+              <Card className="border-none shadow-sm h-full">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Configuração Rápida</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 text-xs">
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-2">
+                      <div className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">1</div>
+                      <p className="text-muted-foreground leading-normal">Mantenha seu celular carregado e com conexão ativa.</p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <div className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">2</div>
+                      <p className="text-muted-foreground leading-normal">O tempo de expiração do QR Code é de 60 segundos.</p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <div className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">3</div>
+                      <p className="text-muted-foreground leading-normal">Você pode conectar múltiplas instâncias (opcional).</p>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t">
+                    <p className="font-semibold text-primary mb-2">Suporte Técnico</p>
+                    <p className="text-[10px] text-muted-foreground">Em caso de falha persistente, tente reiniciar a conexão ou contate o administrador.</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </section>
+        </TabsContent>
+
+        <TabsContent value="instagram" className="space-y-4">
+          <Card className="border-dashed bg-muted/20 min-h-[400px] flex items-center justify-center">
+            <div className="flex flex-col items-center text-center p-8 space-y-4">
+              <div className="h-20 w-20 rounded-full bg-pink-100 flex items-center justify-center">
+                <Instagram className="h-10 w-10 text-pink-600" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold">Integração com Instagram</h3>
+                <p className="text-muted-foreground max-w-sm">
+                  Em breve você poderá conectar o chat do seu Instagram Business aqui para gerenciar directs e comentários diretamente pelo CRM.
+                </p>
+              </div>
+              <Button disabled variant="outline" className="mt-4">
+                Configurar em Breve
+              </Button>
+            </div>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="messenger" className="space-y-4">
+          <Card className="border-dashed bg-muted/20 min-h-[400px] flex items-center justify-center">
+            <div className="flex flex-col items-center text-center p-8 space-y-4">
+              <div className="h-20 w-20 rounded-full bg-blue-100 flex items-center justify-center">
+                <MessageCircle className="h-10 w-10 text-blue-600" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold">Integração com Messenger</h3>
+                <p className="text-muted-foreground max-w-sm">
+                  Estamos finalizando a integração oficial com as Fan Pages do Facebook. Atenda seus clientes Messenger pelo nosso multiatendimento.
+                </p>
+              </div>
+              <Button disabled variant="outline" className="mt-4">
+                Configurar em Breve
+              </Button>
+            </div>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
