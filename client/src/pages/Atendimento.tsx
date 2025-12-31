@@ -756,6 +756,7 @@ const AtendimentoPage = () => {
 
     const fetchMessages = async () => {
       try {
+        setMessages([]); // Limpa mensagens anteriores ao trocar
         setIsLoadingMessages(true);
         const res = await fetch(`/api/evolution/messages/${selectedConversation.id}`, {
           headers: {
@@ -770,10 +771,11 @@ const AtendimentoPage = () => {
           setConversations(prev => prev.map(c =>
             c.id === selectedConversation.id ? { ...c, unread_count: 0 } : c
           ));
-          // TODO: Avisar backend que leu?
+        } else {
+          console.error("Erro ao buscar mensagens:", res.status, await res.text());
         }
       } catch (error) {
-        console.error("Erro ao buscar mensagens", error);
+        console.error("Erro ao buscar mensagens (Network):", error);
       } finally {
         setIsLoadingMessages(false);
       }

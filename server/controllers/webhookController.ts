@@ -201,13 +201,18 @@ export const handleWebhook = async (req: Request, res: Response) => {
             );
 
             // If duplicate message (conflict), stop processing
-            if (insertedMsg.rows.length === 0) return;
+            if (insertedMsg.rows.length === 0) {
+                console.log(`[Webhook] Duplicate message detected for external_id ${msg.key.id}. Skipping.`);
+                return;
+            }
+            console.log(`[Webhook] Message inserted into DB with ID: ${insertedMsg.rows[0].id}`);
 
             // Emit Socket (Critical Path for UI Responsiveness)
             const io = req.app.get('io');
+            // emission
             if (io) {
                 const room = `company_${companyId}`;
-                io.to(room).emit('message:received', {
+                const payload = {
                     ...insertedMsg.rows[0],
                     phone,
                     contact_name: (checkConv.rows.length > 0 ? checkConv.rows[0].contact_name : name) || name,
@@ -215,11 +220,14 @@ export const handleWebhook = async (req: Request, res: Response) => {
                     instance,
                     company_id: companyId,
                     status: currentStatus
-                });
+                };
+                console.log(`[Webhook] Emitting message to room ${room}`);
+                io.to(room).emit('message:received', payload);
             }
 
             // 6. Non-critical post-processing (Metadata & CRM & Profile Pic)
             (async () => {
+                console.log(`[Webhook] Starting non-critical post-processing for conversation ${conversationId}.`);
                 // Update Conversation Metadata (Last message preview)
                 await pool!.query(
                     `UPDATE whatsapp_conversations 
@@ -228,6 +236,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
                      WHERE id = $4`,
                     [sent_at, content, direction, conversationId]
                 );
+                console.log(`[Webhook] Conversation ${conversationId} metadata updated.`);
 
                 // Profile Pic & Name Fetch Logic (if missing or placeholder)
                 const row = checkConv.rows[0] || {};
@@ -235,6 +244,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 const isPlaceholderName = isGroup && (row.contact_name?.startsWith('Grupo ') || !row.contact_name);
 
                 if (!hasPic || isPlaceholderName) {
+                    console.log(`[Webhook] Fetching profile pic or group name for ${remoteJid}.`);
                     (async () => {
                         try {
                             const compRes = await pool!.query('SELECT evolution_apikey FROM companies WHERE id = $1', [companyId]);
@@ -244,6 +254,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
                                 // 1. Fetch Name if Group and placeholder
                                 if (isPlaceholderName) {
+                                    console.log(`[Webhook] Attempting to fetch real group name for ${remoteJid}.`);
                                     const groupUrl = `${baseUrl.replace(/\/$/, "")}/group/findGroup/${instance}?groupJid=${remoteJid}`;
                                     const gRes = await fetch(groupUrl, {
                                         method: "GET",
@@ -254,12 +265,16 @@ export const handleWebhook = async (req: Request, res: Response) => {
                                         const realGroupName = gData.subject || gData.name;
                                         if (realGroupName) {
                                             await pool!.query('UPDATE whatsapp_conversations SET contact_name = $1, group_name = $1 WHERE id = $2', [realGroupName, conversationId]);
+                                            console.log(`[Webhook] Updated group name for ${remoteJid} to ${realGroupName}.`);
                                         }
+                                    } else {
+                                        console.warn(`[Webhook] Failed to fetch group name for ${remoteJid}. Status: ${gRes.status}`);
                                     }
                                 }
 
                                 // 2. Fetch Picture
                                 if (!hasPic) {
+                                    console.log(`[Webhook] Attempting to fetch profile picture for ${remoteJid}.`);
                                     const picUrl_endpoint = `${baseUrl.replace(/\/$/, "")}/chat/fetchProfilePictureUrl/${instance}`;
                                     const response = await fetch(picUrl_endpoint, {
                                         method: "POST",
@@ -275,28 +290,41 @@ export const handleWebhook = async (req: Request, res: Response) => {
                                             if (!isGroup) {
                                                 await pool!.query('UPDATE whatsapp_contacts SET profile_pic_url = $1 WHERE jid = $2 AND instance = $3', [picUrl, remoteJid, instance]);
                                             }
+                                            console.log(`[Webhook] Updated profile picture for ${remoteJid}.`);
                                         }
+                                    } else {
+                                        console.warn(`[Webhook] Failed to fetch profile picture for ${remoteJid}. Status: ${response.status}`);
                                     }
                                 }
+                            } else {
+                                console.log(`[Webhook] No API key found for company ${companyId} to fetch profile pic/group name.`);
                             }
-                        } catch (e) { }
+                        } catch (e) {
+                            console.error(`[Webhook] Error fetching profile pic/group name for ${remoteJid}:`, e);
+                        }
                     })();
                 }
 
                 // CRM Logic: Auto-create lead for new contacts
                 if (direction === 'inbound') {
+                    console.log(`[Webhook] Processing CRM logic for inbound message from ${phone}.`);
                     // Update Stages Cache if needed
                     const now = Date.now();
                     if (!stagesCache.map || (now - stagesCache.lastFetch > STAGE_CACHE_TTL)) {
+                        console.log('[Webhook] CRM stages cache expired or empty. Refetching.');
                         const sRes = await pool!.query("SELECT id, name FROM crm_stages");
                         stagesCache.map = sRes.rows.reduce((acc: any, s: any) => {
                             acc[s.name.toUpperCase()] = s.id;
                             return acc;
                         }, {});
                         stagesCache.lastFetch = now;
+                        console.log(`[Webhook] CRM stages cache updated. Found ${sRes.rows.length} stages.`);
                     }
 
                     const leadsStageId = stagesCache.map['LEADS'] || stagesCache.map['PENDENTES'];
+                    if (!leadsStageId) {
+                        console.warn('[Webhook] "LEADS" or "PENDENTES" stage not found in crm_stages. Skipping lead creation.');
+                    }
 
                     const [contactCheck, checkLead] = await Promise.all([
                         pool!.query(`SELECT id FROM whatsapp_contacts WHERE phone = $1 AND (company_id = $2 OR instance = $3) AND name IS NOT NULL AND name != '' AND name != $1 LIMIT 1`, [phone, companyId, instance]),
@@ -306,15 +334,22 @@ export const handleWebhook = async (req: Request, res: Response) => {
                     if (checkLead.rows.length === 0) {
                         // Only create lead if contact is not "Registered" in the contact list
                         if (contactCheck.rows.length === 0 && leadsStageId) {
+                            console.log(`[Webhook] Creating new CRM lead for ${phone}.`);
                             await pool!.query(
                                 `INSERT INTO crm_leads (name, phone, origin, stage_id, company_id, created_at, updated_at, description) 
                                  VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), 'Vindo do WhatsApp')`,
                                 [name, phone, 'WhatsApp', leadsStageId, companyId]
                             );
+                            console.log(`[Webhook] New CRM lead created for ${phone}.`);
+                        } else if (!leadsStageId) {
+                            console.log(`[Webhook] Skipping new CRM lead creation for ${phone} because leadsStageId is missing.`);
+                        } else {
+                            console.log(`[Webhook] Skipping new CRM lead creation for ${phone} as contact already registered.`);
                         }
                     } else {
                         // Update existing lead's timestamp
                         await pool!.query('UPDATE crm_leads SET updated_at = NOW(), company_id = COALESCE(company_id, $1) WHERE id = $2', [companyId, checkLead.rows[0].id]);
+                        console.log(`[Webhook] Updated existing CRM lead ${checkLead.rows[0].id} for ${phone}.`);
                     }
                 }
             })().catch(e => console.error('[Webhook Post-processing Error]:', e));
@@ -372,19 +407,22 @@ export const getMessages = async (req: Request, res: Response) => {
         const user = (req as any).user;
         const companyId = user?.company_id;
 
+        console.log(`[getMessages] Fetching messages for conversation ${conversationId}, user company: ${companyId}`);
+
         const check = await pool.query('SELECT company_id FROM whatsapp_conversations WHERE id = $1', [conversationId]);
-        if (check.rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
+        if (check.rows.length === 0) {
+            console.warn(`[getMessages] Conversation ${conversationId} not found`);
+            return res.status(404).json({ error: 'Conversation not found' });
+        }
 
         const msgCompanyId = check.rows[0].company_id;
-        const userHasCompany = !!companyId;
 
-        if (userHasCompany) {
-            if (msgCompanyId !== companyId) {
+        // Superadmin without company context can see everything
+        // Regular user/Admin must match company_id
+        if (user.role !== 'SUPERADMIN' || companyId) {
+            if (msgCompanyId && companyId && msgCompanyId !== companyId) {
+                console.warn(`[getMessages] Permission denied for conversation ${conversationId}. MsgCompany: ${msgCompanyId}, UserCompany: ${companyId}`);
                 return res.status(403).json({ error: 'Você não tem permissão para acessar estas mensagens.' });
-            }
-        } else {
-            if (user.role !== 'SUPERADMIN') {
-                return res.status(403).json({ error: 'Acesso negado.' });
             }
         }
 
@@ -392,9 +430,11 @@ export const getMessages = async (req: Request, res: Response) => {
             'SELECT * FROM whatsapp_messages WHERE conversation_id = $1 ORDER BY sent_at ASC',
             [conversationId]
         );
+
+        console.log(`[getMessages] Success. Found ${result.rows.length} messages.`);
         res.json(result.rows);
     } catch (error) {
-        console.error('Error fetching messages:', error);
+        console.error('[getMessages Error]:', error);
         res.status(500).json({ error: 'Failed to fetch messages' });
     }
 };
