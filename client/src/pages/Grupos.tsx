@@ -270,17 +270,17 @@ const GruposPage = () => {
                                     key={group.id}
                                     onClick={() => setSelectedGroup(group)}
                                     className={cn(
-                                        "group flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent",
+                                        "group flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 border border-transparent",
                                         selectedGroup?.id === group.id
                                             ? "bg-[#e7fce3] dark:bg-[#005c4b]/30 border-[#00a884]/20 shadow-sm"
                                             : "hover:bg-zinc-50 dark:hover:bg-zinc-900 border-zinc-100/50 dark:border-zinc-800/50"
                                     )}
                                 >
                                     <div className="relative shrink-0">
-                                        <Avatar className="h-12 w-12 border-2 border-white dark:border-zinc-900 shadow-sm">
+                                        <Avatar className="h-10 w-10 border-2 border-white dark:border-zinc-900 shadow-sm">
                                             <AvatarImage src={group.profile_pic_url || `https://api.dicebear.com/7.x/initials/svg?seed=${group.group_name || group.contact_name || "G"}`} />
                                             <AvatarFallback className="bg-blue-100 text-blue-600">
-                                                <Users className="h-6 w-6" />
+                                                <Users className="h-5 w-5" />
                                             </AvatarFallback>
                                         </Avatar>
                                     </div>
