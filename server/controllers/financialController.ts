@@ -9,6 +9,9 @@ export const getTransactions = async (req: Request, res: Response) => {
     const conditions: string[] = [];
     const params: any[] = [];
 
+    const user = (req as any).user;
+    const companyId = user?.company_id;
+
     if (type && type !== 'all') {
       params.push(type);
       conditions.push(`ft.type = $${params.length}`);
@@ -37,6 +40,11 @@ export const getTransactions = async (req: Request, res: Response) => {
     if (search) {
       params.push(`%${search}%`);
       conditions.push(`(ft.description ILIKE $${params.length} OR ft.category ILIKE $${params.length} OR ft.notes ILIKE $${params.length})`);
+    }
+
+    if (user.role !== 'SUPERADMIN' || companyId) {
+      params.push(companyId);
+      conditions.push(`(ft.company_id = $${params.length} OR ft.company_id IS NULL)`);
     }
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -75,11 +83,19 @@ export const getFinancialStats = async (req: Request, res: Response) => {
 
     const { startDate, endDate } = req.query;
     const params: any[] = [];
-    let dateFilter = '';
+    const user = (req as any).user;
+    const companyId = user?.company_id;
 
+    let dateFilter = '';
     if (startDate && endDate) {
       params.push(startDate, endDate);
       dateFilter = `AND due_date BETWEEN $1 AND $2`;
+    }
+
+    let companyFilter = '';
+    if (user.role !== 'SUPERADMIN' || companyId) {
+      params.push(companyId);
+      companyFilter = `AND (company_id = $${params.length} OR company_id IS NULL)`;
     }
 
     const query = `
@@ -92,7 +108,7 @@ export const getFinancialStats = async (req: Request, res: Response) => {
         SUM(CASE WHEN type = 'payable' AND status = 'pending' THEN amount ELSE 0 END) as pending_payables,
         SUM(CASE WHEN status != 'paid' AND due_date < CURRENT_DATE THEN amount ELSE 0 END) as total_overdue
       FROM financial_transactions
-      WHERE status != 'cancelled' ${dateFilter}
+      WHERE status != 'cancelled' ${dateFilter} ${companyFilter}
     `;
 
     const result = await pool.query(query, params);
@@ -114,9 +130,19 @@ export const getFinancialStats = async (req: Request, res: Response) => {
   }
 };
 
-export const getReceivablesByCity = async (_req: Request, res: Response) => {
+export const getReceivablesByCity = async (req: Request, res: Response) => {
   try {
     if (!pool) return res.status(500).json({ error: 'Database not configured' });
+
+    const user = (req as any).user;
+    const companyId = user?.company_id;
+
+    let companyFilter = '';
+    const params: any[] = [];
+    if (user.role !== 'SUPERADMIN' || companyId) {
+      params.push(companyId);
+      companyFilter = `AND (ft.company_id = $${params.length} OR ft.company_id IS NULL)`;
+    }
 
     const query = `
       SELECT COALESCE(c.name, 'Sem cidade') as city_name,
@@ -124,12 +150,12 @@ export const getReceivablesByCity = async (_req: Request, res: Response) => {
              SUM(ft.amount) as total_amount
       FROM financial_transactions ft
       LEFT JOIN cities c ON ft.city_id = c.id
-      WHERE ft.type = 'receivable'
+      WHERE ft.type = 'receivable' ${companyFilter}
       GROUP BY c.name, c.state
       ORDER BY total_amount DESC
     `;
 
-    const result = await pool.query(query);
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching receivables by city:', error);
@@ -145,6 +171,9 @@ export const getCashFlow = async (req: Request, res: Response) => {
     const conditions: string[] = [];
     const params: any[] = [];
 
+    const user = (req as any).user;
+    const companyId = user?.company_id;
+
     if (startDate) {
       params.push(startDate);
       conditions.push(`due_date >= $${params.length}`);
@@ -153,6 +182,11 @@ export const getCashFlow = async (req: Request, res: Response) => {
     if (endDate) {
       params.push(endDate);
       conditions.push(`due_date <= $${params.length}`);
+    }
+
+    if (user.role !== 'SUPERADMIN' || companyId) {
+      params.push(companyId);
+      conditions.push(`(company_id = $${params.length} OR company_id IS NULL)`);
     }
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -179,11 +213,17 @@ export const createFinancialTransaction = async (req: Request, res: Response) =>
   try {
     if (!pool) return res.status(500).json({ error: 'Database not configured' });
 
+    const user = (req as any).user;
+    const userCompanyId = user?.company_id;
+
     const { description, amount, due_date, issue_date, category, status, type, city_id, notes, company_id } = req.body;
 
     if (!description || !amount) {
       return res.status(400).json({ error: 'description and amount are required' });
     }
+
+    // New transaction should be associated with user's company if provided, or default to user context
+    const finalCompanyId = company_id || userCompanyId;
 
     const result = await pool.query(
       `INSERT INTO financial_transactions (description, type, amount, status, due_date, issue_date, category, city_id, notes, company_id)
@@ -199,7 +239,7 @@ export const createFinancialTransaction = async (req: Request, res: Response) =>
         category || null,
         (city_id && city_id !== "") ? city_id : null,
         notes || null,
-        (company_id && company_id !== "" && company_id !== 0) ? company_id : null
+        (finalCompanyId && finalCompanyId !== "" && finalCompanyId !== 0) ? finalCompanyId : null
       ]
     );
 
@@ -213,8 +253,18 @@ export const createFinancialTransaction = async (req: Request, res: Response) =>
 export const updateFinancialTransaction = async (req: Request, res: Response) => {
   try {
     if (!pool) return res.status(500).json({ error: 'Database not configured' });
+    const user = (req as any).user;
+    const userCompanyId = user?.company_id;
     const { id } = req.params;
     const { description, amount, due_date, issue_date, category, status, type, city_id, notes, company_id } = req.body;
+
+    // Check ownership
+    const check = await pool.query('SELECT company_id FROM financial_transactions WHERE id = $1', [id]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Transaction not found' });
+
+    if (user.role !== 'SUPERADMIN' && check.rows[0].company_id && check.rows[0].company_id !== userCompanyId) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
 
     const result = await pool.query(
       `UPDATE financial_transactions 
@@ -231,7 +281,7 @@ export const updateFinancialTransaction = async (req: Request, res: Response) =>
         type,
         (city_id && city_id !== "") ? city_id : null,
         notes || null,
-        (company_id && company_id !== "" && company_id !== 0) ? company_id : null,
+        (company_id && company_id !== "" && company_id !== 0) ? company_id : userCompanyId,
         id
       ]
     );
@@ -247,9 +297,19 @@ export const updateFinancialTransaction = async (req: Request, res: Response) =>
 export const deleteFinancialTransaction = async (req: Request, res: Response) => {
   try {
     if (!pool) return res.status(500).json({ error: 'Database not configured' });
+    const user = (req as any).user;
+    const userCompanyId = user?.company_id;
     const { id } = req.params;
+
+    // Check ownership
+    const check = await pool.query('SELECT company_id FROM financial_transactions WHERE id = $1', [id]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Transaction not found' });
+
+    if (user.role !== 'SUPERADMIN' && check.rows[0].company_id && check.rows[0].company_id !== userCompanyId) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
     const result = await pool.query('DELETE FROM financial_transactions WHERE id = $1', [id]);
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Transaction not found' });
     res.json({ message: 'Transaction deleted successfully' });
   } catch (error) {
     console.error('Error deleting transaction:', error);
@@ -260,7 +320,18 @@ export const deleteFinancialTransaction = async (req: Request, res: Response) =>
 export const markAsPaid = async (req: Request, res: Response) => {
   try {
     if (!pool) return res.status(500).json({ error: 'Database not configured' });
+    const user = (req as any).user;
+    const userCompanyId = user?.company_id;
     const { id } = req.params;
+
+    // Check ownership
+    const check = await pool.query('SELECT company_id FROM financial_transactions WHERE id = $1', [id]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Transaction not found' });
+
+    if (user.role !== 'SUPERADMIN' && check.rows[0].company_id && check.rows[0].company_id !== userCompanyId) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
     const result = await pool.query(
       `UPDATE financial_transactions 
              SET status = 'paid', paid_at = NOW(), updated_at = NOW()
@@ -268,7 +339,6 @@ export const markAsPaid = async (req: Request, res: Response) => {
              RETURNING *`,
       [id]
     );
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Transaction not found' });
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error marking as paid:', error);

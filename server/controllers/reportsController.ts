@@ -8,6 +8,8 @@ export const getDRE = async (req: Request, res: Response) => {
         if (!pool) return res.status(500).json({ error: 'Database not configured' });
 
         const { startDate, endDate, cityId, service } = req.query;
+        const user = (req as any).user;
+        const companyIdFilter = user?.company_id;
 
         let whereClause = "WHERE status = 'paid'";
         const params: any[] = [];
@@ -27,6 +29,10 @@ export const getDRE = async (req: Request, res: Response) => {
         if (service) {
             params.push(service);
             whereClause += ` AND category = $${params.length}`;
+        }
+        if (user.role !== 'SUPERADMIN' || companyIdFilter) {
+            params.push(companyIdFilter);
+            whereClause += ` AND (company_id = $${params.length} OR company_id IS NULL)`;
         }
 
         // Calculate Totals
@@ -68,6 +74,8 @@ export const getBreakdown = async (req: Request, res: Response) => {
         if (!pool) return res.status(500).json({ error: 'Database not configured' });
 
         const { startDate, endDate, cityId, service } = req.query;
+        const user = (req as any).user;
+        const companyIdFilter = user?.company_id;
         const params: any[] = [];
         let whereClause = "WHERE status = 'paid'";
 
@@ -78,6 +86,10 @@ export const getBreakdown = async (req: Request, res: Response) => {
         if (endDate) {
             params.push(endDate);
             whereClause += ` AND paid_at <= $${params.length}`;
+        }
+        if (user.role !== 'SUPERADMIN' || companyIdFilter) {
+            params.push(companyIdFilter);
+            whereClause += ` AND (ft.company_id = $${params.length} OR ft.company_id IS NULL)`;
         }
 
         // By City
@@ -126,6 +138,16 @@ export const getFinancialIndicators = async (req: Request, res: Response) => {
     try {
         if (!pool) return res.status(500).json({ error: 'Database not configured' });
 
+        const user = (req as any).user;
+        const companyId = user?.company_id;
+        const params: any[] = [];
+        let companyFilter = "";
+
+        if (user.role !== 'SUPERADMIN' || companyId) {
+            params.push(companyId);
+            companyFilter = `AND (company_id = $${params.length} OR company_id IS NULL)`;
+        }
+
         // This month vs Last month
         const currentMonthQuery = `
             SELECT 
@@ -134,6 +156,7 @@ export const getFinancialIndicators = async (req: Request, res: Response) => {
             FROM financial_transactions
             WHERE status = 'paid' 
             AND paid_at >= date_trunc('month', CURRENT_DATE)
+            ${companyFilter}
         `;
 
         const lastMonthQuery = `
@@ -143,6 +166,7 @@ export const getFinancialIndicators = async (req: Request, res: Response) => {
             WHERE status = 'paid' 
             AND paid_at >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
             AND paid_at < date_trunc('month', CURRENT_DATE)
+            ${companyFilter}
         `;
 
         // Evolution (Last 6 months)
@@ -154,14 +178,15 @@ export const getFinancialIndicators = async (req: Request, res: Response) => {
             FROM financial_transactions
             WHERE status = 'paid'
             AND paid_at >= CURRENT_DATE - INTERVAL '6 months'
+            ${companyFilter}
             GROUP BY month
             ORDER BY month ASC
         `;
 
         const [currRes, lastRes, evolRes] = await Promise.all([
-            pool.query(currentMonthQuery),
-            pool.query(lastMonthQuery),
-            pool.query(evolutionQuery)
+            pool.query(currentMonthQuery, params),
+            pool.query(lastMonthQuery, params),
+            pool.query(evolutionQuery, params)
         ]);
 
         const currRevenue = Number(currRes.rows[0]?.revenue || 0);
