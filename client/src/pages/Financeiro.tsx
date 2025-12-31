@@ -661,33 +661,75 @@ const FinanceiroPage = () => {
 
   const exportPDF = () => {
     const doc = new jsPDF();
-    const tableColumn = ["Descrição", "Categoria", "Vencimento", "Valor", "Status", "Tipo"];
-    const tableRows = filteredData.map(t => [
-      t.description,
-      t.category || "Sem categoria",
-      safeFormat(t.due_date, "dd/MM/yyyy"),
-      `R$ ${Number(t.amount || 0).toFixed(2)}`,
-      t.status.toUpperCase(),
-      t.type === "receivable" ? "RECEITA" : "DESPESA"
-    ]);
 
-    doc.setFontSize(16);
-    doc.setTextColor(mainTab === "revenues" ? "#008069" : "#ff4444");
-    doc.text(getExportTitle(), 14, 15);
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 14, 22);
-    doc.text(`Período: ${startDate ? format(parseISO(startDate), "dd/MM/yyyy") : "Início"} até ${endDate ? format(parseISO(endDate), "dd/MM/yyyy") : "Hoje"}`, 14, 27);
+    // Add Logo
+    const logoUrl = "/logo-integrai.jpg";
+    const img = new Image();
+    img.src = logoUrl;
 
-    autoTable(doc, {
-      head: [tableColumn],
-      body: tableRows,
-      startY: 35,
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: mainTab === "revenues" ? [0, 128, 105] : [128, 0, 0] }
-    });
+    img.onload = () => {
+      // Add logo (x, y, width, height)
+      doc.addImage(img, 'JPEG', 14, 10, 25, 25);
 
-    doc.save(`financeiro_${mainTab}_${format(new Date(), "yyyyMMdd")}.pdf`);
+      const tableColumn = ["Descrição", "Categoria", "Vencimento", "Valor", "Status", "Tipo"];
+      const tableRows = filteredData.map(t => [
+        t.description,
+        t.category || "Sem categoria",
+        safeFormat(t.due_date, "dd/MM/yyyy"),
+        `R$ ${Number(t.amount || 0).toFixed(2)}`,
+        t.status.toUpperCase(),
+        t.type === "receivable" ? "RECEITA" : "DESPESA"
+      ]);
+
+      doc.setFontSize(16);
+      doc.setTextColor(mainTab === "revenues" ? "#008069" : "#ff4444");
+      doc.text(getExportTitle(), 45, 20);
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 45, 27);
+      doc.text(`Período: ${startDate ? format(parseISO(startDate), "dd/MM/yyyy") : "Início"} até ${endDate ? format(parseISO(endDate), "dd/MM/yyyy") : "Hoje"}`, 45, 32);
+
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 45,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: mainTab === "revenues" ? [0, 128, 105] : [128, 0, 0] }
+      });
+
+      doc.save(`financeiro_${mainTab}_${format(new Date(), "yyyyMMdd")}.pdf`);
+    };
+
+    img.onerror = () => {
+      // Fallback if image fails to load
+      const tableColumn = ["Descrição", "Categoria", "Vencimento", "Valor", "Status", "Tipo"];
+      const tableRows = filteredData.map(t => [
+        t.description,
+        t.category || "Sem categoria",
+        safeFormat(t.due_date, "dd/MM/yyyy"),
+        `R$ ${Number(t.amount || 0).toFixed(2)}`,
+        t.status.toUpperCase(),
+        t.type === "receivable" ? "RECEITA" : "DESPESA"
+      ]);
+
+      doc.setFontSize(16);
+      doc.setTextColor(mainTab === "revenues" ? "#008069" : "#ff4444");
+      doc.text(getExportTitle(), 14, 15);
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 14, 22);
+      doc.text(`Período: ${startDate ? format(parseISO(startDate), "dd/MM/yyyy") : "Início"} até ${endDate ? format(parseISO(endDate), "dd/MM/yyyy") : "Hoje"}`, 14, 27);
+
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 35,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: mainTab === "revenues" ? [0, 128, 105] : [128, 0, 0] }
+      });
+
+      doc.save(`financeiro_${mainTab}_${format(new Date(), "yyyyMMdd")}.pdf`);
+    };
   };
 
   const getStatusBadge = (t: Transaction) => {

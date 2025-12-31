@@ -83,32 +83,73 @@ const RelatoriosPage = () => {
     // Exports
     const exportPDF = () => {
         const doc = new jsPDF();
-        doc.text(`Relatório - ${activeTab.toUpperCase()}`, 14, 16);
-        doc.text(`Período: ${startDate} a ${endDate}`, 14, 22);
+        const logoUrl = "/logo-integrai.jpg";
+        const img = new Image();
+        img.src = logoUrl;
 
-        if (activeTab === 'dre' && dreData) {
-            autoTable(doc, {
-                startY: 30,
-                head: [['Item', 'Valor (R$)']],
-                body: [
-                    ['Receita Bruta', dreData.grossRevenue?.toFixed(2)],
-                    ['Custos Operacionais', dreData.operationalCosts?.toFixed(2)],
-                    ['Despesas', dreData.expenses?.toFixed(2)],
-                    ['Lucro Bruto', dreData.grossProfit?.toFixed(2)],
-                    ['Lucro Líquido', dreData.netProfit?.toFixed(2)]
-                ]
-            });
-        }
-        else if (activeTab === 'breakdown' && breakdownData) {
-            doc.text("Por Cidade", 14, 30);
-            autoTable(doc, {
-                startY: 35,
-                head: [['Cidade', 'Receita', 'Custo']],
-                body: breakdownData.byCity.map((item: any) => [item.city_name, item.revenue, item.cost])
-            });
-        }
+        img.onload = () => {
+            // Add logo
+            doc.addImage(img, 'JPEG', 14, 10, 25, 25);
 
-        doc.save(`relatorio_${activeTab}_${Date.now()}.pdf`);
+            doc.setFontSize(16);
+            doc.text(`Relatório - ${activeTab.toUpperCase()}`, 45, 20);
+            doc.setFontSize(10);
+            doc.text(`Período: ${startDate} a ${endDate}`, 45, 27);
+
+            if (activeTab === 'dre' && dreData) {
+                autoTable(doc, {
+                    startY: 45,
+                    head: [['Item', 'Valor (R$)']],
+                    body: [
+                        ['Receita Bruta', dreData.grossRevenue?.toFixed(2)],
+                        ['Custos Operacionais', dreData.operationalCosts?.toFixed(2)],
+                        ['Despesas', dreData.expenses?.toFixed(2)],
+                        ['Lucro Bruto', dreData.grossProfit?.toFixed(2)],
+                        ['Lucro Líquido', dreData.netProfit?.toFixed(2)]
+                    ]
+                });
+            }
+            else if (activeTab === 'breakdown' && breakdownData) {
+                doc.text("Por Cidade", 14, 45);
+                autoTable(doc, {
+                    startY: 50,
+                    head: [['Cidade', 'Receita', 'Custo']],
+                    body: breakdownData.byCity.map((item: any) => [item.city_name, item.revenue, item.cost])
+                });
+            }
+
+            doc.save(`relatorio_${activeTab}_${Date.now()}.pdf`);
+        };
+
+        img.onerror = () => {
+            doc.setFontSize(16);
+            doc.text(`Relatório - ${activeTab.toUpperCase()}`, 14, 16);
+            doc.text(`Período: ${startDate} a ${endDate}`, 14, 22);
+
+            if (activeTab === 'dre' && dreData) {
+                autoTable(doc, {
+                    startY: 30,
+                    head: [['Item', 'Valor (R$)']],
+                    body: [
+                        ['Receita Bruta', dreData.grossRevenue?.toFixed(2)],
+                        ['Custos Operacionais', dreData.operationalCosts?.toFixed(2)],
+                        ['Despesas', dreData.expenses?.toFixed(2)],
+                        ['Lucro Bruto', dreData.grossProfit?.toFixed(2)],
+                        ['Lucro Líquido', dreData.netProfit?.toFixed(2)]
+                    ]
+                });
+            }
+            else if (activeTab === 'breakdown' && breakdownData) {
+                doc.text("Por Cidade", 14, 30);
+                autoTable(doc, {
+                    startY: 35,
+                    head: [['Cidade', 'Receita', 'Custo']],
+                    body: breakdownData.byCity.map((item: any) => [item.city_name, item.revenue, item.cost])
+                });
+            }
+
+            doc.save(`relatorio_${activeTab}_${Date.now()}.pdf`);
+        };
     };
 
     const exportExcel = () => {
