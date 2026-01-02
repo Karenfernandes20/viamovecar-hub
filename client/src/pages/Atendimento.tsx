@@ -1645,7 +1645,7 @@ const AtendimentoPage = () => {
 
           <CardContent className="flex-1 flex flex-col overflow-hidden p-0 min-h-0">
             {/* Aba CONVERSAS - SINGLE COLUMN Vertical List */}
-            <TabsContent value="conversas" className="flex-1 flex flex-col min-h-0 m-0">
+            <TabsContent value="conversas" className="flex-1 flex flex-col min-h-0 m-0 overflow-y-auto custom-scrollbar">
               <div className="px-3 py-2 flex flex-col gap-2 border-b">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -1691,7 +1691,7 @@ const AtendimentoPage = () => {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar">
+              <div className="flex-1 min-h-0">
                 <div className={cn("flex flex-col", ((viewMode === 'PENDING' && pendingConversations.length === 0) || (viewMode === 'OPEN' && openConversations.length === 0) || (viewMode === 'CLOSED' && closedConversations.length === 0)) ? "h-full py-0" : "py-3")}>
                   {/* DYNAMIC LIST BASED ON VIEWMODE */}
 
