@@ -119,29 +119,29 @@ const Index = () => {
         <section className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-7xl mt-12 px-4">
           <div className="flex flex-col gap-4 group">
             <div className="overflow-hidden rounded-2xl border bg-white shadow-sm transition-all hover:shadow-xl hover:-translate-y-1">
-              <img src="/atendimento_whatsapp_mockup.png" alt="Atendimento WhatsApp" className="aspect-video object-cover object-top" />
+              <img src="/real_atendimento.png" alt="Atendimento WhatsApp Real" className="aspect-video object-cover object-top" />
             </div>
             <div>
               <h3 className="text-xl font-bold">Atendimento Multicanal</h3>
-              <p className="text-sm text-muted-foreground mt-1">Gerencie chats individuais e grupos do WhatsApp em um só lugar, com identificação de remetentes e controle de notificações.</p>
+              <p className="text-sm text-muted-foreground mt-1">Chat real com suporte a mensagens de texto, áudio e grupos. Identificação visual de atendentes e status de conversa.</p>
             </div>
           </div>
           <div className="flex flex-col gap-4 group">
             <div className="overflow-hidden rounded-2xl border bg-white shadow-sm transition-all hover:shadow-xl hover:-translate-y-1">
-              <img src="/campaign_whatsapp_mockup.png" alt="Marketing Campaigns" className="aspect-video object-cover object-top" />
+              <img src="/real_campaigns.png" alt="Campanhas Marketing Real" className="aspect-video object-cover object-top" />
             </div>
             <div>
               <h3 className="text-xl font-bold">Campanhas Inteligentes</h3>
-              <p className="text-sm text-muted-foreground mt-1">Dispare mensagens em massa com variáveis personalizadas e acompanhe a conversão em tempo real no seu CRM.</p>
+              <p className="text-sm text-muted-foreground mt-1">Gestão de disparos com status em tempo real (Enviando, Concluído, Agendado) e barras de progresso visuais.</p>
             </div>
           </div>
           <div className="flex flex-col gap-4 group">
             <div className="overflow-hidden rounded-2xl border bg-white shadow-sm transition-all hover:shadow-xl hover:-translate-y-1">
-              <img src="/crm_dashboard_mockup.png" alt="CRM Dashboard" className="aspect-video object-cover object-top" />
+              <img src="/real_crm.png" alt="CRM Kanban Real" className="aspect-video object-cover object-top" />
             </div>
             <div>
-              <h3 className="text-xl font-bold">Dashboard de Resultados</h3>
-              <p className="text-sm text-muted-foreground mt-1">Visão 360º da sua operação: leads capturados, vendas convertidas e performance da equipe em gráficos intuitivos.</p>
+              <h3 className="text-xl font-bold">CRM Integrado</h3>
+              <p className="text-sm text-muted-foreground mt-1">Kanban board para gestão de leads com colunas personalizáveis e cartões de oportunidades com valores.</p>
             </div>
           </div>
         </section>

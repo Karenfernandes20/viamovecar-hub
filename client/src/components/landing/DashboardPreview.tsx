@@ -219,121 +219,19 @@ export const DashboardPreview = () => {
                         {/* TAB: CHATS */}
                         <TabsContent value="chats" className="h-[450px] m-0 rounded-lg border border-slate-200 overflow-hidden flex bg-white shadow-sm">
                             <div className="relative h-full w-full group">
-                                <img src="/atendimento_whatsapp_mockup.png" alt="Atendimento WhatsApp" className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105" />
+                                <img src="/real_atendimento.png" alt="Atendimento WhatsApp Real" className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105" />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
-                                    <p className="text-white text-sm font-medium">Atendimento profissional com suporte a grupos, identificação de atendentes e histórico completo.</p>
+                                    <p className="text-white text-sm font-medium">Interface real do sistema: gestão de conversas com abertas/pendentes/fechadas e chat intuitivo.</p>
                                 </div>
                             </div>
                         </TabsContent>
 
                         {/* TAB: CRM FUNNEL */}
-                        <TabsContent value="crm" className="m-0 h-[450px] overflow-x-auto bg-slate-50/50 rounded-lg border border-slate-200">
-                            <div className="flex gap-4 h-full min-w-[800px] p-4">
-                                {/* Stage 1 */}
-                                <div className="w-64 flex-shrink-0 flex flex-col gap-3">
-                                    <div className="flex items-center justify-between px-1">
-                                        <div className="flex items-center gap-2">
-                                            <span className="h-2 w-2 rounded-full bg-slate-400" />
-                                            <h4 className="font-semibold text-sm text-slate-700">Novos Leads</h4>
-                                        </div>
-                                        <Badge variant="outline" className="text-slate-500 border-slate-300 bg-white">4</Badge>
-                                    </div>
-                                    <div className="flex-1 bg-slate-100/50 rounded-lg p-2 space-y-2 border border-slate-200/60">
-                                        {[
-                                            { title: "Empresa Solar", val: "R$ 15k", tag: "Quente", badgeColor: "bg-red-100 text-red-700" },
-                                            { title: "Tech Solutions", val: "R$ 8.5k", tag: "Morno", badgeColor: "bg-amber-100 text-amber-700" },
-                                            { title: "Padaria Central", val: "R$ 12k", tag: "Frio", badgeColor: "bg-blue-100 text-blue-700" },
-                                            { title: "Dr. Consultório", val: "R$ 22k", tag: "Indicação", badgeColor: "bg-indigo-100 text-indigo-700" }
-                                        ].map((card, i) => (
-                                            <div key={i} className="bg-white border border-slate-200 p-3 rounded-md shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-all group">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <span className="text-sm font-medium text-slate-700 group-hover:text-blue-600 transition-colors">{card.title}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center text-xs">
-                                                    <Badge variant="secondary" className={`${card.badgeColor} h-5 px-1.5 border-transparent`}>{card.tag}</Badge>
-                                                    <span className="font-semibold text-slate-600">{card.val}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                                {/* Stage 2 */}
-                                <div className="w-64 flex-shrink-0 flex flex-col gap-3">
-                                    <div className="flex items-center justify-between px-1">
-                                        <div className="flex items-center gap-2">
-                                            <span className="h-2 w-2 rounded-full bg-blue-400" />
-                                            <h4 className="font-semibold text-sm text-slate-700">Em Atendimento</h4>
-                                        </div>
-                                        <Badge variant="outline" className="text-slate-500 border-slate-300 bg-white">2</Badge>
-                                    </div>
-                                    <div className="flex-1 bg-slate-100/50 rounded-lg p-2 space-y-2 border border-slate-200/60">
-                                        {[
-                                            { title: "Logística Express", val: "R$ 45k", tag: "Negociando" },
-                                            { title: "Click Entregas", val: "R$ 3.2k", tag: "Demo Agendada" },
-                                        ].map((card, i) => (
-                                            <div key={i} className="bg-white border border-slate-200 p-3 rounded-md shadow-sm hover:shadow-md cursor-grab group">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <span className="text-sm font-medium text-slate-700 group-hover:text-blue-600 transition-colors">{card.title}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center text-xs">
-                                                    <Badge variant="secondary" className="bg-blue-50 text-blue-700 h-5 px-1.5">{card.tag}</Badge>
-                                                    <span className="font-semibold text-slate-600">{card.val}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                                {/* Stage 3 */}
-                                <div className="w-64 flex-shrink-0 flex flex-col gap-3">
-                                    <div className="flex items-center justify-between px-1">
-                                        <div className="flex items-center gap-2">
-                                            <span className="h-2 w-2 rounded-full bg-amber-400" />
-                                            <h4 className="font-semibold text-sm text-slate-700">Proposta</h4>
-                                        </div>
-                                        <Badge variant="outline" className="text-slate-500 border-slate-300 bg-white">1</Badge>
-                                    </div>
-                                    <div className="flex-1 bg-slate-100/50 rounded-lg p-2 space-y-2 border border-slate-200/60">
-                                        {[
-                                            { title: "Construtora Silva", val: "R$ 120k", tag: "Aguardando Assinatura" },
-                                        ].map((card, i) => (
-                                            <div key={i} className="bg-white border border-slate-200 p-3 rounded-md shadow-sm hover:shadow-md cursor-grab group">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <span className="text-sm font-medium text-slate-700 group-hover:text-blue-600 transition-colors">{card.title}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center text-xs">
-                                                    <Badge variant="secondary" className="bg-amber-50 text-amber-700 h-5 px-1.5">{card.tag}</Badge>
-                                                    <span className="font-semibold text-slate-600">{card.val}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                                {/* Stage 4 */}
-                                <div className="w-64 flex-shrink-0 flex flex-col gap-3">
-                                    <div className="flex items-center justify-between px-1">
-                                        <div className="flex items-center gap-2">
-                                            <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                                            <h4 className="font-semibold text-sm text-slate-700">Fechado</h4>
-                                        </div>
-                                        <Badge variant="outline" className="text-slate-500 border-slate-300 bg-white">5</Badge>
-                                    </div>
-                                    <div className="flex-1 bg-slate-100/50 rounded-lg p-2 space-y-2 border border-slate-200/60 opacity-80">
-                                        {[
-                                            { title: "Cliente VIP 01", val: "R$ 10k", tag: "Pago" },
-                                            { title: "StartUp X", val: "R$ 15k", tag: "Pago" },
-                                            { title: "Loja Y", val: "R$ 5k", tag: "Pago" },
-                                        ].map((card, i) => (
-                                            <div key={i} className="bg-emerald-50 border border-emerald-200 p-3 rounded-md shadow-sm">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <span className="text-sm font-medium text-slate-800">{card.title}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center text-xs">
-                                                    <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 h-5 px-1.5">{card.tag}</Badge>
-                                                    <span className="font-semibold text-emerald-600">{card.val}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
+                        <TabsContent value="crm" className="m-0 h-[450px] overflow-hidden rounded-lg border border-slate-200 bg-white">
+                            <div className="relative h-full w-full group">
+                                <img src="/real_crm.png" alt="CRM Kanban Real" className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
+                                    <p className="text-white text-sm font-medium">Controle visual de leads em estilo Kanban, idêntico ao que você usará no dia a dia.</p>
                                 </div>
                             </div>
                         </TabsContent>
@@ -341,9 +239,9 @@ export const DashboardPreview = () => {
                         {/* TAB: MARKETING PRINT */}
                         <TabsContent value="marketing" className="m-0 h-[450px] overflow-hidden rounded-lg border border-slate-200 bg-white">
                             <div className="relative h-full w-full group">
-                                <img src="/campaign_whatsapp_mockup.png" alt="Marketing Module" className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105" />
+                                <img src="/real_campaigns.png" alt="Marketing Module" className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105" />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
-                                    <p className="text-white text-sm font-medium">Crie campanhas de disparo em massa com segmentação avançada e acompanhamento de métricas.</p>
+                                    <p className="text-white text-sm font-medium">Interface real de gestão de campanhas com tabela de status e progresso.</p>
                                 </div>
                             </div>
                         </TabsContent>
