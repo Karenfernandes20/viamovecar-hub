@@ -128,9 +128,14 @@ export const getEvolutionQrCode = async (req: Request, res: Response) => {
 
     // AUTO-REGISTER WEBHOOK whenever we request a QR Code (to be sure)
     try {
-      const backendUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+      let protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      let host = req.get('host');
+      if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+        protocol = 'https';
+      }
+      const backendUrl = process.env.BACKEND_URL || `${protocol}://${host}`;
       const webhookUrl = `${backendUrl}/api/evolution/webhook`;
-      console.log(`[Evolution] Auto-registering Webhook: ${webhookUrl}`);
+      console.log(`[Evolution] Auto-registering Webhook for ${EVOLUTION_INSTANCE}: ${webhookUrl}`);
 
       const endpoints = [
         `${EVOLUTION_API_URL.replace(/\/$/, "")}/webhook/set/${EVOLUTION_INSTANCE}`,
@@ -1494,7 +1499,15 @@ export const setEvolutionWebhook = async (req: Request, res: Response) => {
   }
 
   try {
-    const backendUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+    let protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    let host = req.get('host');
+
+    // Force https if not on localhost
+    if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+      protocol = 'https';
+    }
+
+    const backendUrl = process.env.BACKEND_URL || `${protocol}://${host}`;
     const webhookUrl = `${backendUrl}/api/evolution/webhook`;
 
     console.log(`[Webhook] Registering webhook for instance ${EVOLUTION_INSTANCE} to ${webhookUrl}`);

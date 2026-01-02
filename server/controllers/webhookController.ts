@@ -21,63 +21,124 @@ const STAGE_CACHE_TTL = 300000; // 5 minutes
 
 export const handleWebhook = async (req: Request, res: Response) => {
     // 1. Respond immediately to avoid Evolution API blocking or timeouts
-    // We send 200 OK right away so the Evolution API doesn't wait for our DB operations.
     res.status(200).json({ status: 'received' });
 
-    // 2. Process in data retrieval and DB logic in the background
+    // 2. Process in dynamic data retrieval and DB logic in the background
     (async () => {
         try {
             const body = req.body;
-            if (!body) return;
+            if (!body) {
+                console.warn('[Webhook] Received empty body');
+                return;
+            }
+
+            // Verbose logging for debugging - LOG THE WHOLE BODY INITIALLY TO TRACE STRUCTURE
+            console.log('[Webhook] New payload received from Evolution API');
 
             let type = body.type || body.event;
             let data = body.data;
             let instance = body.instance || (data?.instance) || 'integrai';
 
+            // Handle wrapped payloads (some proxy or version of Evolution might wrap in array)
             if (Array.isArray(body) && body.length > 0) {
                 type = body[0].type || body[0].event;
                 data = body[0].data;
                 instance = body[0].instance || 'integrai';
             }
 
-            if (!type) return;
+            console.log(`[Webhook] Event Type: ${type} | Instance: ${instance}`);
 
-            const normalizedType = type.toLowerCase();
-            if (normalizedType !== 'messages.upsert' && normalizedType !== 'messages_upsert') {
+            if (!type) {
+                console.warn('[Webhook] Missing type/event in payload root. Body keys:', Object.keys(body));
                 return;
             }
 
-            let msg: any = Array.isArray(data?.messages) ? data.messages[0] : (data?.messages || data);
-            if (!msg || !msg.key) return;
+            const normalizedType = type.toString().toUpperCase();
+
+            // Accept various message event patterns
+            const isMessageEvent = [
+                'MESSAGES_UPSERT',
+                'MESSAGES.UPSERT',
+                'MESSAGES_SET',
+                'MESSAGES.SET',
+                'MESSAGES_RECEIVE',
+                'SEND_MESSAGE'
+            ].includes(normalizedType);
+
+            if (!isMessageEvent) {
+                // Silently ignore other events but log them for trace
+                if (!['CONNECTION_UPDATE', 'PRESENCE_UPDATE', 'TYPEING_START'].includes(normalizedType)) {
+                    console.log(`[Webhook] Ignoring non-message event: ${normalizedType}`);
+                }
+                return;
+            }
+
+            // Extract message object robustly
+            let messages = data?.messages || body.messages || data;
+            if (Array.isArray(messages)) {
+                console.log(`[Webhook] Processing array of ${messages.length} messages`);
+                messages = messages[0];
+            }
+
+            const msg: any = messages;
+            if (!msg || !msg.key) {
+                console.warn('[Webhook] Data structure mismatch. Could not find msg.key. Keys in data:', data ? Object.keys(data) : 'null');
+                return;
+            }
 
             const remoteJid = msg.key.remoteJid;
+            console.log(`[Webhook] Message JID: ${remoteJid} | fromMe: ${msg.key.fromMe}`);
+
             if (remoteJid === 'status@broadcast') return;
 
-            if (!pool) return;
+            if (!pool) {
+                console.error('[Webhook] CRITICAL: DB pool is null');
+                return;
+            }
 
-            // Resolve Company ID (Cached to minimize DB calls)
+            // Resolve Company ID
             let companyId: number | null = instanceCache.get(instance) || null;
             if (!companyId) {
-                const compLookup = await pool.query('SELECT id FROM companies WHERE evolution_instance = $1', [instance]);
+                console.log(`[Webhook] Cache miss for instance "${instance}". Looking up in DB...`);
+                const compLookup = await pool.query(
+                    'SELECT id FROM companies WHERE LOWER(evolution_instance) = LOWER($1)',
+                    [instance]
+                );
                 if (compLookup.rows.length > 0) {
                     companyId = compLookup.rows[0].id;
                     instanceCache.set(instance, companyId!);
+                    console.log(`[Webhook] Success! Instance "${instance}" mapped to companyId ${companyId}`);
+                } else {
+                    // Check if there is ONLY ONE company as fallback if instance is empty or default
+                    const allCompanies = await pool.query('SELECT id, evolution_instance FROM companies');
+                    console.log('[Webhook] Available companies in DB:', allCompanies.rows.map(c => `${c.id}:${c.evolution_instance}`).join(', '));
+
+                    if (allCompanies.rows.length === 1 && (!instance || instance === 'integrai' || instance === 'default')) {
+                        companyId = allCompanies.rows[0].id;
+                        console.log(`[Webhook] Fallback: Only one company found. Mapping to companyId ${companyId}`);
+                    }
                 }
             }
 
-            if (!companyId) return;
+            if (!companyId) {
+                console.warn(`[Webhook] ABORTED: Could not map instance "${instance}" to any company.`);
+                return;
+            }
 
             // Prepare Data
             const isFromMe = msg.key.fromMe;
             const direction = isFromMe ? 'outbound' : 'inbound';
-            const phone = remoteJid.split('@')[0];
+            const phone = remoteJid.includes('@') ? remoteJid.split('@')[0] : remoteJid;
             const name = msg.pushName || phone;
             const isGroup = remoteJid.includes('@g.us');
             const senderJid = msg.key.participant || (isGroup ? null : remoteJid);
             const senderName = msg.pushName || (senderJid ? senderJid.split('@')[0] : null);
 
             let groupName = null;
-            if (isGroup) groupName = `Grupo ${phone.substring(0, 6)}...`;
+            if (isGroup) {
+                groupName = `Grupo ${phone.substring(0, 8)}...`;
+                console.log(`[Webhook] Detected GROUP message for JID: ${remoteJid}`);
+            }
 
             // UPSERT Conversation
             let conversationId: number;
