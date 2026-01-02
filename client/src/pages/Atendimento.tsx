@@ -27,7 +27,8 @@ import {
   Volume1,
   ChevronLeft,
   ChevronRight,
-  MessageSquare // Added
+  MessageSquare,
+  MessageCircle,
 } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import { FollowUpModal } from "../components/follow-up/FollowUpModal";
@@ -1874,10 +1875,9 @@ const AtendimentoPage = () => {
                   .map((contact, idx) => (
                     <div
                       key={contact.id || idx}
-                      className="flex items-center p-2 border-b border-gray-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors gap-2 cursor-pointer"
-                      onClick={() => handleStartConversationFromContact(contact)}
+                      className="flex items-center p-3 border-b border-gray-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors gap-3 group"
                     >
-                      <Avatar className="h-10 w-10">
+                      <Avatar className="h-10 w-10 shrink-0">
                         <AvatarImage src={contact.profile_pic_url} />
                         <AvatarFallback className="bg-gray-200 text-gray-500">
                           {(contact.name?.[0] || "?").toUpperCase()}
@@ -1885,13 +1885,23 @@ const AtendimentoPage = () => {
                       </Avatar>
 
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm text-zinc-900 dark:text-zinc-100 whitespace-nowrap overflow-hidden text-ellipsis" title={contact.name}>
+                        <div className="font-medium text-[15px] text-zinc-900 dark:text-zinc-100 whitespace-nowrap overflow-hidden text-ellipsis" title={contact.name}>
                           {contact.name}
                         </div>
-                        <div className="text-xs text-zinc-500 font-mono whitespace-nowrap">
+                        <div className="text-[13px] text-zinc-500 font-normal whitespace-nowrap">
                           {contact.phone}
                         </div>
                       </div>
+
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-10 w-10 text-[#008069] opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-[#008069]/10"
+                        onClick={() => handleStartConversationFromContact(contact)}
+                        title="Iniciar conversa"
+                      >
+                        <MessageCircle className="h-5 w-5" />
+                      </Button>
                     </div>
                   ))}
 
