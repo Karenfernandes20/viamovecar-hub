@@ -133,7 +133,8 @@ export const getEvolutionQrCode = async (req: Request, res: Response) => {
       if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
         protocol = 'https';
       }
-      const backendUrl = process.env.BACKEND_URL || `${protocol}://${host}`;
+      const rawBackendUrl = process.env.BACKEND_URL || `${protocol}://${host}`;
+      const backendUrl = rawBackendUrl.replace(/\/$/, "");
       const webhookUrl = `${backendUrl}/api/evolution/webhook`;
       console.log(`[Evolution] Auto-registering Webhook for ${EVOLUTION_INSTANCE}: ${webhookUrl}`);
 
@@ -1517,7 +1518,8 @@ export const setEvolutionWebhook = async (req: Request, res: Response) => {
       protocol = 'https';
     }
 
-    const backendUrl = process.env.BACKEND_URL || `${protocol}://${host}`;
+    const rawBackendUrl = process.env.BACKEND_URL || `${protocol}://${host}`;
+    const backendUrl = rawBackendUrl.replace(/\/$/, "");
     const webhookUrl = `${backendUrl}/api/evolution/webhook`;
 
     console.log(`[Webhook] Registering webhook for instance ${EVOLUTION_INSTANCE} to ${webhookUrl}`);

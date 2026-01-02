@@ -150,6 +150,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
             if (!companyId) {
                 console.warn(`[Webhook] ABORTED: Could not map instance "${instance}" to any company.`);
+                pushPayload({ error: 'Mapping failed', instance, companies_checked: true });
                 return;
             }
 
