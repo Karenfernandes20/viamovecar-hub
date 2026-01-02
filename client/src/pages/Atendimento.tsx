@@ -1540,7 +1540,7 @@ const AtendimentoPage = () => {
       {/* Sidebar - Lista de Conversas / Contatos */}
       <div className={cn(
         "flex flex-col border-r bg-white dark:bg-zinc-950 transition-all duration-300 shadow-sm z-20 shrink-0",
-        "w-full md:w-[380px]"
+        "w-full md:w-[420px]"
       )}>
         <Tabs
           value={activeTab}
@@ -1690,7 +1690,7 @@ const AtendimentoPage = () => {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto min-h-0">
+              <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar">
                 <div className="flex flex-col py-3">
                   {/* DYNAMIC LIST BASED ON VIEWMODE */}
 
@@ -1963,12 +1963,13 @@ const AtendimentoPage = () => {
       </div>
 
       {/* Area do Chat */}
-      <div className="flex-1 flex flex-col min-h-0 h-full min-w-0 bg-[#efeae2] dark:bg-[#0b141a]">
+      <div className="flex-1 flex flex-col relative min-h-0 h-full min-w-0 bg-[#efeae2] dark:bg-[#0b141a] overflow-y-auto custom-scrollbar">
         {/* Chat Background Pattern */}
         <div className="absolute inset-0 z-0 opacity-[0.06] pointer-events-none" style={{
           backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')",
           backgroundRepeat: "repeat",
-          backgroundSize: "400px"
+          backgroundSize: "400px",
+          backgroundAttachment: "fixed"
         }}></div>
 
         {!selectedConversation ? (
@@ -1988,7 +1989,7 @@ const AtendimentoPage = () => {
         ) : (
           <>
             {/* Chat Header */}
-            <div className="relative z-10 flex-none h-[60px] bg-zinc-100 dark:bg-zinc-800 flex items-center justify-between px-4 border-l border-b border-zinc-200 dark:border-zinc-700">
+            <div className="sticky top-0 z-30 flex-none h-[60px] bg-zinc-100 dark:bg-zinc-800 flex items-center justify-between px-4 border-l border-b border-zinc-200 dark:border-zinc-700 w-full shadow-sm">
               <div className="flex items-center gap-3">
                 <Avatar className="cursor-pointer">
                   <AvatarImage src={selectedConversation.profile_pic_url || `https://api.dicebear.com/7.x/initials/svg?seed=${getDisplayName(selectedConversation)}`} />
@@ -2078,16 +2079,10 @@ const AtendimentoPage = () => {
             </div>
 
             {/* Chat Messages Area */}
-            <div className="relative z-10 flex-1 overflow-hidden min-h-0">
+            <div className="relative z-10 flex-1 min-h-0">
               <div
                 ref={scrollRef}
-                className="h-full overflow-y-auto px-4 py-2 space-y-2 scroll-smooth"
-                style={{
-                  backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')",
-                  backgroundRepeat: "repeat",
-                  backgroundSize: "400px",
-                  backgroundBlendMode: "overlay"
-                }}
+                className="px-4 py-4 space-y-2"
               >
                 {messages.length === 0 && (
                   <div className="flex justify-center my-4">
@@ -2270,7 +2265,7 @@ const AtendimentoPage = () => {
             </div>
 
             {/* Chat Input Area */}
-            <div className="relative z-10 flex-none bg-zinc-100 dark:bg-zinc-800 px-4 py-2 flex items-end gap-2 border-l border-t border-zinc-200 dark:border-zinc-700" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky bottom-0 z-30 flex-none bg-zinc-100 dark:bg-zinc-800 px-4 py-2 flex items-end gap-2 border-l border-t border-zinc-200 dark:border-zinc-700 w-full" onClick={(e) => e.stopPropagation()}>
 
               {/* Emoji Picker Popover */}
               {showEmojiPicker && (
