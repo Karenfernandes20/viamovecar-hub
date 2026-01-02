@@ -76,6 +76,7 @@ type Stage = {
   id: number;
   name: string;
   position: number;
+  color?: string;
 };
 
 const pastelOptions = [
@@ -555,9 +556,17 @@ const CrmPage = () => {
           {stages
             .sort((a, b) => a.position - b.position)
             .map((column) => (
-              <Card key={column.id} className="min-w-[320px] max-w-[320px] flex flex-col bg-slate-50/50 border-slate-200 shrink-0 h-full">
-                <CardHeader className="flex flex-row items-center justify-between p-3 border-b bg-white rounded-t-xl shrink-0">
-                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between w-full">
+              <Card
+                key={column.id}
+                className="min-w-[320px] max-w-[320px] flex flex-col border-slate-200 shrink-0 h-full overflow-hidden"
+                style={{ backgroundColor: column.color ? `${column.color}20` : 'rgba(248, 250, 252, 0.5)' }}
+              >
+                <div
+                  className="h-1.5 w-full"
+                  style={{ backgroundColor: column.color || '#cbd5e1' }}
+                />
+                <CardHeader className="flex flex-row items-center justify-between p-3 border-b bg-white/80 backdrop-blur-sm shrink-0">
+                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center justify-between w-full">
                     <div className="flex items-center">
                       {column.name}
                       <Badge variant="secondary" className="ml-2 bg-slate-100 text-slate-600 border-none h-5 px-1.5">{leadsByStage(column.id).length}</Badge>
