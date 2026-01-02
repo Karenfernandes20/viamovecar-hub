@@ -25,6 +25,8 @@ import {
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useState } from "react";
+import { EditProfileModal } from "./EditProfileModal";
 
 const items = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/app/dashboard" },
@@ -45,6 +47,7 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const currentPath = location.pathname;
 
   const handleLogout = () => {
@@ -100,7 +103,11 @@ export function AppSidebar() {
   return (
     <Sidebar className="data-[variant=sidebar]:border-r data-[variant=sidebar]:border-sidebar-border" collapsible="offcanvas">
       <SidebarHeader className="gap-3 border-b border-sidebar-border/60 pb-4">
-        <div className="flex items-center gap-3">
+        <div
+          className="flex items-center gap-3 cursor-pointer p-1 rounded-lg hover:bg-sidebar-accent/50 transition-colors group"
+          onClick={() => setIsEditProfileOpen(true)}
+          title="Ver/Editar perfil"
+        >
           {user?.role === 'SUPERADMIN' ? (
             <img
               src="/logo-integrai.jpg"
@@ -120,11 +127,11 @@ export function AppSidebar() {
               className="h-9 w-9 rounded-xl object-contain bg-white"
             />
           )}
-          <div className="flex flex-col text-xs">
-            <span className="text-sm font-semibold tracking-tight truncate max-w-[150px]">
+          <div className="flex flex-col text-xs min-w-0">
+            <span className="text-sm font-semibold tracking-tight truncate max-w-[120px] group-hover:text-sidebar-primary-foreground">
               {user?.company?.name || "Integrai"}
             </span>
-            <span className="text-[11px] text-sidebar-foreground/70">Painel Administrativo</span>
+            <span className="text-[11px] text-sidebar-foreground/70 group-hover:text-sidebar-foreground">Editar perfil</span>
           </div>
         </div>
       </SidebarHeader>
@@ -172,6 +179,7 @@ export function AppSidebar() {
           <span>Sair</span>
         </button>
       </SidebarFooter>
+      <EditProfileModal isOpen={isEditProfileOpen} onClose={() => setIsEditProfileOpen(false)} />
     </Sidebar>
   );
 }

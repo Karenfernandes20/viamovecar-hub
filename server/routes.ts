@@ -6,6 +6,7 @@ import {
   deleteUser,
   clearUsers,
   resetUserPassword,
+  updateProfile,
 } from './controllers/userController';
 import { getStages, getLeads, updateLeadStage, updateLead, createStage, deleteStage, getCrmDashboardStats } from './controllers/crmController';
 import { handleWebhook, getConversations, getMessages } from './controllers/webhookController';
@@ -21,6 +22,7 @@ const router = express.Router();
 // Auth routes
 router.post('/auth/login', login);
 router.post('/auth/register', register);
+router.put('/auth/profile', authenticateToken, updateProfile);
 
 import { upload } from './middleware/uploadMiddleware';
 

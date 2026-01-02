@@ -7,10 +7,11 @@ export const getUsers = async (req: Request, res: Response) => {
     if (!pool) return res.status(500).json({ error: 'Database not configured' });
 
     let result;
-    if (req.user?.role === 'SUPERADMIN') {
+    const user = (req as any).user;
+    if (user?.role === 'SUPERADMIN') {
       result = await pool.query('SELECT * FROM app_users ORDER BY created_at DESC');
     } else {
-      result = await pool.query('SELECT * FROM app_users WHERE company_id = $1 ORDER BY created_at DESC', [req.user?.company_id]);
+      result = await pool.query('SELECT * FROM app_users WHERE company_id = $1 ORDER BY created_at DESC', [user?.company_id]);
     }
     res.json(result.rows);
   } catch (error) {
@@ -26,8 +27,9 @@ export const createUser = async (req: Request, res: Response) => {
     let { full_name, email, phone, user_type, city_id, state, company_id, password, role, permissions } = req.body;
 
     // If not superadmin, force company_id to be the same as the creator
-    if (req.user?.role !== 'SUPERADMIN') {
-      company_id = req.user?.company_id;
+    const creator = (req as any).user;
+    if (creator?.role !== 'SUPERADMIN') {
+      company_id = creator?.company_id;
     }
 
     // Optional: hash password if provided, otherwise default '123456'
@@ -135,5 +137,42 @@ export const resetUserPassword = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error resetting password:', error);
     res.status(500).json({ error: 'Failed to reset password' });
+  }
+};
+
+export const updateProfile = async (req: Request, res: Response) => {
+  try {
+    if (!pool) return res.status(500).json({ error: 'Database not configured' });
+
+    const id = (req as any).user?.id;
+    if (!id) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { full_name, email, phone, password } = req.body;
+
+    let password_hash = null;
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      password_hash = await bcrypt.hash(password, salt);
+    }
+
+    const result = await pool.query(
+      `UPDATE app_users 
+          SET full_name = COALESCE($1, full_name), 
+              email = COALESCE($2, email), 
+              phone = COALESCE($3, phone),
+              password_hash = COALESCE($4, password_hash)
+          WHERE id = $5
+          RETURNING id, full_name, email, phone, role, company_id, user_type`,
+      [full_name, email, phone, password_hash, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error: any) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ error: 'Failed to update profile', details: error.message });
   }
 };

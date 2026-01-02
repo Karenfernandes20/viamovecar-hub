@@ -4,6 +4,7 @@ interface User {
     id: number | string; // Supporting 'superadmin-fixed' string IDs
     full_name: string;
     email: string;
+    phone?: string;
     role: "SUPERADMIN" | "ADMIN" | "USUARIO";
     email_validated: boolean;
     user_type: string;
