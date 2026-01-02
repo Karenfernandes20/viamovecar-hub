@@ -173,7 +173,7 @@ const AtendimentoPage = () => {
   const [openPage, setOpenPage] = useState(1);
   const [closedPage, setClosedPage] = useState(1);
 
-  const ITEMS_PER_PAGE = 5;
+  const ITEMS_PER_PAGE = 20;
 
 
   // Helper para resolver o nome do contato baseado no banco de dados sincronizado
@@ -1674,81 +1674,81 @@ const AtendimentoPage = () => {
                   />
                 </div>
 
+                {/* QUICK NAVIGATION TABS (Top Bar Style) */}
+                <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900/50 p-1 rounded-xl shadow-inner border border-zinc-200/50 dark:border-zinc-800/50 w-full mt-2">
+
+                  <button
+                    onClick={() => setViewMode('PENDING')}
+                    className={cn(
+                      "text-[11px] px-1 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center justify-center gap-2 flex-1",
+                      viewMode === 'PENDING' ? "bg-zinc-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700 hover:bg-black/5"
+                    )}
+                  >
+                    Pendentes <span className="opacity-50 text-[9px] bg-black/10 px-1.5 rounded">{pendingConversations.length}</span>
+                  </button>
+                  <button
+                    onClick={() => setViewMode('OPEN')}
+                    className={cn(
+                      "text-[11px] px-1 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center justify-center gap-2 flex-1",
+                      viewMode === 'OPEN' ? "bg-[#008069] text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700 hover:bg-black/5"
+                    )}
+                  >
+                    Abertos <span className="opacity-60 text-[9px] bg-white/20 px-1.5 rounded">{openConversations.length}</span>
+                  </button>
+                  <button
+                    onClick={() => setViewMode('CLOSED')}
+                    className={cn(
+                      "text-[11px] px-1 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center justify-center gap-2 flex-1",
+                      viewMode === 'CLOSED' ? "bg-red-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700 hover:bg-black/5"
+                    )}
+                  >
+                    Fechados <span className="opacity-50 text-[9px] bg-black/10 px-1.5 rounded">{closedConversations.length}</span>
+                  </button>
+
+                </div>
               </div>
 
               <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-0 bg-zinc-50/50 dark:bg-zinc-900/10">
-                <div className="flex flex-col gap-4 py-2">
+                <div className={cn("flex flex-col min-h-full", ((viewMode === 'PENDING' && pendingConversations.length === 0) || (viewMode === 'OPEN' && openConversations.length === 0) || (viewMode === 'CLOSED' && closedConversations.length === 0)) ? "justify-center" : "py-2")}>
+                  {/* DYNAMIC LIST BASED ON VIEWMODE */}
 
-                  {/* SECTION: PENDENTES */}
-                  <div className="flex flex-col px-2">
-                    <div className="flex items-center justify-between px-2 py-1 mb-1">
-                      <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
-                        Pendentes <Badge variant="secondary" className="h-4 px-1 text-[9px] min-w-[1.2rem] flex justify-center bg-zinc-200 text-zinc-700">{pendingConversations.length}</Badge>
-                      </span>
-                      {Math.ceil(pendingConversations.length / ITEMS_PER_PAGE) > 1 && (
-                        <div className="flex gap-1">
-                          <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setPendingPage(p => Math.max(1, p - 1))} disabled={pendingPage === 1}><ChevronLeft className="h-3 w-3" /></Button>
-                          <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setPendingPage(p => Math.min(Math.ceil(pendingConversations.length / ITEMS_PER_PAGE), p + 1))} disabled={pendingPage >= Math.ceil(pendingConversations.length / ITEMS_PER_PAGE)}><ChevronRight className="h-3 w-3" /></Button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      {pendingConversations.length === 0 ? (
-                        <div className="text-center py-4 text-xs text-muted-foreground bg-white dark:bg-zinc-900 rounded-lg border border-dashed mx-2">Nenhum pendente</div>
-                      ) : (
-                        pendingConversations.slice((pendingPage - 1) * ITEMS_PER_PAGE, pendingPage * ITEMS_PER_PAGE).map(conv => renderConversationCard(conv))
-                      )}
-                    </div>
-                  </div>
+                  {viewMode === 'PENDING' && pendingConversations.length > 0 &&
+                    pendingConversations.slice((pendingPage - 1) * ITEMS_PER_PAGE, pendingPage * ITEMS_PER_PAGE).map(conv => renderConversationCard(conv))
+                  }
 
-                  <div className="h-px bg-zinc-200 dark:bg-zinc-800 mx-4" />
+                  {viewMode === 'PENDING' && Math.ceil(pendingConversations.length / ITEMS_PER_PAGE) > 1 && (
+                    <div className="flex justify-center p-2 mb-10"><span className="text-xs text-muted-foreground">Página {pendingPage}</span></div>
+                    // Added padding at bottom ensures user can scroll past last item easily
+                  )}
 
-                  {/* SECTION: ABERTOS */}
-                  <div className="flex flex-col px-2">
-                    <div className="flex items-center justify-between px-2 py-1 mb-1">
-                      <span className="text-xs font-bold text-[#008069] uppercase tracking-wider flex items-center gap-2">
-                        Em Atendimento <Badge className="h-4 px-1 text-[9px] min-w-[1.2rem] flex justify-center bg-[#008069] text-white hover:bg-[#008069]">{openConversations.length}</Badge>
-                      </span>
-                      {Math.ceil(openConversations.length / ITEMS_PER_PAGE) > 1 && (
-                        <div className="flex gap-1">
-                          <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setOpenPage(p => Math.max(1, p - 1))} disabled={openPage === 1}><ChevronLeft className="h-3 w-3" /></Button>
-                          <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setOpenPage(p => Math.min(Math.ceil(openConversations.length / ITEMS_PER_PAGE), p + 1))} disabled={openPage >= Math.ceil(openConversations.length / ITEMS_PER_PAGE)}><ChevronRight className="h-3 w-3" /></Button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      {openConversations.length === 0 ? (
-                        <div className="text-center py-4 text-xs text-muted-foreground bg-white dark:bg-zinc-900 rounded-lg border border-dashed mx-2">Nenhum atendimento aberto</div>
-                      ) : (
-                        openConversations.slice((openPage - 1) * ITEMS_PER_PAGE, openPage * ITEMS_PER_PAGE).map(conv => renderConversationCard(conv))
-                      )}
-                    </div>
-                  </div>
 
-                  <div className="h-px bg-zinc-200 dark:bg-zinc-800 mx-4" />
+                  {viewMode === 'OPEN' && openConversations.length > 0 &&
+                    openConversations.slice((openPage - 1) * ITEMS_PER_PAGE, openPage * ITEMS_PER_PAGE).map(conv => renderConversationCard(conv))
+                  }
+                  {viewMode === 'OPEN' && Math.ceil(openConversations.length / ITEMS_PER_PAGE) > 1 && (
+                    <div className="flex justify-center p-2 mb-10"><span className="text-xs text-muted-foreground">Página {openPage}</span></div>
+                  )}
 
-                  {/* SECTION: FECHADOS */}
-                  <div className="flex flex-col px-2">
-                    <div className="flex items-center justify-between px-2 py-1 mb-1">
-                      <span className="text-xs font-bold text-red-500 uppercase tracking-wider flex items-center gap-2">
-                        Finalizados <Badge variant="secondary" className="h-4 px-1 text-[9px] min-w-[1.2rem] flex justify-center bg-zinc-200 text-zinc-700">{closedConversations.length}</Badge>
-                      </span>
-                      {Math.ceil(closedConversations.length / ITEMS_PER_PAGE) > 1 && (
-                        <div className="flex gap-1">
-                          <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setClosedPage(p => Math.max(1, p - 1))} disabled={closedPage === 1}><ChevronLeft className="h-3 w-3" /></Button>
-                          <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setClosedPage(p => Math.min(Math.ceil(closedConversations.length / ITEMS_PER_PAGE), p + 1))} disabled={closedPage >= Math.ceil(closedConversations.length / ITEMS_PER_PAGE)}><ChevronRight className="h-3 w-3" /></Button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      {closedConversations.length === 0 ? (
-                        <div className="text-center py-2 text-[10px] text-muted-foreground opacity-50">Lista vazia</div>
-                      ) : (
-                        closedConversations.slice((closedPage - 1) * ITEMS_PER_PAGE, closedPage * ITEMS_PER_PAGE).map(conv => renderConversationCard(conv))
-                      )}
-                    </div>
-                  </div>
+                  {viewMode === 'CLOSED' && closedConversations.length > 0 &&
+                    closedConversations.slice((closedPage - 1) * ITEMS_PER_PAGE, closedPage * ITEMS_PER_PAGE).map(conv => renderConversationCard(conv))
+                  }
+                  {viewMode === 'CLOSED' && Math.ceil(closedConversations.length / ITEMS_PER_PAGE) > 1 && (
+                    <div className="flex justify-center p-2 mb-10"><span className="text-xs text-muted-foreground">Página {closedPage}</span></div>
+                  )}
 
+                  {/* EMPTY STATES */}
+                  {((viewMode === 'PENDING' && pendingConversations.length === 0) ||
+                    (viewMode === 'OPEN' && openConversations.length === 0) ||
+                    (viewMode === 'CLOSED' && closedConversations.length === 0)) && (
+                      <div className="flex flex-col items-center justify-center text-center p-6 opacity-60 m-auto">
+                        <MessageSquare className="h-10 w-10 text-zinc-300 mb-2" />
+                        <p className="text-sm font-medium text-zinc-500">
+                          {viewMode === 'PENDING' ? 'Nenhuma conversa pendente' :
+                            viewMode === 'OPEN' ? 'Nenhum atendimento aberto' :
+                              'Nenhuma conversa finalizada'}
+                        </p>
+                      </div>
+                    )}
                 </div>
               </div>
             </TabsContent>
