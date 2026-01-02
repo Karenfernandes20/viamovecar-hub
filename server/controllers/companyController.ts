@@ -167,24 +167,17 @@ export const deleteCompany = async (req: Request, res: Response) => {
             // 8. Delete WhatsApp Contacts associated with the company
             await client.query('DELETE FROM whatsapp_contacts WHERE company_id = $1', [id]);
 
-            // 9. Delete Financial Transactions
-            // First by company_id
-            await client.query('DELETE FROM financial_transactions WHERE company_id = $1', [id]);
-            // Also delete transactions linked to rides of these users (if any missed)
-            if (userIds.length > 0) {
-                await client.query(`
-                    DELETE FROM financial_transactions 
-                    WHERE ride_id IN (SELECT id FROM rides WHERE passenger_id = ANY($1::int[]) OR driver_id = ANY($1::int[]))
-                `, [userIds]);
+            // 9. Delete Financial Transactions (if table exists - CRM focused, skip transport tables)
+            try {
+                await client.query('DELETE FROM financial_transactions WHERE company_id = $1', [id]);
+            } catch (e: any) {
+                if (e.code !== '42P01') throw e; // Ignore "table does not exist", throw other errors
+                console.log(`[Delete Company ${id}] Skipping financial_transactions (table not found)`);
             }
 
-            // 10. Delete Rides (linked to users)
-            if (userIds.length > 0) {
-                await client.query(`
-                    DELETE FROM rides 
-                    WHERE passenger_id = ANY($1::int[]) OR driver_id = ANY($1::int[])
-                `, [userIds]);
-            }
+            // Skip rides deletion - not used in CRM-only databases
+            console.log(`[Delete Company ${id}] Skipping rides deletion (CRM database)`);
+
 
             // 11. Delete associated users
             await client.query('DELETE FROM app_users WHERE company_id = $1', [id]);
