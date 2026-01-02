@@ -43,9 +43,12 @@ export const getTransactions = async (req: Request, res: Response, forcedType?: 
       conditions.push(`(ft.description ILIKE $${params.length} OR ft.category ILIKE $${params.length} OR ft.notes ILIKE $${params.length})`);
     }
 
-    if (user.role !== 'SUPERADMIN' || companyId) {
+    // Strict company filter - show ONLY this company's data
+    if (companyId) {
       params.push(companyId);
-      conditions.push(`(ft.company_id = $${params.length} OR ft.company_id IS NULL)`);
+      conditions.push(`ft.company_id = $${params.length}`);
+    } else if (user.role !== 'SUPERADMIN') {
+      return res.status(400).json({ error: 'Company ID is required' });
     }
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -92,9 +95,11 @@ export const getFinancialStats = async (req: Request, res: Response) => {
     }
 
     let companyFilter = '';
-    if (user.role !== 'SUPERADMIN' || companyId) {
+    if (companyId) {
       params.push(companyId);
-      companyFilter = `AND (company_id = $${params.length} OR company_id IS NULL)`;
+      companyFilter = `AND company_id = $${params.length}`;
+    } else if (user.role !== 'SUPERADMIN') {
+      return res.status(400).json({ error: 'Company ID is required' });
     }
 
     const query = `
@@ -138,9 +143,11 @@ export const getReceivablesByCity = async (req: Request, res: Response) => {
 
     let companyFilter = '';
     const params: any[] = [];
-    if (user.role !== 'SUPERADMIN' || companyId) {
+    if (companyId) {
       params.push(companyId);
-      companyFilter = `AND (ft.company_id = $${params.length} OR ft.company_id IS NULL)`;
+      companyFilter = `AND ft.company_id = $${params.length}`;
+    } else if (user.role !== 'SUPERADMIN') {
+      return res.status(400).json({ error: 'Company ID is required' });
     }
 
     const query = `
@@ -183,9 +190,11 @@ export const getCashFlow = async (req: Request, res: Response) => {
       conditions.push(`due_date <= $${params.length}`);
     }
 
-    if (user.role !== 'SUPERADMIN' || companyId) {
+    if (companyId) {
       params.push(companyId);
-      conditions.push(`(company_id = $${params.length} OR company_id IS NULL)`);
+      conditions.push(`company_id = $${params.length}`);
+    } else if (user.role !== 'SUPERADMIN') {
+      return res.status(400).json({ error: 'Company ID is required' });
     }
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
