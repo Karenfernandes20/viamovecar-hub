@@ -90,13 +90,44 @@ export const deleteUser = async (req: Request, res: Response) => {
 
     const { id } = req.params;
 
-    const result = await pool.query('DELETE FROM app_users WHERE id = $1 RETURNING *', [id]);
+    // Use transaction for safety
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      // 1. Unlink or Delete Dependencies
+      // Set user_id to NULL for messages sent by this user (preserve history)
+      await client.query('UPDATE whatsapp_messages SET user_id = NULL WHERE user_id = $1', [id]);
+
+      // Set user_id to NULL for conversations assigned to this user
+      await client.query('UPDATE whatsapp_conversations SET user_id = NULL WHERE user_id = $1', [id]);
+
+      // Set user_id to NULL for campaigns created by this user
+      await client.query('UPDATE whatsapp_campaigns SET user_id = NULL WHERE user_id = $1', [id]);
+
+      // Delete or Unlink Financial Transactions? usually unlink
+      // But if strict ownership is needed, we might have to keep it. Assuming unlink is safe for history.
+      // If the schema enforces NOT NULL on financial_transactions.user_id (unlikely based on create), we are good.
+      // If it exists but is optional:
+      // await client.query('UPDATE financial_transactions SET user_id = NULL WHERE user_id = $1', [id]);
+
+      // 2. Delete the user
+      const result = await client.query('DELETE FROM app_users WHERE id = $1 RETURNING *', [id]);
+
+      await client.query('COMMIT');
+
+      if (result.rowCount === 0) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      res.json({ message: 'User deleted successfully' });
+    } catch (e: any) {
+      await client.query('ROLLBACK');
+      console.error(`[Delete User ${id}] Failed:`, e);
+      res.status(500).json({ error: 'Failed to delete user due to dependencies', details: e.message });
+    } finally {
+      client.release();
     }
-
-    res.json({ message: 'User deleted successfully' });
   } catch (error) {
     console.error('Error deleting user:', error);
     res.status(500).json({ error: 'Failed to delete user' });

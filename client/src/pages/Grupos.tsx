@@ -153,6 +153,51 @@ const GruposPage = () => {
         }
     };
 
+    // Auto-refresh groups with generic names
+    useEffect(() => {
+        if (groups.length === 0) return;
+
+        const groupsToRefresh = groups.filter(g => {
+            const name = g.group_name || g.contact_name;
+            // Check for "Grupo " followed by numbers (generic default)
+            return name && /^Grupo \d+/.test(name);
+        });
+
+        if (groupsToRefresh.length === 0) return;
+
+        console.log(`[AutoRefresh] Found ${groupsToRefresh.length} groups to refresh.`);
+
+        const processQueue = async () => {
+            for (const group of groupsToRefresh) {
+                try {
+                    console.log(`[AutoRefresh] Refreshing group ${group.id}...`);
+                    const res = await fetch(`/api/evolution/conversations/${group.id}/refresh`, {
+                        method: "POST",
+                        headers: { "Authorization": `Bearer ${token}` }
+                    });
+
+                    if (res.ok) {
+                        const data = await res.json();
+                        // Update local state immediately
+                        setGroups(prev => prev.map(c =>
+                            c.id === group.id ? { ...c, group_name: data.name, contact_name: data.name, profile_pic_url: data.pic } : c
+                        ));
+                        if (selectedGroup?.id === group.id) {
+                            setSelectedGroup(prev => prev ? { ...prev, group_name: data.name, contact_name: data.name, profile_pic_url: data.pic } : null);
+                        }
+                    }
+                    // Delay to prevent rate limits
+                    await new Promise(r => setTimeout(r, 1000));
+                } catch (e) {
+                    console.error(`[AutoRefresh] Failed to refresh group ${group.id}`, e);
+                }
+            }
+        };
+
+        processQueue();
+
+    }, [groups.length]); // Only run when groups array length changes (initially loaded)
+
     useEffect(() => {
         fetchGroups();
         const interval = setInterval(fetchGroups, 10000);
