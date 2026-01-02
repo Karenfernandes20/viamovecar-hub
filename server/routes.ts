@@ -61,7 +61,7 @@ router.put('/evolution/messages/:conversationId/:messageId', authenticateToken, 
 router.delete('/evolution/messages/:conversationId/:messageId', authenticateToken, deleteEvolutionMessage);
 // router.get('/evolution/webhook/debug', authenticateToken, authorizeRole(['SUPERADMIN']), debugWebhookPayloads);
 router.get('/evolution/webhook/debug', debugWebhookPayloads); // Temp public for diagnostic
-router.post('/evolution/webhook*', handleWebhook); // Using wildcard to catch suffixes like /webhook/messages-upsert
+router.post('/evolution/webhook/*', handleWebhook); // Using wildcard to catch suffixes like /webhook/messages-upsert
 router.post('/evolution/webhook', handleWebhook); // Keep base route as well
 router.get('/evolution/conversations', authenticateToken, getConversations);
 router.post('/evolution/conversations/:conversationId/refresh', authenticateToken, refreshConversationMetadata);
