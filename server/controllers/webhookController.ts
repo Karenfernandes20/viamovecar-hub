@@ -214,8 +214,17 @@ export const handleWebhook = async (req: Request, res: Response) => {
             let content = '';
             let messageType = 'text';
             let mediaUrl: string | null = null;
-            const m = msg.message;
-            if (!m) return;
+
+            // Look for message object at multiple levels
+            const m = msg.message || msg.data?.message || msg;
+
+            // If the whole msg has a conversation field, use it
+            if (typeof msg.conversation === 'string') {
+                content = msg.conversation;
+            } else if (!m || typeof m !== 'object') {
+                console.warn('[Webhook] No message content found in msg');
+                return;
+            }
 
             const getRealMessage = (mBody: any) => {
                 if (mBody.viewOnceMessageV2?.message) return mBody.viewOnceMessageV2.message;
@@ -294,12 +303,32 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 [conversationId, direction, content, sent_at, 'received', externalId, messageType, mediaUrl, null, senderJid, senderName]
             );
 
-            // If duplicate message (conflict), stop processing
+            // If duplicate message (conflict), we still want to emit conversation update
             if (insertedMsg.rows.length === 0) {
-                console.log(`[Webhook] Duplicate message detected for external_id ${externalId}. Skipping.`);
+                console.log(`[Webhook] Duplicate message detected for external_id ${externalId}. Signaling conversation update.`);
+                // We'll proceed to socket emission with the existing message data if possible
+                // or just skip if we don't have the original row. 
+                // For now, let's fetch the existing one to emit to socket.
+                const existingResult = await pool.query('SELECT * FROM whatsapp_messages WHERE external_id = $1', [externalId]);
+                if (existingResult.rows.length > 0) {
+                    const existingMsg = existingResult.rows[0];
+                    const io = req.app.get('io');
+                    if (io) {
+                        const room = `company_${companyId}`;
+                        io.to(room).emit('message:received', {
+                            ...existingMsg,
+                            phone: phone,
+                            contact_name: name,
+                            remoteJid: remoteJid,
+                            is_group: isGroup,
+                            group_name: groupName
+                        });
+                    }
+                }
                 return;
             }
-            console.log(`[Webhook] Message inserted into DB with ID: ${insertedMsg.rows[0].id}`);
+
+            console.log(`[Webhook] Message inserted into DB: "${content.substring(0, 30)}..."`);
 
             // Emit Socket (Critical Path for UI Responsiveness)
             const io = req.app.get('io');
