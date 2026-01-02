@@ -272,6 +272,8 @@ export const deleteStage = async (req: Request, res: Response) => {
     try {
         if (!pool) return res.status(500).json({ error: 'Database not configured' });
         const { id } = req.params;
+        const user = (req as any).user;
+        const companyId = user?.company_id;
 
         // 1. Check if stage exists and get details
         const stageRes = await pool.query('SELECT * FROM crm_stages WHERE id = $1', [id]);
@@ -280,20 +282,24 @@ export const deleteStage = async (req: Request, res: Response) => {
         }
         const stageToDelete = stageRes.rows[0];
 
-        // 2. Prevent deleting "Leads" or critical stages
-        // 2. Prevent deleting "Leads" (system stage)
-        if (stageToDelete.name === 'Leads') {
-            return res.status(400).json({ error: 'Não é permitido excluir a fase inicial de Leads.' });
+        // 2. Prevent deleting "LEADS" (system stage) - case insensitive
+        if (stageToDelete.name.toUpperCase() === 'LEADS') {
+            return res.status(400).json({ error: 'Não é permitido excluir a fase LEADS.' });
         }
 
-        // 3. Move leads to "Leads" stage (ID 1 usually, or find by name)
-        // Find default 'Leads' stage
-        const defaultStageRes = await pool.query("SELECT id FROM crm_stages WHERE name = 'Leads' LIMIT 1");
+        // 3. Move leads to "LEADS" stage within same company
+        const defaultStageRes = await pool.query(
+            `SELECT id FROM crm_stages WHERE UPPER(name) = 'LEADS' AND company_id = $1 LIMIT 1`,
+            [companyId]
+        );
         let fallbackStageId = defaultStageRes.rows.length > 0 ? defaultStageRes.rows[0].id : null;
 
         if (!fallbackStageId) {
-            // Fallback to any other stage that is not the one being deleted
-            const specificRes = await pool.query('SELECT id FROM crm_stages WHERE id != $1 ORDER BY position ASC LIMIT 1', [id]);
+            // Fallback to any other stage of the same company that is not being deleted
+            const specificRes = await pool.query(
+                'SELECT id FROM crm_stages WHERE id != $1 AND company_id = $2 ORDER BY position ASC LIMIT 1',
+                [id, companyId]
+            );
             if (specificRes.rows.length > 0) fallbackStageId = specificRes.rows[0].id;
         }
 
