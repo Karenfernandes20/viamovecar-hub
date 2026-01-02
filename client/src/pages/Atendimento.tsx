@@ -1514,7 +1514,7 @@ const AtendimentoPage = () => {
   );
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-background shadow-none border-none" onClick={() => setShowEmojiPicker(false)}>
+    <div className="flex h-full w-full overflow-hidden bg-background shadow-none border-none" onClick={() => setShowEmojiPicker(false)}>
       {/* Sidebar - Lista de Conversas / Contatos */}
       <div className={cn(
         "flex flex-col border-r bg-white dark:bg-zinc-950 transition-all duration-300 shadow-sm z-20 shrink-0",
@@ -1941,7 +1941,7 @@ const AtendimentoPage = () => {
       </div>
 
       {/* Area do Chat */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[#efeae2] dark:bg-[#0b141a]">
+      <div className="flex-1 flex flex-col min-h-0 h-full min-w-0 bg-[#efeae2] dark:bg-[#0b141a]">
         {/* Chat Background Pattern */}
         <div className="absolute inset-0 z-0 opacity-[0.06] pointer-events-none" style={{
           backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')",
@@ -2056,7 +2056,7 @@ const AtendimentoPage = () => {
             </div>
 
             {/* Chat Messages Area */}
-            <div className="relative z-10 flex-1 overflow-hidden">
+            <div className="relative z-10 flex-1 overflow-hidden min-h-0">
               <div
                 ref={scrollRef}
                 className="h-full overflow-y-auto p-4 sm:p-8 space-y-2 scroll-smooth"
