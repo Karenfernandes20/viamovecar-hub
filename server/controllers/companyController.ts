@@ -126,19 +126,53 @@ export const deleteCompany = async (req: Request, res: Response) => {
         try {
             await client.query('BEGIN');
 
-            // Delete associated users first
+            console.log(`[Delete Company ${id}] Starting full cleanup...`);
+
+            // 1. Delete Campaign Contacts (via Campaign association)
+            await client.query(`
+                DELETE FROM whatsapp_campaign_contacts 
+                WHERE campaign_id IN (SELECT id FROM whatsapp_campaigns WHERE company_id = $1)
+            `, [id]);
+
+            // 2. Delete Campaigns
+            await client.query('DELETE FROM whatsapp_campaigns WHERE company_id = $1', [id]);
+
+            // 3. Delete CRM Follow Ups
+            await client.query('DELETE FROM crm_follow_ups WHERE company_id = $1', [id]);
+
+            // 4. Delete Leads
+            await client.query('DELETE FROM crm_leads WHERE company_id = $1', [id]);
+
+            // 5. Delete Messages (linked to conversations)
+            await client.query(`
+                DELETE FROM whatsapp_messages 
+                WHERE conversation_id IN (SELECT id FROM whatsapp_conversations WHERE company_id = $1)
+            `, [id]);
+
+            // 6. Delete Conversations
+            await client.query('DELETE FROM whatsapp_conversations WHERE company_id = $1', [id]);
+
+            // 7. Delete WhatsApp Contacts associated with the company
+            await client.query('DELETE FROM whatsapp_contacts WHERE company_id = $1', [id]);
+
+            // 8. Delete Financial Transactions
+            await client.query('DELETE FROM financial_transactions WHERE company_id = $1', [id]);
+
+            // 9. Delete associated users
             await client.query('DELETE FROM app_users WHERE company_id = $1', [id]);
 
-            // Delete the company
+            // 10. Delete the company
             const result = await client.query('DELETE FROM companies WHERE id = $1 RETURNING *', [id]);
 
             await client.query('COMMIT');
+            console.log(`[Delete Company ${id}] Completed successfully.`);
 
             if (result.rowCount === 0) return res.status(404).json({ error: 'Company not found' });
             res.json({ message: 'Company and associated data deleted' });
-        } catch (e) {
+        } catch (e: any) {
             await client.query('ROLLBACK');
-            throw e;
+            console.error(`[Delete Company ${id}] Failed:`, e);
+            res.status(500).json({ error: 'Failed to delete company', details: e.message });
         } finally {
             client.release();
         }
