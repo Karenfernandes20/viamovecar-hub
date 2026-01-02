@@ -96,6 +96,15 @@ CREATE TABLE IF NOT EXISTS whatsapp_conversations (
   external_id TEXT UNIQUE, -- ID da conversa no provedor (ex: Evolution API)
   phone TEXT NOT NULL,
   contact_name TEXT,
+  instance TEXT,
+  status TEXT DEFAULT 'PENDING',
+  company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+  is_group BOOLEAN DEFAULT FALSE,
+  group_name TEXT,
+  profile_pic_url TEXT,
+  last_message TEXT,
+  last_message_at TIMESTAMPTZ,
+  unread_count INTEGER DEFAULT 0,
   city_id INTEGER REFERENCES cities(id),
   state CHAR(2),
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -107,6 +116,12 @@ CREATE TABLE IF NOT EXISTS whatsapp_messages (
   conversation_id INTEGER REFERENCES whatsapp_conversations(id) ON DELETE CASCADE,
   direction TEXT NOT NULL CHECK (direction IN ('inbound', 'outbound')),
   content TEXT,
+  status TEXT,
+  external_id TEXT UNIQUE,
+  message_type TEXT DEFAULT 'text',
   media_url TEXT,
+  user_id INTEGER REFERENCES app_users(id),
+  sender_jid TEXT,
+  sender_name TEXT,
   sent_at TIMESTAMPTZ DEFAULT NOW()
 );
