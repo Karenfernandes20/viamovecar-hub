@@ -9,7 +9,7 @@ import {
   updateProfile,
 } from './controllers/userController';
 import { getStages, getLeads, updateLeadStage, updateLead, createStage, deleteStage, getCrmDashboardStats } from './controllers/crmController';
-import { handleWebhook, getConversations, getMessages } from './controllers/webhookController';
+import { handleWebhook, getConversations, getMessages, debugWebhookPayloads } from './controllers/webhookController';
 import { getCities, createCity } from './controllers/cityController';
 import { login, register } from './controllers/authController';
 import { authenticateToken, authorizeRole } from './middleware/authMiddleware';
@@ -59,6 +59,7 @@ router.post('/evolution/messages/send', authenticateToken, sendEvolutionMessage)
 router.post('/evolution/messages/media', authenticateToken, sendEvolutionMedia);
 router.put('/evolution/messages/:conversationId/:messageId', authenticateToken, editEvolutionMessage);
 router.delete('/evolution/messages/:conversationId/:messageId', authenticateToken, deleteEvolutionMessage);
+router.get('/evolution/webhook/debug', authenticateToken, authorizeRole(['SUPERADMIN']), debugWebhookPayloads);
 router.post('/evolution/webhook', handleWebhook); // Using unified and robust handler
 router.get('/evolution/conversations', authenticateToken, getConversations);
 router.post('/evolution/conversations/:conversationId/refresh', authenticateToken, refreshConversationMetadata);

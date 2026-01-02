@@ -149,7 +149,17 @@ export const getEvolutionQrCode = async (req: Request, res: Response) => {
           body: JSON.stringify({
             url: webhookUrl,
             enabled: true,
-            events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "SEND_MESSAGE", "CONNECTION_UPDATE"]
+            webhook_by_events: false,
+            events: [
+              "MESSAGES_UPSERT",
+              "MESSAGES_SET",
+              "MESSAGES_RECEIVE",
+              "MESSAGES_UPDATE",
+              "MESSAGES_DELETE",
+              "SEND_MESSAGE",
+              "CONNECTION_UPDATE",
+              "TYPEING_START"
+            ]
           })
         }).catch(e => console.warn(`[Evolution Webhook Set Silent Fail]: ${e.message}`));
       }
@@ -1536,6 +1546,8 @@ export const setEvolutionWebhook = async (req: Request, res: Response) => {
             webhook_by_events: false,
             events: [
               "MESSAGES_UPSERT",
+              "MESSAGES_SET",
+              "MESSAGES_RECEIVE",
               "MESSAGES_UPDATE",
               "MESSAGES_DELETE",
               "SEND_MESSAGE",

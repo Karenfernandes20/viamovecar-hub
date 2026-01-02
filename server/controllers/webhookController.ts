@@ -19,6 +19,18 @@ const instanceCache = new Map<string, number>();
 const stagesCache: { map: any, lastFetch: number } = { map: null, lastFetch: 0 };
 const STAGE_CACHE_TTL = 300000; // 5 minutes
 
+// Memory logging to catch the last few payloads if they fail mapping
+const lastPayloads: any[] = [];
+const pushPayload = (p: any) => {
+    lastPayloads.unshift({ t: new Date().toISOString(), ...p });
+    if (lastPayloads.length > 20) lastPayloads.pop();
+};
+
+export const debugWebhookPayloads = (req: Request, res: Response) => {
+    res.json(lastPayloads);
+};
+
+
 export const handleWebhook = async (req: Request, res: Response) => {
     // 1. Respond immediately to avoid Evolution API blocking or timeouts
     res.status(200).json({ status: 'received' });
@@ -35,18 +47,21 @@ export const handleWebhook = async (req: Request, res: Response) => {
             // Verbose logging for debugging - LOG THE WHOLE BODY INITIALLY TO TRACE STRUCTURE
             console.log('[Webhook] New payload received from Evolution API');
 
+            // Extract raw metadata for logging
             let type = body.type || body.event;
             let data = body.data;
-            let instance = body.instance || (data?.instance) || 'integrai';
+            let instance = body.instance || body.data?.instance || body.instanceName || 'integrai';
 
             // Handle wrapped payloads (some proxy or version of Evolution might wrap in array)
             if (Array.isArray(body) && body.length > 0) {
+                console.log('[Webhook] Detected array payload');
                 type = body[0].type || body[0].event;
                 data = body[0].data;
-                instance = body[0].instance || 'integrai';
+                instance = body[0].instance || body[0].data?.instance || body[0].instanceName || instance;
             }
 
-            console.log(`[Webhook] Event Type: ${type} | Instance: ${instance}`);
+            console.log(`[Webhook] Event: ${type} | Instance: ${instance}`);
+            pushPayload({ type, instance, keys: Object.keys(body), body: body });
 
             if (!type) {
                 console.warn('[Webhook] Missing type/event in payload root. Body keys:', Object.keys(body));
