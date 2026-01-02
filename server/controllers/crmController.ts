@@ -104,51 +104,23 @@ const getEvolutionConnectionStateInternal = async (user: any) => {
     }
 };
 
-// Ensure default stages exist
-const ensureDefaultStages = async () => {
-    if (!pool) return;
-
-    try {
-        // 1. Check for 'Leads' stage specifically
-        const leadsStageCheck = await pool.query("SELECT id FROM crm_stages WHERE name = 'Leads'");
-
-        if (leadsStageCheck.rows.length === 0) {
-            // Create Leads stage at position 0
-            await pool.query("INSERT INTO crm_stages (name, position, color) VALUES ('Leads', 0, '#cbd5e1')");
-        } else {
-            // Ensure it is at position 0
-            await pool.query("UPDATE crm_stages SET position = 0 WHERE name = 'Leads'");
-        }
-
-        // 2. Ensure other defaults if strictly empty
-        const countResult = await pool.query('SELECT COUNT(*) FROM crm_stages');
-        if (parseInt(countResult.rows[0].count) <= 1) {
-            const defaultStages = [
-                { name: 'Em Atendimento', position: 1, color: '#93c5fd' },
-                { name: 'Agendamento', position: 2, color: '#fde047' },
-                { name: 'Venda Realizada', position: 3, color: '#86efac' },
-                { name: 'Perdido', position: 4, color: '#fca5a5' }
-            ];
-
-            for (const stage of defaultStages) {
-                await pool.query(
-                    'INSERT INTO crm_stages (name, position, color) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-                    [stage.name, stage.position, stage.color]
-                );
-            }
-        }
-    } catch (error) {
-        console.error("Error ensuring default stages:", error);
-    }
-};
-
 export const getStages = async (req: Request, res: Response) => {
     try {
         if (!pool) return res.status(500).json({ error: 'Database not configured' });
 
-        await ensureDefaultStages();
+        const user = (req as any).user;
+        const companyId = user?.company_id;
 
-        const result = await pool.query('SELECT * FROM crm_stages ORDER BY position ASC');
+        if (!companyId) {
+            return res.status(400).json({ error: 'Company ID is required' });
+        }
+
+        // Get ONLY stages for this specific company
+        const result = await pool.query(
+            'SELECT * FROM crm_stages WHERE company_id = $1 ORDER BY position ASC',
+            [companyId]
+        );
+
         res.json(result.rows);
     } catch (error) {
         console.error('Error fetching stages:', error);
@@ -266,17 +238,27 @@ export const createStage = async (req: Request, res: Response) => {
         if (!pool) return res.status(500).json({ error: 'Database not configured' });
 
         const { name } = req.body;
+        const user = (req as any).user;
+        const companyId = user?.company_id;
+
+        if (!companyId) {
+            return res.status(400).json({ error: 'Company ID is required' });
+        }
+
         if (!name || !name.trim()) {
             return res.status(400).json({ error: 'name is required' });
         }
 
-        // Define próxima posição após a última fase existente
-        const posResult = await pool.query('SELECT COALESCE(MAX(position), 0) + 1 AS next_pos FROM crm_stages');
+        // Define próxima posição após a última fase existente DA EMPRESA
+        const posResult = await pool.query(
+            'SELECT COALESCE(MAX(position), 0) + 1 AS next_pos FROM crm_stages WHERE company_id = $1',
+            [companyId]
+        );
         const nextPos = posResult.rows[0].next_pos as number;
 
         const insertResult = await pool.query(
-            'INSERT INTO crm_stages (name, position) VALUES ($1, $2) RETURNING *',
-            [name.trim(), nextPos]
+            'INSERT INTO crm_stages (name, position, company_id) VALUES ($1, $2, $3) RETURNING *',
+            [name.trim(), nextPos, companyId]
         );
 
         res.status(201).json(insertResult.rows[0]);
@@ -344,11 +326,12 @@ export const getCrmDashboardStats = async (req: Request, res: Response) => {
         const filterClause = (user.role !== 'SUPERADMIN' || companyId) ? 'WHERE company_id = $1' : 'WHERE 1=1';
         const filterParams = (user.role !== 'SUPERADMIN' || companyId) ? [companyId] : [];
 
-        // 1. Funnel Data (Stages + Lead Counts)
+        // 1. Funnel Data (Stages + Lead Counts) - Only for this company
         const funnelRes = await pool.query(`
             SELECT s.name as label, COUNT(l.id) as count, s.position
             FROM crm_stages s
-            LEFT JOIN crm_leads l ON s.id = l.stage_id ${filterClause.replace('WHERE', 'AND')}
+            LEFT JOIN crm_leads l ON s.id = l.stage_id AND l.company_id = $1
+            WHERE s.company_id = $1
             GROUP BY s.id, s.name, s.position
             ORDER BY s.position ASC
         `, filterParams);
