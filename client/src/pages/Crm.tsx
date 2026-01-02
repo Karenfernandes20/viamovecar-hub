@@ -225,7 +225,7 @@ const CrmPage = () => {
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newStageName, setNewStageName] = useState("");
-  const [selectedColor, setSelectedColor] = useState(pastelOptions[0]);
+  const [selectedColor, setSelectedColor] = useState("#93c5fd");
   const [stageColors, setStageColors] = useState<Record<number, string>>({});
 
   // Lead Editing State
@@ -358,13 +358,14 @@ const CrmPage = () => {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, color: selectedColor }),
       });
 
       if (res.ok) {
         const created = await res.json();
         setStages((prev) => [...prev, created]);
         setNewStageName("");
+        setSelectedColor("#93c5fd"); // Reset to default blue
         setIsDialogOpen(false);
       }
     } catch (error) {
@@ -509,6 +510,35 @@ const CrmPage = () => {
                 <div className="space-y-2">
                   <Label>Nome da Fase</Label>
                   <Input placeholder="Ex: Proposta, Fechado..." value={newStageName} onChange={(e) => setNewStageName(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Cor da Fase</Label>
+                  <div className="grid grid-cols-5 gap-2">
+                    {[
+                      { name: "Azul", color: "#93c5fd" },
+                      { name: "Verde", color: "#86efac" },
+                      { name: "Rosa", color: "#f9a8d4" },
+                      { name: "Amarelo", color: "#fde047" },
+                      { name: "Roxo", color: "#c4b5fd" },
+                      { name: "Laranja", color: "#fdba74" },
+                      { name: "Vermelho", color: "#fca5a5" },
+                      { name: "Cyan", color: "#a5f3fc" },
+                      { name: "Índigo", color: "#a5b4fc" },
+                      { name: "Lime", color: "#bef264" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.color}
+                        type="button"
+                        onClick={() => setSelectedColor(opt.color)}
+                        className={cn(
+                          "h-12 rounded-lg border-2 transition-all hover:scale-105",
+                          selectedColor === opt.color ? "border-slate-900 ring-2 ring-slate-900/20" : "border-slate-200"
+                        )}
+                        style={{ backgroundColor: opt.color }}
+                        title={opt.name}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
               <DialogFooter>
