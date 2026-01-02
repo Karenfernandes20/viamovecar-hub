@@ -2080,7 +2080,7 @@ const AtendimentoPage = () => {
             <div className="relative z-10 flex-1 overflow-hidden min-h-0">
               <div
                 ref={scrollRef}
-                className="h-full overflow-y-auto p-4 sm:p-8 space-y-2 scroll-smooth"
+                className="h-full overflow-y-auto px-4 py-2 space-y-2 scroll-smooth"
                 style={{
                   backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')",
                   backgroundRepeat: "repeat",
@@ -2100,7 +2100,7 @@ const AtendimentoPage = () => {
                   <div
                     key={msg.id}
                     className={cn(
-                      "flex flex-col w-full group relative mb-2",
+                      "flex flex-col w-full group relative",
                       msg.direction === "outbound" ? "items-end" : "items-start"
                     )}
                   >

@@ -89,13 +89,19 @@ export const AdminLayout = () => {
                 )}
 
                 <div className="hidden text-right md:block">
-                  <p className="font-medium">{user?.full_name || 'Usuário'}</p>
+                  <p className="font-medium">{user?.role === 'SUPERADMIN' ? 'Acesso SuperAdmin' : (user?.full_name || 'Usuário')}</p>
                   <p className="text-[11px] text-muted-foreground max-w-[150px] truncate">
                     {user?.company?.name ? user.company.name : (user?.role || 'Acesso interno')}
                   </p>
                 </div>
 
-                {user?.company?.logo_url || user?.profile_pic_url ? (
+                {user?.role === 'SUPERADMIN' ? (
+                  <img
+                    src="/logo-integrai.jpg"
+                    className="h-9 w-9 rounded-full object-cover border bg-gray-50"
+                    alt="SuperAdmin"
+                  />
+                ) : (user?.company?.logo_url || user?.profile_pic_url) ? (
                   <img
                     src={user?.company?.logo_url || user?.profile_pic_url}
                     className="h-9 w-9 rounded-full object-cover border bg-gray-50"
