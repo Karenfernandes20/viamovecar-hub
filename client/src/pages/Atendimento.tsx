@@ -478,7 +478,22 @@ const AtendimentoPage = () => {
 
   // Scroll Logic mimicking WhatsApp Web
   // Scroll Logic mimicking Grupos.tsx (Imperative Style)
+  // Scroll helper
+  // const scrollToBottom = ... (moved below)
+
+  // Check scroll position on user scroll (Required for "Don't pull me down if I'm up" rule)
+
+
+  // Scroll Logic mimic - IMPROVED for reliability
+  // using useLayoutEffect ensures we scroll AFTER the DOM has updated with new messages
+  useLayoutEffect(() => {
+    if (isNearBottomRef.current && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, selectedConversation?.id]);
+
   const scrollToBottom = () => {
+    isNearBottomRef.current = true;
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
@@ -489,15 +504,16 @@ const AtendimentoPage = () => {
     if (!scrollRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    isNearBottomRef.current = distanceFromBottom < 100;
+    // Slightly larger buffer to catch "near" bottom
+    isNearBottomRef.current = distanceFromBottom < 150;
   };
 
   // 1. Initial Scroll on Conversation Change
   useEffect(() => {
     // Always reset to bottom when opening a chat
     isNearBottomRef.current = true;
-    // Allow render then scroll
-    setTimeout(() => scrollToBottom(), 100);
+    // Force generic scroll just in case
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [selectedConversation?.id]);
 
   // NOTE: Deleted the useEffect([messages]) to rely on imperative calls in fetch/socket like Grupos.tsx
@@ -570,11 +586,11 @@ const AtendimentoPage = () => {
 
           // Imperative scroll logic compatible with Grupos.tsx
           if (isNearBottomRef.current || newMessage.direction === 'outbound') {
-            setTimeout(() => {
-              if (scrollRef.current) {
-                scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-              }
-            }, 100);
+            // Logic for scroll on new message
+            if (isNearBottomRef.current || newMessage.direction === 'outbound') {
+              isNearBottomRef.current = true;
+              // The useLayoutEffect [messages] will handle the actual scroll
+            }
           }
         }
       }
@@ -912,12 +928,8 @@ const AtendimentoPage = () => {
         const data = await res.json();
         setMessages(data);
 
-        // Imperative scroll from Grupos.tsx
-        setTimeout(() => {
-          if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-          }
-        }, 100);
+        // Ensure we scroll to bottom on load
+        isNearBottomRef.current = true;
 
         // Reset unread count localmente
         setConversations(prev => prev.map(c =>
