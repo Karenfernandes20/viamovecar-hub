@@ -46,7 +46,7 @@ import {
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
 import { io } from "socket.io-client";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
 import type { FormEvent } from "react";
 import { cn } from "../lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
@@ -553,19 +553,23 @@ const AtendimentoPage = () => {
         const msgJid = normalizePhone(newMessage.remoteJid || '');
 
         if (currentPhone === msgPhone || currentPhone == msgJid || currentSelected.id === newMessage.conversation_id) {
+          // Prevent duplication: If we sent this message (outbound) and we have a pending message with same content, ignore socket.
+          // This relies on the API response to resolve the pending message to the real ID.
+          if (newMessage.direction === 'outbound' && newMessage.user_id === user?.id) {
+            // Check if we have a pending message with similar content
+            const hasPending = prev.some(m => m.status === 'sending' && m.content === newMessage.content);
+            if (hasPending) {
+              console.log("Ignoring socket message because we have a pending optimistic one");
+              return prev;
+            }
+          }
+
           setMessages((prev) => {
             if (prev.find(m => m.id === newMessage.id)) return prev;
             return [...prev, newMessage];
           });
 
-          // Imperative scroll logic compatible with Grupos.tsx but preserving user position if reading history
-          if (isNearBottomRef.current || newMessage.direction === 'outbound') {
-            setTimeout(() => {
-              if (scrollRef.current) {
-                scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-              }
-            }, 100);
-          }
+          // Let the effect handle the scroll based on isNearBottomRef
         }
       }
 
@@ -2075,7 +2079,7 @@ const AtendimentoPage = () => {
                   >
                     {msg.direction === "outbound" && (
                       <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 mb-0.5 px-1 uppercase tracking-wider">
-                        {msg.agent_name || ((msg as any).user_id ? "Usuário" : "(celular)")}
+                        {msg.user_id === user?.id ? user?.full_name : (msg.agent_name || "Atendente")}
                       </span>
                     )}
                     {msg.direction === "inbound" && selectedConversation?.is_group && (
