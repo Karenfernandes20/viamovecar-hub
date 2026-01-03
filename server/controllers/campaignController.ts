@@ -600,16 +600,16 @@ async function sendWhatsAppMessage(
                     conversationId = checkConv.rows[0].id;
                     await pool.query(
                         `UPDATE whatsapp_conversations 
-                         SET last_message = $1, last_message_at = NOW(), status = 'OPEN', user_id = COALESCE(user_id, $2), company_id = COALESCE(company_id, $3)
+                         SET last_message = $1, last_message_at = NOW(), status = 'OPEN', user_id = COALESCE(user_id, $2), company_id = COALESCE(company_id, $3), last_message_source = $5
                          WHERE id = $4`,
-                        [message, userId, companyId, conversationId]
+                        [message, userId, companyId, conversationId, campaignId ? 'campaign' : null]
                     );
                 } else {
                     // Create new conversation
                     const newConv = await pool.query(
-                        `INSERT INTO whatsapp_conversations (external_id, phone, contact_name, instance, status, user_id, last_message, last_message_at, company_id) 
-                         VALUES ($1, $2, $3, $4, 'OPEN', $5, $6, NOW(), $7) RETURNING id`,
-                        [remoteJid, cleanPhone, contactName || cleanPhone, evolution_instance, userId, message, companyId]
+                        `INSERT INTO whatsapp_conversations (external_id, phone, contact_name, instance, status, user_id, last_message, last_message_at, company_id, last_message_source) 
+                         VALUES ($1, $2, $3, $4, 'OPEN', $5, $6, NOW(), $7, $8) RETURNING id`,
+                        [remoteJid, cleanPhone, contactName || cleanPhone, evolution_instance, userId, message, companyId, campaignId ? 'campaign' : null]
                     );
                     conversationId = newConv.rows[0].id;
                 }

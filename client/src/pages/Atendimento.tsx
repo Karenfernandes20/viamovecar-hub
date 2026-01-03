@@ -73,6 +73,7 @@ interface Conversation {
   // New fields for name resolution
   contact_push_name?: string;
   last_sender_name?: string;
+  last_message_source?: string;
 }
 
 interface Message {
@@ -1647,6 +1648,11 @@ const AtendimentoPage = () => {
               )}>
                 {getDisplayName(conv)}
               </span>
+              {conv.last_message_source === 'campaign' && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200 mt-1">
+                  Campanha
+                </span>
+              )}
               {getDisplayName(conv) !== conv.phone?.replace(/\D/g, "") && (
                 <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal truncate">
                   {conv.phone?.replace(/\D/g, "")}
