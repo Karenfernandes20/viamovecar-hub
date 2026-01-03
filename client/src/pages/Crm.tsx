@@ -276,7 +276,7 @@ const CrmPage = () => {
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
   const [followUpInitialData, setFollowUpInitialData] = useState<any>(null);
 
-  // Add Lead State
+  const [isSyncing, setIsSyncing] = useState(false);
   const [isAddLeadDialogOpen, setIsAddLeadDialogOpen] = useState(false);
   const [contacts, setContacts] = useState<any[]>([]);
   const [contactSearchTerm, setContactSearchTerm] = useState("");
@@ -290,6 +290,9 @@ const CrmPage = () => {
   }, [token]);
 
   const fetchData = async () => {
+    // Prevent overwriting local state while dragging OR while a sync/move is in progress
+    if (activeDragId || isSyncing) return;
+
     try {
       setIsLoadingData(true);
       const [stagesRes, leadsRes] = await Promise.all([
@@ -304,8 +307,8 @@ const CrmPage = () => {
 
       if (Array.isArray(stagesData)) setStages(stagesData);
 
-      // Prevent overwriting local state while dragging
-      if (activeDragId) return;
+      // Re-check after fetch in case drag/sync started during the request
+      if (activeDragId || isSyncing) return;
 
       if (Array.isArray(leadsData)) {
         setLeads(
@@ -467,6 +470,7 @@ const CrmPage = () => {
 
   const updateLeadStage = async (leadId: string, stageId: number) => {
     try {
+      setIsSyncing(true);
       const res = await fetch(`/api/crm/leads/${leadId}/move`, {
         method: "PUT",
         headers: {
@@ -483,6 +487,8 @@ const CrmPage = () => {
     } catch (error) {
       console.error("Failed to update lead stage", error);
       fetchData(); // Reset state on error
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -582,9 +588,11 @@ const CrmPage = () => {
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
-    setActiveDragId(null);
     const { active, over } = event;
-    if (!over) return;
+    if (!over) {
+      setActiveDragId(null);
+      return;
+    }
 
     const activeId = active.id as string;
     const overId = over.id as string;
@@ -615,6 +623,7 @@ const CrmPage = () => {
       // Notify backend
       await updateLeadStage(activeId, targetStageId);
     }
+    setActiveDragId(null);
   };
 
   const dropAnimation: DropAnimation = {
