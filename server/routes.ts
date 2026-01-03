@@ -63,6 +63,47 @@ router.delete('/evolution/messages/:conversationId/:messageId', authenticateToke
 router.post('/evolution/messages/delete-global', authenticateToken, deleteMessage);
 // router.get('/evolution/webhook/debug', authenticateToken, authorizeRole(['SUPERADMIN']), debugWebhookPayloads);
 router.get('/evolution/webhook/debug', debugWebhookPayloads); // Temp public for diagnostic
+router.get('/evolution/debug/mapping', async (req, res) => {
+  try {
+    const result = await pool!.query('SELECT id, name, evolution_instance FROM companies');
+    res.json(result.rows);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.get('/evolution/debug/all', async (req, res) => {
+  try {
+    const companies = await pool!.query('SELECT id, name, evolution_instance FROM companies');
+    const instancesInConvs = await pool!.query('SELECT instance, count(*) as count FROM whatsapp_conversations GROUP BY instance');
+
+    res.json({
+      companies: companies.rows,
+      instances_in_conversations: instancesInConvs.rows
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/evolution/debug/fix-viamove', async (req, res) => {
+  try {
+    const result = await pool!.query(`
+            UPDATE whatsapp_conversations 
+            SET company_id = co.id 
+            FROM companies co 
+            WHERE whatsapp_conversations.company_id IS NULL 
+            AND (
+                LOWER(whatsapp_conversations.instance) = LOWER(co.evolution_instance)
+                OR (LOWER(whatsapp_conversations.instance) LIKE '%viamove%' AND LOWER(co.name) LIKE '%viamove%')
+            )
+            RETURNING whatsapp_conversations.id
+        `);
+    res.json({ fixed_count: result.rows.length, ids: result.rows.map(r => r.id) });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
 // router.post('/evolution/webhook/*', handleWebhook); // REMOVED: Wildcard not supported in Express 5 string paths
 router.post('/evolution/webhook/:type', handleWebhook); // Catch /webhook/messages-upsert etc.
 router.post('/evolution/webhook', handleWebhook); // Catch base /webhook

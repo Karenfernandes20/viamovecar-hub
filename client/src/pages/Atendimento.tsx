@@ -151,6 +151,10 @@ const AtendimentoPage = () => {
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
   const [followUpInitialData, setFollowUpInitialData] = useState<any>(null);
 
+  // SuperAdmin Filters
+  const [availableCompanies, setAvailableCompanies] = useState<any[]>([]);
+  const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string | null>(null);
+
   // Notification sound settings
   const [notificationVolume, setNotificationVolume] = useState<number>(() => {
     const saved = localStorage.getItem('notification_volume');
@@ -740,14 +744,16 @@ const AtendimentoPage = () => {
 
   const fetchEvolutionContacts = async () => {
     // Only fetch if WhatsApp is somewhat connected? 
-    // User wants "live data regardless".
-
     // Safety check just in case but we want to try loading
-
     try {
       setIsLoadingContacts(true);
       // Use NOVO endpoint LIVE (Sem persistência no DB)
-      const res = await fetch("/api/evolution/contacts/live", {
+      let url = "/api/evolution/contacts/live";
+      if (selectedCompanyFilter) {
+        url += (url.includes('?') ? '&' : '?') + `companyId=${selectedCompanyFilter}`;
+      }
+
+      const res = await fetch(url, {
         method: "GET", // CHANGED FROM POST SYNC TO GET LIVE
         headers: {
           "Authorization": `Bearer ${token}`
@@ -776,7 +782,11 @@ const AtendimentoPage = () => {
   const syncContacts = async () => {
     try {
       setIsLoadingContacts(true);
-      const res = await fetch("/api/evolution/contacts/sync", {
+      let url = "/api/evolution/contacts/sync";
+      if (selectedCompanyFilter) {
+        url += `?companyId=${selectedCompanyFilter}`;
+      }
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` }
       });
@@ -871,7 +881,8 @@ const AtendimentoPage = () => {
         },
         body: JSON.stringify({
           messageId: messageToDelete.external_id || messageToDelete.id,
-          phone: selectedConversation.phone
+          phone: selectedConversation.phone,
+          companyId: (selectedConversation as any).company_id || selectedCompanyFilter
         })
       });
 
@@ -893,7 +904,11 @@ const AtendimentoPage = () => {
   const syncAllPhotos = async () => {
     try {
       setIsLoadingConversations(true);
-      const res = await fetch("/api/evolution/profile-pic/sync", {
+      let url = "/api/evolution/profile-pic/sync";
+      if (selectedCompanyFilter) {
+        url += `?companyId=${selectedCompanyFilter}`;
+      }
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` }
       });
@@ -928,7 +943,13 @@ const AtendimentoPage = () => {
   const fetchConversations = async () => {
     try {
       setIsLoadingConversations(true); // Start loading
-      const res = await fetch("/api/evolution/conversations", {
+
+      let url = "/api/evolution/conversations";
+      if (selectedCompanyFilter) {
+        url += `?companyId=${selectedCompanyFilter}`;
+      }
+
+      const res = await fetch(url, {
         headers: {
           "Authorization": `Bearer ${token}`
         }
@@ -988,7 +1009,11 @@ const AtendimentoPage = () => {
     // Also fetch existing contacts from DB without syncing
     const loadLocal = async () => {
       try {
-        const res = await fetch("/api/evolution/contacts", {
+        let url = "/api/evolution/contacts";
+        if (selectedCompanyFilter) {
+          url += `?companyId=${selectedCompanyFilter}`;
+        }
+        const res = await fetch(url, {
           headers: {
             "Authorization": `Bearer ${token}`
           }
@@ -1038,6 +1063,20 @@ const AtendimentoPage = () => {
     return () => clearInterval(interval);
 
   }, [token]);
+
+  // Fetch companies for SuperAdmin Filter
+  useEffect(() => {
+    if (user?.role === 'SUPERADMIN' && token) {
+      fetch('/api/companies', {
+        headers: { "Authorization": `Bearer ${token}` }
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (Array.isArray(data)) setAvailableCompanies(data);
+        })
+        .catch(e => console.error('Erro ao buscar empresas:', e));
+    }
+  }, [user?.role, token]);
 
 
   const fetchMessages = async (conversationId: number | string) => {
@@ -1100,6 +1139,11 @@ const AtendimentoPage = () => {
     setMessages([]); // Clear previous messages when switching
     fetchMessages(selectedConversation.id);
   }, [selectedConversation?.id, token]);
+
+  // Re-fetch conversations when company filter changes
+  useEffect(() => {
+    fetchConversations();
+  }, [selectedCompanyFilter, token]);
 
 
   // DDDs brasileiros conhecidos
@@ -1270,7 +1314,10 @@ const AtendimentoPage = () => {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ content: newContent })
+        body: JSON.stringify({
+          content: newContent,
+          companyId: (selectedConversation as any).company_id || selectedCompanyFilter
+        })
       });
 
       if (!res.ok) {
@@ -1338,17 +1385,11 @@ const AtendimentoPage = () => {
         body: JSON.stringify({
           phone: selectedConversation.phone,
           text: messageContent,
+          companyId: (selectedConversation as any).company_id || selectedCompanyFilter,
           quoted: replyingTo ? {
             key: {
               id: replyingTo.external_id || replyingTo.id, // Prefer external ID if available
               fromMe: replyingTo.direction === 'outbound',
-              // Try to guess remoteJid if not explicit? Usually backend or Evolution handles lookup, 
-              // but quoting usually requires remoteJid of the chat involved.
-              // Actually we just need the message ID usually for Evolution if passing 'quoted' object properly formatted?
-              // Standard Evolution V2 uses `quoted: { key: { id: ... } }`.
-              // We need to pass the full quoted object.
-              // Let's pass a simplified object and let backend/Evolution handle it if possible, 
-              // or construct what we can. 
             },
             message: { conversation: replyingTo.content } // Optional context
           } : undefined
@@ -1515,7 +1556,8 @@ const AtendimentoPage = () => {
             media: base64,
             mediaType,
             fileName: file.name,
-            caption: file.name
+            caption: file.name,
+            companyId: (selectedConversation as any).company_id || selectedCompanyFilter
           })
         });
 
@@ -1886,6 +1928,22 @@ const AtendimentoPage = () => {
                       🔔
                     </Button>
                   </>
+                )}
+
+                {user?.role === 'SUPERADMIN' && availableCompanies.length > 0 && (
+                  <div className="flex items-center gap-2 ml-auto">
+                    <span className="text-[10px] text-zinc-500 uppercase font-bold">Filtro:</span>
+                    <select
+                      className="text-[10px] bg-zinc-100 dark:bg-zinc-800 border-none rounded px-1 py-0.5 font-medium outline-none"
+                      value={selectedCompanyFilter || ""}
+                      onChange={(e) => setSelectedCompanyFilter(e.target.value || null)}
+                    >
+                      <option value="">Todas Empresas</option>
+                      {availableCompanies.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 )}
               </div>
             </div>

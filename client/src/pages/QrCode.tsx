@@ -14,11 +14,17 @@ const QrCodePage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activePlatform, setActivePlatform] = useState<string>("whatsapp");
+  const [availableCompanies, setAvailableCompanies] = useState<any[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
 
   // Poll status only
   const fetchStatus = async () => {
     try {
-      const response = await fetch("/api/evolution/status", {
+      let url = "/api/evolution/status";
+      if (selectedCompanyId) {
+        url += `?companyId=${selectedCompanyId}`;
+      }
+      const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.ok) {
@@ -48,7 +54,12 @@ const QrCodePage = () => {
       setError(null);
       setQrCode(null);
 
-      const response = await fetch("/api/evolution/qrcode", {
+      let url = "/api/evolution/qrcode";
+      if (selectedCompanyId) {
+        url += `?companyId=${selectedCompanyId}`;
+      }
+
+      const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -84,7 +95,12 @@ const QrCodePage = () => {
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch("/api/evolution/disconnect", {
+      let url = "/api/evolution/disconnect";
+      if (selectedCompanyId) {
+        url += `?companyId=${selectedCompanyId}`;
+      }
+
+      const response = await fetch(url, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -106,7 +122,11 @@ const QrCodePage = () => {
     try {
       setIsLoading(true);
       setError(null);
-      const response = await fetch("/api/evolution/webhook/set", {
+      let url = "/api/evolution/webhook/set";
+      if (selectedCompanyId) {
+        url += `?companyId=${selectedCompanyId}`;
+      }
+      const response = await fetch(url, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -125,21 +145,62 @@ const QrCodePage = () => {
 
   useEffect(() => {
     if (token) {
+      if (user?.role === 'SUPERADMIN') {
+        fetch('/api/companies', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+          .then(r => r.json())
+          .then(data => {
+            if (Array.isArray(data)) setAvailableCompanies(data);
+          })
+          .catch(e => console.error("Error fetching companies", e));
+      }
+    }
+  }, [token, user?.role]);
+
+  useEffect(() => {
+    if (token) {
       fetchStatus();
-      const interval = setInterval(fetchStatus, 5000);
+      const interval = setInterval(fetchStatus, 10000); // 10s is enough for status
       return () => clearInterval(interval);
     }
-  }, [token]);
+  }, [token, selectedCompanyId]);
+
+  // Redefine data when company changes
+  useEffect(() => {
+    setQrCode(null);
+    setConnectionState("unknown");
+    setInstanceName("Carregando...");
+    setError(null);
+  }, [selectedCompanyId]);
 
   const isConnected = connectionState === 'open';
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight">Canais de Comunicação</h1>
-        <p className="text-sm text-muted-foreground italic">
-          Conecte e gerencie seus canais de atendimento oficial.
-        </p>
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-bold tracking-tight">Canais de Comunicação</h1>
+          <p className="text-sm text-muted-foreground italic">
+            Conecte e gerencie seus canais de atendimento oficial.
+          </p>
+        </div>
+
+        {user?.role === 'SUPERADMIN' && availableCompanies.length > 0 && (
+          <div className="flex items-center gap-3 bg-zinc-50 dark:bg-zinc-900 p-2 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800">
+            <span className="text-[11px] font-bold text-zinc-500 uppercase">Empresa:</span>
+            <select
+              className="text-xs bg-transparent border-none focus:ring-0 font-medium outline-none"
+              value={selectedCompanyId || ""}
+              onChange={(e) => setSelectedCompanyId(e.target.value || null)}
+            >
+              <option value="">Selecione para configurar</option>
+              {availableCompanies.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </header>
 
       <Tabs defaultValue="whatsapp" value={activePlatform} onValueChange={setActivePlatform} className="space-y-6">

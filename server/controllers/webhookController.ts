@@ -127,25 +127,48 @@ export const handleWebhook = async (req: Request, res: Response) => {
             let companyId: number | null = instanceCache.get(instance) || null;
             if (!companyId) {
                 console.log(`[Webhook] Cache miss for instance "${instance}". Looking up in DB...`);
+
+                // 1. Exact match
                 const compLookup = await pool.query(
                     'SELECT id FROM companies WHERE LOWER(evolution_instance) = LOWER($1)',
                     [instance]
                 );
+
                 if (compLookup.rows.length > 0) {
                     companyId = compLookup.rows[0].id;
-                    instanceCache.set(instance, companyId!);
-                    console.log(`[Webhook] Success! Instance "${instance}" mapped to companyId ${companyId}`);
+                    console.log(`[Webhook] Exact match! Instance "${instance}" mapped to companyId ${companyId}`);
                 } else {
-                    console.log(`[Webhook] Instance "${instance}" NOT matched in companies table.`);
-                    // Check if there is ONLY ONE company as fallback
-                    const allCompanies = await pool.query('SELECT id, evolution_instance FROM companies');
-                    console.log('[Webhook] Available instances in DB:', allCompanies.rows.map(c => `${c.id}:${c.evolution_instance}`).join(', '));
+                    // 2. Fuzzy match (if instance name contains "viamove" and company name contains "viamove")
+                    console.log(`[Webhook] No exact match for "${instance}". Trying fuzzy...`);
+                    const fuzzyLookup = await pool.query(
+                        'SELECT id FROM companies WHERE (LOWER($1) LIKE LOWER(CONCAT(\'%\', name, \'%\')) OR LOWER(name) LIKE LOWER(CONCAT(\'%\', $1, \'%\'))) LIMIT 1',
+                        [instance]
+                    );
 
-                    if (allCompanies.rows.length === 1) {
-                        companyId = allCompanies.rows[0].id;
-                        console.log(`[Webhook] Single-Company Mode: Mapping instance "${instance}" to companyId ${companyId} (only one available)`);
-                        instanceCache.set(instance, companyId!);
+                    if (fuzzyLookup.rows.length > 0) {
+                        companyId = fuzzyLookup.rows[0].id;
+                        console.log(`[Webhook] Fuzzy Match Success! Instance "${instance}" mapped to companyId ${companyId} (by name)`);
+                    } else if (instance.toLowerCase().includes('viamove')) {
+                        // Special manual fallback for viamove
+                        const viaLookup = await pool.query('SELECT id FROM companies WHERE LOWER(name) LIKE \'%viamove%\' LIMIT 1');
+                        if (viaLookup.rows.length > 0) {
+                            companyId = viaLookup.rows[0].id;
+                            console.log(`[Webhook] Manual Fallback Success! Viamove instance "${instance}" mapped to companyId ${companyId}`);
+                        }
                     }
+
+                    // 3. Last resort fallback if still not found and there's only one company
+                    if (!companyId) {
+                        const allCompanies = await pool.query('SELECT id, evolution_instance FROM companies');
+                        if (allCompanies.rows.length === 1) {
+                            companyId = allCompanies.rows[0].id;
+                            console.log(`[Webhook] Single-Company Fallback: Mapping instance "${instance}" to companyId ${companyId}`);
+                        }
+                    }
+                }
+
+                if (companyId) {
+                    instanceCache.set(instance, companyId);
                 }
             }
 
@@ -517,6 +540,26 @@ export const getConversations = async (req: Request, res: Response) => {
 
         const user = (req as any).user;
         let companyId = req.query.companyId || user?.company_id;
+
+        // --- OPTIMISTIC REPAIR FOR NULL COMPANY_IDS ---
+        // This fixes conversations that were recorded but not yet assigned to a company due to previous mapping issues
+        if (user.role === 'SUPERADMIN') {
+            try {
+                await pool.query(`
+                    UPDATE whatsapp_conversations c
+                    SET company_id = co.id
+                    FROM companies co
+                    WHERE c.company_id IS NULL
+                    AND (
+                        LOWER(c.instance) = LOWER(co.evolution_instance)
+                        OR (LOWER(c.instance) LIKE '%viamove%' AND LOWER(co.name) LIKE '%viamove%')
+                        OR (LOWER(c.instance) LIKE '%integrai%' AND LOWER(co.name) LIKE '%integrai%')
+                    )
+                `);
+            } catch (e) {
+                console.error('[Repair Mapping Error]:', e);
+            }
+        }
 
         let query = `
             SELECT c.*, 

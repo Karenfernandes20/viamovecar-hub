@@ -12,76 +12,64 @@ import { pool } from "../db";
  */
 
 // Helper to get Evolution Config based on User Context
-// Hardcoded fallback for this environment
 const DEFAULT_URL = "https://freelasdekaren-evolution-api.nhvvzr.easypanel.host";
 
 export const getEvolutionConfig = async (user: any, source: string = 'unknown', targetCompanyId?: number | string) => {
+  // Base configuration from env (fallback)
   let config = {
-    url: process.env.EVOLUTION_API_URL || DEFAULT_URL,
-    apikey: process.env.EVOLUTION_API_KEY,
-    instance: "integrai"
+    url: (process.env.EVOLUTION_API_URL || DEFAULT_URL).replace(/\/$/, ""),
+    apikey: process.env.EVOLUTION_API_KEY || "",
+    instance: "integrai", // Default instance for Integrai
+    company_id: null as number | null
   };
 
-  if (pool) {
-    try {
-      // SuperAdmin/Admin without company: Always use 'integrai'
-      const role = (user?.role || '').toUpperCase();
-      const isMasterUser = !user || role === 'SUPERADMIN'; // Admin from a company is NOT a master user in this context
+  if (!pool) return config;
 
-      // If explicit targetCompanyId is requested, check permissions
-      let resolvedCompanyId = null;
+  try {
+    const role = (user?.role || '').toUpperCase();
+    const isMasterUser = role === 'SUPERADMIN';
+    let resolvedCompanyId: number | null = null;
 
-      if (targetCompanyId) {
-        if (isMasterUser) {
-          // SuperAdmin can access any company
-          resolvedCompanyId = targetCompanyId;
+    if (targetCompanyId) {
+      resolvedCompanyId = Number(targetCompanyId);
+    } else if (user?.company_id) {
+      resolvedCompanyId = Number(user.company_id);
+    }
+
+    if (resolvedCompanyId) {
+      const compRes = await pool.query('SELECT name, evolution_instance, evolution_apikey FROM companies WHERE id = $1', [resolvedCompanyId]);
+      if (compRes.rows.length > 0) {
+        const { name, evolution_instance, evolution_apikey } = compRes.rows[0];
+        if (evolution_instance && evolution_apikey) {
+          config.instance = evolution_instance;
+          config.apikey = evolution_apikey;
+          config.company_id = resolvedCompanyId;
+          console.log(`[Evolution Config] RESOLVED PER-COMPANY: ${name} (${resolvedCompanyId}) -> Instance: ${config.instance}`);
         } else {
-          // Regular user can only access their own company
-          // If they request their own id, it's fine. If they request another, ignore it or error.
-          // We'll fallback to their actual company ID safely essentially ignoring the request if it differs, or strict validation.
-          // For simplicity/safety, we re-verify:
-          if (Number(user.company_id) === Number(targetCompanyId)) {
-            resolvedCompanyId = user.company_id;
-          }
+          console.warn(`[Evolution Config] Company ${resolvedCompanyId} found but MISSING instance or apikey in DB. Using defaults.`);
         }
       } else {
-        // No explicit target, determine from user
-        if (!isMasterUser && user?.company_id) {
-          resolvedCompanyId = user.company_id;
-        } else if (isMasterUser) {
-          // Master user default (Integrai), unless...
-          // Check if there is a 'companyId' in the query string at the controller level? 
-          // We moved that logic to 'targetCompanyId' arg.
-        }
+        console.warn(`[Evolution Config] Company ID ${resolvedCompanyId} NOT FOUND in database.`);
       }
-
-      if (resolvedCompanyId) {
-        const compRes = await pool.query('SELECT evolution_instance, evolution_apikey FROM companies WHERE id = $1', [resolvedCompanyId]);
-        if (compRes.rows.length > 0) {
-          const { evolution_instance, evolution_apikey } = compRes.rows[0];
-          if (evolution_instance && evolution_apikey) {
-            config.instance = evolution_instance;
-            config.apikey = evolution_apikey;
-          }
-        }
-      } else if (isMasterUser && !resolvedCompanyId) {
-        // Fallback for Master User (Integrai / Company 1 Key)
-        config.instance = "integrai";
-        const res = await pool.query('SELECT evolution_apikey FROM companies WHERE id = 1 LIMIT 1');
-        if (res.rows.length > 0 && res.rows[0].evolution_apikey) {
-          config.apikey = res.rows[0].evolution_apikey;
-        }
-      }
-    } catch (e: any) {
-      if (e.message && (e.message.includes('ENETUNREACH') || e.code === 'ENETUNREACH' || e.message === 'DB_TIMEOUT')) {
-        console.warn("[Evolution] Database unreachable or timed out. Falling back to default ENV config.");
-      } else {
-        console.error("Error fetching company evolution config:", e.message);
+    } else if (isMasterUser) {
+      // Superadmin without company context: fallback to Integrai (usually ID 1)
+      const masterRes = await pool.query('SELECT evolution_instance, evolution_apikey FROM companies WHERE id = 1 LIMIT 1');
+      if (masterRes.rows.length > 0) {
+        config.instance = masterRes.rows[0].evolution_instance || "integrai";
+        config.apikey = masterRes.rows[0].evolution_apikey || config.apikey;
+        config.company_id = 1;
+        console.log(`[Evolution Config] MASTER FALLBACK (ID:1) -> Instance: ${config.instance}`);
       }
     }
+
+  } catch (e: any) {
+    console.error("[Evolution Config Erro]:", e.message);
   }
 
-  console.log(`[Evolution Debug] Config resolved: Instance=${config.instance}, URL=${config.url}, Key (last 4 chars)=${config.apikey?.slice(-4)}`);
+  // Final validation log (masking key)
+  const maskedKey = config.apikey ? `***${config.apikey.slice(-4)}` : 'MISSING';
+  console.log(`[Evolution Debug] [Source: ${source}] Final Config: Instance=${config.instance}, Key=${maskedKey}, CompanyId=${config.company_id}`);
+
   return config;
 };
 
@@ -297,8 +285,8 @@ export const getEvolutionConnectionState = async (req: Request, res: Response) =
 };
 
 export const sendEvolutionMessage = async (req: Request, res: Response) => {
-  // ... existing sendEvolutionMessage code ...
-  const config = await getEvolutionConfig((req as any).user, 'sendMessage');
+  const { companyId } = req.body;
+  const config = await getEvolutionConfig((req as any).user, 'sendMessage', companyId);
   const EVOLUTION_API_URL = config.url;
   const EVOLUTION_API_KEY = config.apikey;
   const EVOLUTION_INSTANCE = config.instance;
@@ -369,12 +357,12 @@ export const sendEvolutionMessage = async (req: Request, res: Response) => {
         let conversationId: number;
 
         const user = (req as any).user;
-        const companyId = user?.company_id;
+        const resolvedCompanyId = config.company_id;
 
-        // CHECK INSTANCE
+        // CHECK INSTANCE AND COMPANY isolation
         const checkConv = await pool.query(
-          'SELECT id, status, user_id FROM whatsapp_conversations WHERE external_id = $1 AND instance = $2',
-          [remoteJid, EVOLUTION_INSTANCE]
+          'SELECT id, status, user_id FROM whatsapp_conversations WHERE external_id = $1 AND instance = $2 AND company_id = $3',
+          [remoteJid, EVOLUTION_INSTANCE, resolvedCompanyId]
         );
 
         if (checkConv.rows.length > 0) {
@@ -384,14 +372,14 @@ export const sendEvolutionMessage = async (req: Request, res: Response) => {
             `UPDATE whatsapp_conversations 
              SET last_message = $1, last_message_at = NOW(), status = 'OPEN', user_id = COALESCE(user_id, $2), company_id = COALESCE(company_id, $3)
              WHERE id = $4`,
-            [messageContent, user.id, companyId, conversationId]
+            [messageContent, user.id, resolvedCompanyId, conversationId]
           );
         } else {
           // Create new conversation as OPEN and assigned to the sender
           const newConv = await pool.query(
             `INSERT INTO whatsapp_conversations (external_id, phone, contact_name, instance, status, user_id, last_message, last_message_at, company_id) 
              VALUES ($1, $2, $3, $4, 'OPEN', $5, $6, NOW(), $7) RETURNING id`,
-            [remoteJid, safePhone, safePhone, EVOLUTION_INSTANCE, user.id, messageContent, companyId]
+            [remoteJid, safePhone, safePhone, EVOLUTION_INSTANCE, user.id, messageContent, resolvedCompanyId]
           );
           conversationId = newConv.rows[0].id;
         }
@@ -446,7 +434,8 @@ export const sendEvolutionMessage = async (req: Request, res: Response) => {
 };
 
 export const sendEvolutionMedia = async (req: Request, res: Response) => {
-  const config = await getEvolutionConfig((req as any).user, 'sendMedia');
+  const { companyId } = req.body;
+  const config = await getEvolutionConfig((req as any).user, 'sendMedia', companyId);
   const EVOLUTION_API_URL = config.url;
   const EVOLUTION_API_KEY = config.apikey;
   const EVOLUTION_INSTANCE = config.instance;
@@ -504,7 +493,7 @@ export const sendEvolutionMedia = async (req: Request, res: Response) => {
     if (pool) {
       try {
         const user = (req as any).user;
-        const companyId = user?.company_id;
+        const resolvedCompanyId = config.company_id;
         const safePhone = phone || "";
         const remoteJid = safePhone.includes('@') ? safePhone : `${safePhone}@s.whatsapp.net`;
         const content = caption || `[${mediaType}]`;
@@ -512,20 +501,20 @@ export const sendEvolutionMedia = async (req: Request, res: Response) => {
         // Find or create conversation
         let conversationId: number;
         const checkConv = await pool.query(
-          'SELECT id FROM whatsapp_conversations WHERE external_id = $1 AND instance = $2',
-          [remoteJid, EVOLUTION_INSTANCE]
+          'SELECT id FROM whatsapp_conversations WHERE external_id = $1 AND instance = $2 AND company_id = $3',
+          [remoteJid, EVOLUTION_INSTANCE, resolvedCompanyId]
         );
 
         if (checkConv.rows.length > 0) {
           conversationId = checkConv.rows[0].id;
           await pool.query(
             `UPDATE whatsapp_conversations SET last_message = $1, last_message_at = NOW(), status = 'OPEN', user_id = COALESCE(user_id, $2), company_id = COALESCE(company_id, $3) WHERE id = $4`,
-            [content, user.id, companyId, conversationId]
+            [content, user.id, resolvedCompanyId, conversationId]
           );
         } else {
           const newConv = await pool.query(
             `INSERT INTO whatsapp_conversations (external_id, phone, contact_name, instance, status, user_id, last_message, last_message_at, company_id) VALUES ($1, $2, $3, $4, 'OPEN', $5, $6, NOW(), $7) RETURNING id`,
-            [remoteJid, safePhone, safePhone, EVOLUTION_INSTANCE, user.id, content, companyId]
+            [remoteJid, safePhone, safePhone, EVOLUTION_INSTANCE, user.id, content, resolvedCompanyId]
           );
           conversationId = newConv.rows[0].id;
         }
@@ -555,8 +544,8 @@ export const sendEvolutionMedia = async (req: Request, res: Response) => {
         };
 
         const io = req.app.get('io');
-        if (io && companyId) {
-          const room = `company_${companyId}`;
+        if (io && resolvedCompanyId) {
+          const room = `company_${resolvedCompanyId}`;
           io.to(room).emit('message:received', resultPayload);
         }
 
@@ -576,21 +565,22 @@ export const sendEvolutionMedia = async (req: Request, res: Response) => {
 };
 
 export const getEvolutionContacts = async (req: Request, res: Response) => {
-  const config = await getEvolutionConfig((req as any).user, 'getContacts');
+  const targetCompanyId = req.query.companyId as string;
+  const config = await getEvolutionConfig((req as any).user, 'getContacts', targetCompanyId);
   const EVOLUTION_INSTANCE = config.instance;
   const user = (req as any).user;
   const companyId = user?.company_id;
 
   // Retrieve local contacts first
   try {
-    console.log(`[Evolution] Fetching local contacts for instance: ${EVOLUTION_INSTANCE} (Company: ${companyId})`);
+    const resolvedCompanyId = config.company_id;
+    console.log(`[Evolution] Fetching local contacts for instance: ${EVOLUTION_INSTANCE} (Company: ${resolvedCompanyId})`);
 
-    let query = `SELECT *, split_part(jid, '@', 1) as phone FROM whatsapp_contacts WHERE instance = $1`;
-    const params = [EVOLUTION_INSTANCE];
+    let query = `SELECT *, split_part(jid, '@', 1) as phone FROM whatsapp_contacts WHERE (instance = $1 OR company_id = $2)`;
+    const params: any[] = [EVOLUTION_INSTANCE, resolvedCompanyId];
 
-    if (user.role !== 'SUPERADMIN' || companyId) {
-      query += ` AND (company_id = $2 OR company_id IS NULL)`;
-      params.push(companyId);
+    if (user.role !== 'SUPERADMIN' || resolvedCompanyId) {
+      query += ` AND company_id = $2`;
     }
 
     query += ` ORDER BY name ASC`;
@@ -605,163 +595,85 @@ export const getEvolutionContacts = async (req: Request, res: Response) => {
 };
 
 export const syncEvolutionContacts = async (req: Request, res: Response) => {
-  const config = await getEvolutionConfig((req as any).user, 'syncContacts');
-  const EVOLUTION_API_URL = config.url;
-  const EVOLUTION_API_KEY = config.apikey;
-  const EVOLUTION_INSTANCE = config.instance;
-
-  console.log(`[Evolution] Sync requested. Instance: ${EVOLUTION_INSTANCE}, URL present: ${!!EVOLUTION_API_URL}, Key present: ${!!EVOLUTION_API_KEY}`);
-
-  if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
-    console.error("[Evolution] Config missing during sync.");
-    return res.status(500).json({ error: "Evolution API not configured" });
-  }
-
+  const targetCompanyId = (req.query.companyId || req.body.companyId) as string;
   try {
-    // 1. Fetch from Evolution
-    // Try POST /chat/findContacts (common for V2 to sync/check DB)
-    let url = `${EVOLUTION_API_URL.replace(/\/$/, "")}/chat/findContacts/${EVOLUTION_INSTANCE}`;
-    console.log(`[Evolution] Syncing contacts from primary: ${url} (POST)`);
+    const config = await getEvolutionConfig((req as any).user, 'syncContacts', targetCompanyId);
+    const EVOLUTION_API_URL = config.url;
+    const EVOLUTION_API_KEY = config.apikey;
+    const EVOLUTION_INSTANCE = config.instance;
 
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+      return res.status(500).json({ error: "Evolution API not configured" });
+    }
+
+    // 1. Fetch from Evolution
+    let url = `${EVOLUTION_API_URL.replace(/\/$/, "")}/chat/findContacts/${EVOLUTION_INSTANCE}`;
     let response = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: EVOLUTION_API_KEY
-      },
+      headers: { "Content-Type": "application/json", apikey: EVOLUTION_API_KEY },
       body: JSON.stringify({})
     });
 
     if (!response.ok) {
-      console.warn(`[Evolution] POST /chat/findContacts failed (${response.status} - ${response.statusText}). Trying fallback /contact/find...`);
-
-      // Fallback: POST /contact/find (V1 or alternative)
       url = `${EVOLUTION_API_URL.replace(/\/$/, "")}/contact/find/${EVOLUTION_INSTANCE}`;
-      console.log(`[Evolution] Syncing contacts from fallback: ${url} (POST)`);
-
       response = await fetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: EVOLUTION_API_KEY
-        },
+        headers: { "Content-Type": "application/json", apikey: EVOLUTION_API_KEY },
         body: JSON.stringify({})
       });
     }
 
     if (!response.ok) {
-      if (response.status === 403) {
-        console.error(`[Evolution] Authentication failed (403). Check API Key.`);
-        return res.status(403).json({ error: "Evolution API Authentication Failed", details: "Check your API Key and URL." });
-      }
       const text = await response.text();
-      console.error(`[Evolution] Sync fallback failed: Status ${response.status}. Body: ${text}`);
-      return res.status(response.status).json({ error: "Failed to fetch from Evolution (both endpoints failed)", details: text });
+      return res.status(response.status).json({ error: "Failed to fetch from Evolution", details: text });
     }
 
     const rawData = await response.json();
+    let contactsList: any[] = Array.isArray(rawData) ? rawData : (rawData.data || rawData.contacts || rawData.results || []);
 
-    // Normalize data: sometimes it comes as array, sometimes { data: [...] }, sometimes { contacts: [...] }
-    let contactsList: any[] = [];
-    if (Array.isArray(rawData)) {
-      contactsList = rawData;
-    } else if (rawData && Array.isArray(rawData.data)) {
-      contactsList = rawData.data;
-    } else if (rawData && Array.isArray(rawData.contacts)) {
-      contactsList = rawData.contacts;
-    } else if (rawData && Array.isArray(rawData.results)) {
-      contactsList = rawData.results;
-    } else {
-      console.warn("[Evolution] Unexpected response format:", JSON.stringify(rawData).substring(0, 200) + "...");
-    }
-
-    console.log(`[Evolution] Fetched ${contactsList.length} contacts (from raw response type: ${Array.isArray(rawData) ? 'Array' : typeof rawData}). Saving to DB...`);
-
-    // 2. Upsert to Database
     if (pool && contactsList.length > 0) {
-      // CLEANUP: Remove previously saved contacts that are actually internal IDs (Cuids) or malformed
-      // We delete any JID that does NOT match strictly numeric format '12345@s.whatsapp.net'
-      try {
-        await pool.query(`
-              DELETE FROM whatsapp_contacts 
-              WHERE instance = $1 
-              AND jid !~ '^[0-9]+@s\\.whatsapp\\.net$'
-          `, [EVOLUTION_INSTANCE]);
-        console.log(`[Evolution] Cleaned up invalid contacts (non-numeric JIDs) for instance ${EVOLUTION_INSTANCE}`);
-      } catch (cleanErr) {
-        console.error("[Evolution] Cleanup error:", cleanErr);
-      }
+      // Cleanup invalid
+      await pool.query(`DELETE FROM whatsapp_contacts WHERE instance = $1 AND jid !~ '^[0-9]+@s\\.whatsapp\\.net$'`, [EVOLUTION_INSTANCE]);
 
-      let savedCount = 0;
-      if (contactsList.length > 0) {
-        // console.log("[Evolution Debug] First raw contact from API:", JSON.stringify(contactsList[0], null, 2));
-      }
+      const user = (req as any).user;
+      const companyId = config.company_id || user?.company_id;
 
       for (const contact of contactsList) {
-        // Find a valid numeric phone number
         let candidate = null;
-
-        // Priority order: explicit number/phone field, then remoteJid, then id if numeric
         const potentialFields = [contact.number, contact.phone, contact.remoteJid, contact.id];
-
         for (const field of potentialFields) {
           if (typeof field === 'string' && field) {
-            // Remove suffix if present to check the number part
             const clean = field.split('@')[0];
-
-            // Strict check: must be digits only and reasonable length (10-15 chars)
-            // This excludes random IDs like 'cmjiwzyki0884p74lakndv85j'
             if (/^\d+$/.test(clean) && clean.length >= 7 && clean.length <= 16) {
               candidate = clean;
               break;
             }
           }
         }
+        if (!candidate) continue;
 
-        if (!candidate) {
-          // console.warn(`[Evolution Debug] Skipping contact, no valid phone found. ID: ${contact.id}`);
-          continue;
-        }
-
-        // Construct normalized JID
         const jid = `${candidate}@s.whatsapp.net`;
-
-        // Try to find the best name available
         const name = contact.name || contact.pushName || contact.notify || contact.verifiedName || candidate;
         const pushName = contact.pushName || contact.notify;
         const profilePicUser = contact.profilePictureUrl || contact.profilePicture;
 
-        try {
-          const user = (req as any).user;
-          const companyId = user?.company_id;
-
-          // Safe upsert
-          await pool.query(`
-                        INSERT INTO whatsapp_contacts (jid, name, push_name, profile_pic_url, instance, updated_at, company_id)
-                        VALUES ($1, $2, $3, $4, $5, NOW(), $6)
-                        ON CONFLICT (jid, instance) 
-                        DO UPDATE SET 
-                            name = EXCLUDED.name,
-                            push_name = EXCLUDED.push_name,
-                            profile_pic_url = EXCLUDED.profile_pic_url,
-                            updated_at = NOW(),
-                            company_id = COALESCE(whatsapp_contacts.company_id, EXCLUDED.company_id);
-                    `, [jid, name, pushName || null, profilePicUser || null, EVOLUTION_INSTANCE, companyId]);
-          savedCount++;
-        } catch (dbErr) {
-          console.error(`[Evolution] DB Save error for ${jid}:`, dbErr);
-        }
+        await pool.query(`
+          INSERT INTO whatsapp_contacts (jid, name, push_name, profile_pic_url, instance, updated_at, company_id)
+          VALUES ($1, $2, $3, $4, $5, NOW(), $6)
+          ON CONFLICT (jid, instance) 
+          DO UPDATE SET 
+            name = EXCLUDED.name,
+            push_name = EXCLUDED.push_name,
+            profile_pic_url = EXCLUDED.profile_pic_url,
+            updated_at = NOW(),
+            company_id = COALESCE(whatsapp_contacts.company_id, EXCLUDED.company_id);
+        `, [jid, name, pushName || null, profilePicUser || null, EVOLUTION_INSTANCE, companyId]);
       }
-      console.log(`[Evolution] Successfully saved/updated ${savedCount} valid contacts to DB.`);
-    } else {
-      if (!pool) console.error("[Evolution] Database pool is missing.");
-      else console.log("[Evolution] No contacts to save.");
     }
 
     // 3. Return updated local list
     const user = (req as any).user;
-    const companyId = user?.company_id;
-
+    const companyId = config.company_id || user?.company_id;
     let localQuery = `SELECT * FROM whatsapp_contacts WHERE instance = $1`;
     const localParams = [EVOLUTION_INSTANCE];
 
@@ -769,24 +681,20 @@ export const syncEvolutionContacts = async (req: Request, res: Response) => {
       localQuery += ` AND (company_id = $2 OR company_id IS NULL)`;
       localParams.push(companyId);
     }
-
     localQuery += ` ORDER BY name ASC`;
-
     const localContacts = await pool?.query(localQuery, localParams);
 
     return res.json(localContacts?.rows || []);
 
   } catch (error: any) {
     console.error("Error syncing contacts:", error);
-    return res.status(500).json({
-      error: "Sync failed",
-      details: (error as any).message || String(error)
-    });
+    return res.status(500).json({ error: "Sync failed", details: error.message });
   }
 };
 
 export const getEvolutionContactsLive = async (req: Request, res: Response) => {
-  const config = await getEvolutionConfig((req as any).user, 'getContactsLive');
+  const targetCompanyId = req.query.companyId as string;
+  const config = await getEvolutionConfig((req as any).user, 'getContactsLive', targetCompanyId);
   const EVOLUTION_API_URL = config.url;
   const EVOLUTION_API_KEY = config.apikey;
   const EVOLUTION_INSTANCE = config.instance;
@@ -858,46 +766,52 @@ export const getEvolutionContactsLive = async (req: Request, res: Response) => {
 };
 
 export const createEvolutionContact = async (req: Request, res: Response) => {
-  const config = await getEvolutionConfig((req as any).user, 'createContact');
-  const EVOLUTION_INSTANCE = config.instance;
-
-  const { name, phone } = req.body;
-
-  if (!name || !phone) {
-    return res.status(400).json({ error: "Name and Phone are required" });
-  }
-
-  // Validate phone format - remove non-digits
-  const cleanPhone = phone.replace(/\D/g, "");
-  if (!cleanPhone || cleanPhone.length < 10) {
-    return res.status(400).json({ error: "Invalid phone number" });
-  }
-
-  const jid = `${cleanPhone}@s.whatsapp.net`;
-
+  const { companyId: reqCompanyId } = req.body; // Renamed to avoid conflict with user?.company_id
   try {
-    if (!pool) return res.status(500).json({ error: "Database not configured" });
+    const config = await getEvolutionConfig((req as any).user, 'createContact', reqCompanyId);
+    const EVOLUTION_INSTANCE = config.instance;
 
-    const user = (req as any).user;
-    const companyId = user?.company_id;
+    const { name, phone } = req.body;
 
-    // Insert into DB
-    await pool.query(`
+    if (!name || !phone) {
+      return res.status(400).json({ error: "Name and Phone are required" });
+    }
+
+    // Validate phone format - remove non-digits
+    const cleanPhone = phone.replace(/\D/g, "");
+    if (!cleanPhone || cleanPhone.length < 10) {
+      return res.status(400).json({ error: "Invalid phone number" });
+    }
+
+    const jid = `${cleanPhone}@s.whatsapp.net`;
+
+    try {
+      if (!pool) return res.status(500).json({ error: "Database not configured" });
+
+      const user = (req as any).user;
+      const companyId = user?.company_id;
+
+      // Insert into DB
+      await pool.query(`
           INSERT INTO whatsapp_contacts (jid, name, instance, updated_at, company_id)
           VALUES ($1, $2, $3, NOW(), $4)
           ON CONFLICT (jid, instance) 
           DO UPDATE SET name = EXCLUDED.name, updated_at = NOW(), company_id = COALESCE(whatsapp_contacts.company_id, EXCLUDED.company_id)
       `, [jid, name, EVOLUTION_INSTANCE, companyId]);
 
-    return res.status(201).json({
-      id: jid,
-      name,
-      phone: cleanPhone,
-      jid
-    });
+      return res.status(201).json({
+        id: jid,
+        name,
+        phone: cleanPhone,
+        jid
+      });
 
+    } catch (error: any) {
+      console.error("Error creating contact inner:", error);
+      throw error;
+    }
   } catch (error: any) {
-    console.error("Error creating contact:", error);
+    console.error("Error creating contact outer:", error);
     return res.status(500).json({ error: "Failed to create contact" });
   }
 };
@@ -1213,14 +1127,17 @@ export const editEvolutionMessage = async (req: Request, res: Response) => {
 
 export const updateEvolutionContact = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { name } = req.body;
+  const { name, companyId } = req.body;
+  const user = (req as any).user;
 
   try {
     if (!pool) return res.status(500).json({ error: "DB not configured" });
 
+    const resolvedCompanyId = user.role === 'SUPERADMIN' ? companyId : user.company_id;
+
     await pool.query(
-      'UPDATE whatsapp_contacts SET name = $1 WHERE id = $2',
-      [name, id]
+      'UPDATE whatsapp_contacts SET name = $1 WHERE id = $2 AND company_id = $3',
+      [name, id, resolvedCompanyId]
     );
 
     return res.json({ status: "updated", id, name });
@@ -1233,11 +1150,15 @@ export const updateEvolutionContact = async (req: Request, res: Response) => {
 
 export const deleteEvolutionContact = async (req: Request, res: Response) => {
   const { id } = req.params;
+  const companyId = req.query.companyId as string;
+  const user = (req as any).user;
 
   try {
     if (!pool) return res.status(500).json({ error: "DB not configured" });
 
-    await pool.query('DELETE FROM whatsapp_contacts WHERE id = $1', [id]);
+    const resolvedCompanyId = user.role === 'SUPERADMIN' ? companyId : user.company_id;
+
+    await pool.query('DELETE FROM whatsapp_contacts WHERE id = $1 AND company_id = $2', [id, resolvedCompanyId]);
 
     return res.json({ status: "deleted", id });
   } catch (error) {
@@ -1319,8 +1240,9 @@ export const getEvolutionMedia = async (req: Request, res: Response) => {
 
 export const getEvolutionProfilePic = async (req: Request, res: Response) => {
   const { phone } = req.params;
+  const targetCompanyId = req.query.companyId as string;
   try {
-    const config = await getEvolutionConfig((req as any).user, 'getProfilePic');
+    const config = await getEvolutionConfig((req as any).user, 'getProfilePic', targetCompanyId);
     const EVOLUTION_API_URL = config.url;
     const EVOLUTION_API_KEY = config.apikey;
     const EVOLUTION_INSTANCE = config.instance;
@@ -1343,9 +1265,10 @@ export const getEvolutionProfilePic = async (req: Request, res: Response) => {
     if (picUrl && pool) {
       // Update DB cache for contacts and conversations (handles both people and groups)
       const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
+      const resolvedCompanyId = config.company_id;
       await Promise.all([
-        pool.query("UPDATE whatsapp_contacts SET profile_pic_url = $1 WHERE jid = $2 OR phone = $3", [picUrl, jid, phone]),
-        pool.query("UPDATE whatsapp_conversations SET profile_pic_url = $1 WHERE external_id = $2 OR phone = $3", [picUrl, jid, phone])
+        pool.query("UPDATE whatsapp_contacts SET profile_pic_url = $1 WHERE (jid = $2 OR phone = $3) AND company_id = $4", [picUrl, jid, phone, resolvedCompanyId]),
+        pool.query("UPDATE whatsapp_conversations SET profile_pic_url = $1 WHERE (external_id = $2 OR phone = $3) AND company_id = $4", [picUrl, jid, phone, resolvedCompanyId])
       ]);
     }
 
@@ -1632,6 +1555,7 @@ export const setEvolutionWebhook = async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Erro interno ao configurar webhook.", details: error.message });
   }
 };
+// (Function moved or deleted to avoid duplication)
 export const deleteMessage = async (req: Request, res: Response) => {
   const config = await getEvolutionConfig((req as any).user, 'deleteMessage');
   const EVOLUTION_API_URL = config.url;
