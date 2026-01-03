@@ -312,7 +312,7 @@ const AtendimentoPage = () => {
     }
 
     // Priority 3: Phone number (formatted)
-    return formatBrazilianPhone(conv.phone);
+    return conv.phone?.replace(/\D/g, "") || "";
   }, [contactMap]);
 
   const handleRefreshMetadata = async () => {
@@ -1133,7 +1133,7 @@ const AtendimentoPage = () => {
   };
 
   const handlePhoneChange = (value: string) => {
-    setNewContactPhone(formatBrazilianPhone(value));
+    setNewContactPhone(value.replace(/\D/g, ""));
     if (phoneError) setPhoneError(null);
   };
   const handleStartConversationFromContact = (contact: Contact) => {
@@ -1617,7 +1617,6 @@ const AtendimentoPage = () => {
       key={conv.id}
       onClick={() => {
         setSelectedConversation(conv);
-        // Instant local reset for better UX
         setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c));
       }}
       className={cn(
@@ -1648,9 +1647,11 @@ const AtendimentoPage = () => {
               )}>
                 {getDisplayName(conv)}
               </span>
-              <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal truncate">
-                {conv.phone?.replace(/\D/g, "")}
-              </span>
+              {getDisplayName(conv) !== conv.phone?.replace(/\D/g, "") && (
+                <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal truncate">
+                  {conv.phone?.replace(/\D/g, "")}
+                </span>
+              )}
             </div>
             <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap opacity-80 pt-1">
               {conv.last_message_at ? formatTime(conv.last_message_at) : ""}
@@ -1675,19 +1676,14 @@ const AtendimentoPage = () => {
               </div>
             ) : null}
           </div>
-
-
-
         </div>
       </div>
 
-      {/* Action Buttons on Hover or if Selected */}
       {!conv.is_group && (
-        <div className={
-          cn(
-            "flex items-center gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end",
-            selectedConversation?.id === conv.id && "opacity-100"
-          )}>
+        <div className={cn(
+          "flex items-center gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end",
+          selectedConversation?.id === conv.id && "opacity-100"
+        )}>
           {(conv.status === 'PENDING' || !conv.status) && (
             <div className="flex gap-1">
               <Button
@@ -1697,35 +1693,45 @@ const AtendimentoPage = () => {
                 onClick={(e) => { e.stopPropagation(); handleStartAtendimento(conv); }}
                 title="Iniciar Atendimento"
               >
-                <Play className="h-3 w-3 fill-current" /> INICIAR
+                <Play className="h-3 w-3" /> Iniciar
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-7 px-2 text-[10px] gap-1 text-red-500 hover:bg-red-50 font-bold"
-                onClick={(e) => { e.stopPropagation(); handleCloseAtendimento(conv); }}
-                title="Fechar Conversa"
+                className="h-7 w-7 p-0 text-red-500 hover:bg-red-50 hover:text-red-600"
+                onClick={(e) => { e.stopPropagation(); handleDeleteConversation(conv.id); }}
+                title="Excluir"
               >
-                <XCircle className="h-3 w-3" /> FECHAR
+                <Trash2 className="h-3 w-3" />
               </Button>
             </div>
           )}
-          {
-            conv.status === 'OPEN' && (
-              <div className="flex gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-2 text-[10px] gap-1 text-red-500 hover:bg-red-50 font-bold"
-                  onClick={(e) => { e.stopPropagation(); handleCloseAtendimento(conv); }}
-                  title="Encerrar Atendimento"
-                >
-                  <CheckCircle2 className="h-3 w-3" /> ENCERRAR
-                </Button>
-              </div>
-            )
-          }
-          {/* In Closed mode, no actions shown as per spec 2.3 */}
+          {conv.status === 'OPEN' && (
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-[10px] gap-1 text-zinc-600 hover:bg-zinc-100"
+                onClick={(e) => { e.stopPropagation(); handleCloseAtendimento(conv.id); }}
+                title="Encerrar"
+              >
+                <CheckCircle2 className="h-3 w-3" /> Encerrar
+              </Button>
+            </div>
+          )}
+          {conv.status === 'CLOSED' && (
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-[10px] gap-1 text-blue-600 hover:bg-blue-50"
+                onClick={(e) => { e.stopPropagation(); handleReopenAtendimento(conv.id); }}
+                title="Reabrir"
+              >
+                <RotateCcw className="h-3 w-3" /> Reabrir
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>
