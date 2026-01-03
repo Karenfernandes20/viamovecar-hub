@@ -159,8 +159,8 @@ const GruposPage = () => {
 
         const groupsToRefresh = groups.filter(g => {
             const name = g.group_name || g.contact_name;
-            // Check for "Grupo " followed by numbers (generic default)
-            return name && /^Grupo \d+/.test(name);
+            // Refresh if name is missing, generic "Grupo", matches phone, or matches generic pattern
+            return !name || name === 'Grupo' || name === g.phone || /^Grupo \d+/.test(name) || /@g\.us$/.test(name);
         });
 
         if (groupsToRefresh.length === 0) return;

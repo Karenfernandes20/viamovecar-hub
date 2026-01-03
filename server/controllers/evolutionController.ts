@@ -1435,8 +1435,12 @@ export const refreshConversationMetadata = async (req: Request, res: Response) =
     let updatedPic = conv.profile_pic_url;
 
     if (conv.is_group) {
-      console.log(`[Refresh] Fetching Group Info for ${remoteJid}`);
-      const groupUrl = `${EVOLUTION_API_URL.replace(/\/$/, "")}/group/findGroup/${EVOLUTION_INSTANCE}?groupJid=${remoteJid}`;
+      let groupJid = remoteJid;
+      if (groupJid && !groupJid.includes('@')) {
+        groupJid = `${groupJid}@g.us`;
+      }
+      console.log(`[Refresh] Fetching Group Info for ${groupJid}`);
+      const groupUrl = `${EVOLUTION_API_URL.replace(/\/$/, "")}/group/findGroup/${EVOLUTION_INSTANCE}?groupJid=${groupJid}`;
       const gRes = await fetch(groupUrl, {
         method: "GET",
         headers: { "Content-Type": "application/json", "apikey": EVOLUTION_API_KEY || "" }
