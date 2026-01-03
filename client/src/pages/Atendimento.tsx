@@ -1992,17 +1992,27 @@ const AtendimentoPage = () => {
                       <Avatar className="h-10 w-10 shrink-0">
                         <AvatarImage src={contact.profile_pic_url} />
                         <AvatarFallback className="bg-gray-200 text-gray-500">
-                          {(contact.name?.[0] || "?").toUpperCase()}
+                          {((contact.push_name || contact.name)?.[0] || "?").toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
 
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-[15px] text-zinc-900 dark:text-zinc-100 whitespace-nowrap overflow-hidden text-ellipsis" title={contact.name}>
-                          {contact.name}
+                        <div className="font-medium text-[15px] text-zinc-900 dark:text-zinc-100 whitespace-nowrap overflow-hidden text-ellipsis" title={contact.push_name || contact.name || "Sem nome"}>
+                          {contact.push_name || contact.name || "Sem nome"}
                         </div>
                         <div className="text-[13px] text-zinc-500 font-normal whitespace-nowrap">
                           {(() => {
-                            const raw = contact.phone?.replace(/\D/g, "") || "";
+                            // Priority order: number > phone > remoteJid > id (removing @s.whatsapp.net)
+                            const phoneNumber =
+                              (contact as any).number ||
+                              contact.phone ||
+                              (contact as any).remoteJid?.replace('@s.whatsapp.net', '') ||
+                              (contact as any).id?.toString().replace('@s.whatsapp.net', '');
+
+                            if (!phoneNumber) return "Sem telefone";
+
+                            const raw = phoneNumber.replace(/\D/g, "");
+                            // Add 55 prefix if it looks like a BR number without country code
                             return (raw.length >= 10 && raw.length <= 11) ? `55${raw}` : raw;
                           })()}
                         </div>
