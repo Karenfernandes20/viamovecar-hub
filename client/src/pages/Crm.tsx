@@ -94,11 +94,12 @@ const pastelOptions = [
 ];
 
 // Componente Sortable Item (Card)
-function SortableLeadCard({ lead, onEdit, onChat, onFollowUp }: {
+function SortableLeadCard({ lead, onEdit, onChat, onFollowUp, onRemove }: {
   lead: Lead;
   onEdit: (l: Lead) => void;
   onChat: (l: Lead) => void;
   onFollowUp: (l: Lead) => void;
+  onRemove: (l: Lead) => void;
 }) {
   const {
     attributes,
@@ -192,6 +193,19 @@ function SortableLeadCard({ lead, onEdit, onChat, onFollowUp }: {
           >
             <Pencil className="h-3.5 w-3.5" />
           </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6 hover:bg-red-500/10 hover:text-red-500"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove(lead);
+            }}
+            title="Remover (volta para Leads)"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
         </div>
       </div>
 
@@ -262,6 +276,12 @@ const CrmPage = () => {
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
   const [followUpInitialData, setFollowUpInitialData] = useState<any>(null);
 
+  // Add Lead State
+  const [isAddLeadDialogOpen, setIsAddLeadDialogOpen] = useState(false);
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [contactSearchTerm, setContactSearchTerm] = useState("");
+  const [isLoadingContacts, setIsLoadingContacts] = useState(false);
+
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 10000);
@@ -316,6 +336,96 @@ const CrmPage = () => {
       origin: "CRM"
     });
     setIsFollowUpModalOpen(true);
+  };
+
+  const handleRemoveLead = async (lead: Lead) => {
+    if (!confirm(`Remover "${lead.name}" do funil? O lead voltará para a fase "Leads".`)) return;
+
+    // Find the "Leads" stage
+    const leadsStage = stages.find(s => s.name.toUpperCase() === 'LEADS');
+    if (!leadsStage) {
+      alert('Fase "Leads" não encontrada');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/crm/leads/${lead.id}/move`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ stageId: leadsStage.id }),
+      });
+
+      if (res.ok) {
+        setLeads(prev => prev.map(l =>
+          l.id === lead.id ? { ...l, stage_id: leadsStage.id, columnId: leadsStage.id.toString() } : l
+        ));
+      } else {
+        alert('Erro ao mover lead');
+      }
+    } catch (error) {
+      console.error('Erro ao remover lead', error);
+      alert('Erro ao conectar com servidor');
+    }
+  };
+
+  const fetchContacts = async () => {
+    setIsLoadingContacts(true);
+    try {
+      const res = await fetch('/api/crm/contacts', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setContacts(data);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar contatos', error);
+    } finally {
+      setIsLoadingContacts(false);
+    }
+  };
+
+  const handleAddLeadFromContact = async (contact: any) => {
+    // Find the "Leads" stage
+    const leadsStage = stages.find(s => s.name.toUpperCase() === 'LEADS');
+    if (!leadsStage) {
+      alert('Fase "Leads" não encontrada');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/crm/leads', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: contact.name || contact.push_name,
+          phone: contact.phone,
+          stage_id: leadsStage.id
+        })
+      });
+
+      if (res.ok) {
+        const newLead = await res.json();
+        setLeads(prev => [...prev, {
+          ...newLead,
+          id: newLead.id.toString(),
+          columnId: leadsStage.id.toString()
+        }]);
+        setIsAddLeadDialogOpen(false);
+        setContactSearchTerm('');
+      } else {
+        alert('Erro ao adicionar lead');
+      }
+    } catch (error) {
+      console.error('Erro ao adicionar lead', error);
+      alert('Erro ao conectar com servidor');
+    }
   };
 
   const saveLeadDetails = async () => {
@@ -521,6 +631,17 @@ const CrmPage = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2 shadow-sm shrink-0"
+            onClick={() => {
+              fetchContacts();
+              setIsAddLeadDialogOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" /> Adicionar Lead
+          </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="bg-[#008069] hover:bg-[#006654] gap-2 shadow-sm shrink-0">
@@ -613,7 +734,7 @@ const CrmPage = () => {
                     <SortableContext id={column.id.toString()} items={leadsByStage(column.id).map((l) => l.id)} strategy={verticalListSortingStrategy}>
                       <div className="flex flex-col gap-2 min-h-[150px]">
                         {leadsByStage(column.id).map((lead) => (
-                          <SortableLeadCard key={lead.id} lead={lead} onEdit={handleEditLead} onChat={handleChatLead} onFollowUp={handleFollowUpLead} />
+                          <SortableLeadCard key={lead.id} lead={lead} onEdit={handleEditLead} onChat={handleChatLead} onFollowUp={handleFollowUpLead} onRemove={handleRemoveLead} />
                         ))}
                       </div>
                     </SortableContext>
@@ -697,6 +818,71 @@ const CrmPage = () => {
         onClose={() => setIsFollowUpModalOpen(false)}
         initialData={followUpInitialData}
       />
+
+      {/* Add Lead Dialog */}
+      <Dialog open={isAddLeadDialogOpen} onOpenChange={setIsAddLeadDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Adicionar Lead do Contato</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Buscar Contato</Label>
+              <Input
+                placeholder="Digite o nome ou telefone..."
+                value={contactSearchTerm}
+                onChange={(e) => setContactSearchTerm(e.target.value)}
+              />
+            </div>
+
+            <div className="max-h-[400px] overflow-y-auto border rounded-lg">
+              {isLoadingContacts ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  Carregando contatos...
+                </div>
+              ) : contacts.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  Nenhum contato encontrado. Vá para a aba "Contatos" para adicionar.
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {contacts
+                    .filter(c => {
+                      const search = contactSearchTerm.toLowerCase();
+                      return !search ||
+                        (c.name && c.name.toLowerCase().includes(search)) ||
+                        (c.push_name && c.push_name.toLowerCase().includes(search)) ||
+                        (c.phone && c.phone.includes(search));
+                    })
+                    .map(contact => (
+                      <div
+                        key={contact.id}
+                        className="p-3 hover:bg-slate-50 cursor-pointer transition-colors flex items-center justify-between"
+                        onClick={() => handleAddLeadFromContact(contact)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-semibold">
+                            {(contact.name || contact.push_name || contact.phone)?.[0]?.toUpperCase() || '?'}
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">{contact.name || contact.push_name || 'Sem nome'}</p>
+                            <p className="text-xs text-muted-foreground">{contact.phone}</p>
+                          </div>
+                        </div>
+                        <Button size="sm" variant="ghost">
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsAddLeadDialogOpen(false)}>Cancelar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
