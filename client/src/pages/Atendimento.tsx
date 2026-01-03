@@ -525,39 +525,48 @@ const AtendimentoPage = () => {
   // Check scroll position on user scroll (Required for "Don't pull me down if I'm up" rule)
 
 
-  // Scroll Logic mimic - IMPROVED for reliability
-  // using useLayoutEffect ensures we scroll AFTER the DOM has updated with new messages
-  useLayoutEffect(() => {
-    if (isNearBottomRef.current && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, selectedConversation?.id]);
+  // Scroll Logic - Consolidated & Robust
 
-  const scrollToBottom = () => {
-    isNearBottomRef.current = true;
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  };
-
-  // Check scroll position on user scroll (Required for "Don't pull me down if I'm up" rule)
+  // 1. Check if user is near bottom
   const handleScroll = () => {
     if (!scrollRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    // Slightly larger buffer to catch "near" bottom
-    isNearBottomRef.current = distanceFromBottom < 150;
+    // Buffer for "stickiness"
+    isNearBottomRef.current = distanceFromBottom < 100;
   };
 
-  // 1. Initial Scroll on Conversation Change
-  useEffect(() => {
-    // Always reset to bottom when opening a chat
-    isNearBottomRef.current = true;
-    // Force generic scroll just in case
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [selectedConversation?.id]);
+  const scrollToBottom = (behavior: 'auto' | 'smooth' = 'auto') => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: behavior
+      });
+    }
+  };
 
-  // NOTE: Deleted the useEffect([messages]) to rely on imperative calls in fetch/socket like Grupos.tsx
+  // 2. Main Scroll Effect - Handles New Messages & Conversation Changes
+  useLayoutEffect(() => {
+    if (!scrollRef.current) return;
+
+    // Scenario A: Conversation just opened (or changed)
+    // We detect this by checking if we have messages. 
+    // We FORCE scroll to bottom to ensure "Start at bottom".
+    // We can use a ref to track the last conversation ID to detect change if needed, 
+    // but relying on isNearBottomRef reset on header click is safer.
+
+    // If we are "near bottom" (which we force to true on load), scroll down.
+    if (isNearBottomRef.current) {
+      scrollToBottom('auto'); // Always instant to prevent "scrolling down" visual
+    }
+
+  }, [messages, selectedConversation?.id]);
+
+  // 3. Reset "Stickiness" when opening a new chat
+  useLayoutEffect(() => {
+    isNearBottomRef.current = true;
+    scrollToBottom('auto');
+  }, [selectedConversation?.id]);
 
   // Socket.io Integration
   useEffect(() => {
