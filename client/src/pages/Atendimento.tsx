@@ -134,6 +134,7 @@ const AtendimentoPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isNearBottomRef = useRef(true);
   const isInitialLoadRef = useRef(true);
+  const lastProcessedPhoneRef = useRef<string | null>(null);
 
   // New states for contact import
   const [importedContacts, setImportedContacts] = useState<Contact[]>([]);
@@ -389,85 +390,57 @@ const AtendimentoPage = () => {
 
   // Handle Query Params AND Persistence for Auto-Selection
   useEffect(() => {
-    // We allow processing params even if loading hasn't finished to show something fast.
-    // if (isLoadingConversations && conversations.length === 0) return;
-
     const phoneParam = searchParams.get('phone');
     const nameParam = searchParams.get('name');
 
-    if (phoneParam) {
-      console.log(`[Atendimento] URL Param detected: phone=${phoneParam}, name=${nameParam}`);
+    if (!phoneParam) {
+      // If param is gone, reset the ref so we can process it again if it returns
+      lastProcessedPhoneRef.current = null;
+      return;
     }
 
-    // Priority: 1. URL Param, 2. LocalStorage Persistence
-    let targetPhone = phoneParam;
-    let targetName = nameParam;
+    // If we already processed this specific phone from the URL, don't do it again
+    // This prevents the URL from overriding manual clicks.
+    if (phoneParam === lastProcessedPhoneRef.current) return;
 
-    if (!targetPhone) {
-      // Try persistence - DISABLED BY USER REQUEST to prevent auto-opening
-      // const storedPhone = localStorage.getItem('last_active_phone');
-      // if (storedPhone) {
-      //   targetPhone = storedPhone;
-      // }
-    }
+    console.log(`[Atendimento] New URL Param detected: phone=${phoneParam}`);
+    lastProcessedPhoneRef.current = phoneParam;
 
-    if (targetPhone) {
-      // Check if already selected
-      if (selectedConversation?.phone === targetPhone) {
-        // Clean params if needed
-        if (phoneParam) {
-          setSearchParams(prev => {
-            const newParams = new URLSearchParams(prev);
-            newParams.delete('phone');
-            newParams.delete('name');
-            return newParams;
-          }, { replace: true });
-        }
-        return;
+    const targetClean = normalizePhoneForMatch(phoneParam);
+    const existing = conversations.find(c => normalizePhoneForMatch(c.phone) === targetClean || c.phone === phoneParam);
+
+    if (existing) {
+      console.log(`[Atendimento] Auto-selecting existing conversation: ${existing.phone}`);
+      setSelectedConversation(existing);
+      if (existing.status !== 'OPEN') {
+        handleStartAtendimento(existing);
       }
-
-      // Find existing in conversations
-      // Robust matching: strip non-numeric and match (unless it looks like a JID)
-      const targetClean = normalizePhoneForMatch(targetPhone);
-      const existing = conversations.find(c => normalizePhoneForMatch(c.phone) === targetClean || c.phone === targetPhone);
-
-      if (existing) {
-        setSelectedConversation(existing);
-        // Force status to OPEN if it's not already, assigning it to the user
-        if (existing.status !== 'OPEN') {
-          handleStartAtendimento(existing);
-        }
-        setViewMode('OPEN');
-      } else {
-        // Not found in conversations. 
-        // If we came from "Contatos", we have a nameParam. 
-        // If we came from persistence, we might not have a name, so we try to find it in importedContacts or contacts
-
-        if (!targetName) {
-          const foundContact = [...importedContacts, ...contacts].find(c => normalizePhoneForMatch(c.phone) === targetClean);
-          if (foundContact) targetName = foundContact.name;
-        }
-
-        // Create temp conversation
-        const newConv: Conversation = {
-          id: 'temp-' + Date.now(),
-          phone: targetPhone,
-          contact_name: targetName || targetPhone,
-          last_message: "",
-          last_message_at: new Date().toISOString(),
-          status: 'OPEN', // Make it visible in OPEN tab
-          user_id: user?.id ? Number(user.id) : undefined
-        };
-
-        // Switch to OPEN tab to ensure it's visible
-        setViewMode('OPEN');
-        setConversations(prev => [newConv, ...prev]);
-        setSelectedConversation(newConv);
-      }
-
-      // Clear params to keep URL clean
+      setViewMode('OPEN');
+    } else {
+      console.log(`[Atendimento] Creating temp conversation for URL param: ${phoneParam}`);
+      const newConv: Conversation = {
+        id: 'temp-' + Date.now(),
+        phone: phoneParam,
+        contact_name: nameParam || phoneParam,
+        last_message: "",
+        last_message_at: new Date().toISOString(),
+        status: 'OPEN',
+        user_id: user?.id ? Number(user.id) : undefined
+      };
+      setViewMode('OPEN');
+      setConversations(prev => [newConv, ...prev]);
+      setSelectedConversation(newConv);
     }
-  }, [searchParams, conversations, isLoadingConversations, importedContacts, contacts, setSearchParams, selectedConversation, viewMode, user?.id]);
+
+    // ALWAYS clean params after processing to keep the URL clean and avoid loops
+    setSearchParams(prev => {
+      const newParams = new URLSearchParams(prev);
+      newParams.delete('phone');
+      newParams.delete('name');
+      return newParams;
+    }, { replace: true });
+
+  }, [searchParams, conversations, isLoadingConversations, importedContacts, contacts, setSearchParams, user?.id]);
 
   // AUTO-REFRESH GROUP METADATA (Similar to Grupos.tsx)
   useEffect(() => {
@@ -948,27 +921,32 @@ const AtendimentoPage = () => {
     }
   };
 
-  // Filtering logic
+  const allContacts = useMemo(() => {
+    const map = new Map<string, Contact>();
+    contacts.forEach(c => {
+      const key = normalizePhoneForMatch(c.phone);
+      if (key) map.set(key, c);
+    });
+    importedContacts.forEach(c => {
+      const key = normalizePhoneForMatch(c.phone);
+      if (key) map.set(key, c);
+    });
+    return Array.from(map.values());
+  }, [importedContacts, contacts]);
+
   useEffect(() => {
-    // If we have imported (synced) contacts, use them.
-    // Otherwise fallback to 'contacts' (manual list).
-    // Ideally we merge them or just use one source of truth.
-    // For now, let's prefer importedContacts if available.
-
-    const listToFilter = importedContacts.length > 0 ? importedContacts : contacts;
-
     if (!contactSearchTerm) {
-      setFilteredContacts(listToFilter);
+      setFilteredContacts(allContacts);
       return;
     }
 
     const term = contactSearchTerm.toLowerCase();
-    const filtered = listToFilter.filter(c =>
+    const filtered = allContacts.filter(c =>
       (c.name && c.name.toLowerCase().includes(term)) ||
       (c.phone && c.phone.includes(term))
     );
     setFilteredContacts(filtered);
-  }, [contactSearchTerm, importedContacts, contacts]);
+  }, [contactSearchTerm, allContacts]);
 
 
   // Initial Fetch logic
@@ -1166,7 +1144,10 @@ const AtendimentoPage = () => {
     }
 
     // 1. Search in existing conversations first to avoid duplicates
-    const existing = conversations.find(c => normalizePhoneForMatch(c.phone) === targetClean);
+    // Robust search looking for both normalized and raw phone
+    const existing = conversations.find(c =>
+      normalizePhoneForMatch(c.phone) === targetClean || c.phone === contact.phone
+    );
 
     if (existing) {
       // If found, auto-open it if it's not already open
@@ -1554,14 +1535,20 @@ const AtendimentoPage = () => {
           c.id === conv.id ? { ...c, status: 'OPEN' as const, user_id: userId } : c
         ));
 
-        // Update selected conversation if it matches
-        if (selectedConversation?.id === conv.id) {
-          setSelectedConversation(prev => prev ? { ...prev, status: 'OPEN' as const, user_id: userId } : null);
-        } else if (conversation) {
-          // If we started a conversation from the list (not currently selected), select it?
-          // Usually good ux to select it.
-          setSelectedConversation({ ...conversation, status: 'OPEN', user_id: userId });
-        }
+        // Update selected conversation only if it's the one we're working on
+        setSelectedConversation(prev => {
+          if (!prev) return (conversation ? { ...conversation, status: 'OPEN', user_id: userId } : null);
+
+          // Only update/switch if it matches the ID we just started
+          if (prev.id === conv.id) {
+            return { ...prev, status: 'OPEN' as const, user_id: userId };
+          }
+
+          // If we explicitly passed a conversation to start and it's DIFFERENT from current selection,
+          // it means the user clicked something while we were fetching? 
+          // Usually, we should trust the current selection (prev) if it changed.
+          return prev;
+        });
 
         // Switch view to Open
         console.log('[handleStartAtendimento] Switching to OPEN view');
@@ -2012,7 +1999,7 @@ const AtendimentoPage = () => {
                   .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
                   .map((contact, idx) => (
                     <div
-                      key={contact.id || idx}
+                      key={contact.phone || contact.id}
                       className="flex items-center p-3 border-b border-gray-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors gap-3 group"
                     >
                       <Avatar className="h-10 w-10 shrink-0">
