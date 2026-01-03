@@ -50,7 +50,7 @@ import {
 import { io } from "socket.io-client";
 import { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
 import type { FormEvent } from "react";
-import { cn } from "../lib/utils";
+import { cn, formatBrazilianPhone } from "../lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -147,6 +147,7 @@ const AtendimentoPage = () => {
   const [whatsappStatus, setWhatsappStatus] = useState<"open" | "close" | "connecting" | "unknown">("unknown");
   const [apiError, setApiError] = useState<string | null>(null);
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
+  const [followUpInitialData, setFollowUpInitialData] = useState<any>(null);
 
   // Notification sound settings
   const [notificationVolume, setNotificationVolume] = useState<number>(() => {
@@ -2015,7 +2016,7 @@ const AtendimentoPage = () => {
                           {contact.name}
                         </div>
                         <div className="text-[13px] text-zinc-500 font-normal whitespace-nowrap">
-                          {contact.phone}
+                          {formatBrazilianPhone(contact.phone)}
                         </div>
                       </div>
 
