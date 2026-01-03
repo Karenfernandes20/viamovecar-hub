@@ -530,6 +530,7 @@ export const sendEvolutionMedia = async (req: Request, res: Response) => {
 
         const resultPayload = {
           ...data,
+          id: insertedMsg.rows[0]?.id, // Ensure frontend receives the Database ID as the primary ID
           databaseId: insertedMsg.rows[0]?.id,
           conversationId: conversationId,
           external_id: externalMessageId,
@@ -539,7 +540,7 @@ export const sendEvolutionMedia = async (req: Request, res: Response) => {
           user_id: user.id,
           agent_name: user.full_name,
           message_type: mediaType,
-          media_url: media.startsWith('http') ? media : null, // Only include if it was an URL
+          media_url: media.startsWith('http') ? media : null,
           phone: safePhone,
           remoteJid: remoteJid
         };
