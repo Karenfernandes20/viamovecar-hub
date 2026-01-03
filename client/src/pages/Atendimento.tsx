@@ -129,6 +129,7 @@ const AtendimentoPage = () => {
   const newContactFormRef = useRef<HTMLFormElement | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isNearBottomRef = useRef(true); // Default to true so it scrolls on first load
 
   // New states for contact import
   const [importedContacts, setImportedContacts] = useState<Contact[]>([]);
@@ -474,6 +475,38 @@ const AtendimentoPage = () => {
 
   // ... (Rest of the component)
 
+  // Scroll Logic mimicking WhatsApp Web
+  const scrollToBottom = (smooth = false) => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto'
+      });
+    }
+  };
+
+  // Check scroll position on user scroll
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    // Consider "near bottom" if within 100px of bottom
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    isNearBottomRef.current = distanceFromBottom < 100;
+  };
+
+  // 1. Force Scroll to bottom when opening a conversation
+  useEffect(() => {
+    isNearBottomRef.current = true; // Reset assumption
+    setTimeout(() => scrollToBottom(), 100); // Small delay to ensure render
+  }, [selectedConversation?.id]);
+
+  // 2. Auto-scroll on new messages ONLY if near bottom
+  useEffect(() => {
+    if (isNearBottomRef.current) {
+      setTimeout(() => scrollToBottom(true), 100);
+    }
+  }, [messages]);
+
   // Socket.io Integration
   useEffect(() => {
     // Force new connection
@@ -530,10 +563,10 @@ const AtendimentoPage = () => {
             return [...prev, newMessage];
           });
 
-          // Scroll to bottom
-          setTimeout(() => {
-            if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-          }, 100);
+          // Rely on useEffect([messages]) for scrolling now
+          if (newMessage.direction === 'outbound') {
+            isNearBottomRef.current = true;
+          }
         }
       }
 
@@ -2001,10 +2034,11 @@ const AtendimentoPage = () => {
             </div>
 
             {/* Chat Messages Area */}
-            <div className="relative z-10 flex-1 min-h-[400px] flex flex-col">
+            <div className="flex-1 flex flex-col min-h-0 relative">
               <div
                 ref={scrollRef}
-                className={cn("px-4 py-4 space-y-2 flex-1", messages.length === 0 && "flex flex-col items-center justify-center")}
+                onScroll={handleScroll}
+                className={cn("flex-1 overflow-y-auto px-4 py-4 space-y-2 custom-scrollbar", messages.length === 0 && "flex flex-col items-center justify-center")}
               >
                 {messages.length === 0 && (
                   <div className="flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-700">
