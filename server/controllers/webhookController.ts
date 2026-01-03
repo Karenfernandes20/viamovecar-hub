@@ -382,7 +382,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
                     company_id: companyId,
                     status: currentStatus,
                     sender_jid: insertedMsg.rows[0].sender_jid,
-                    sender_name: insertedMsg.rows[0].sender_name
+                    sender_name: insertedMsg.rows[0].sender_name,
+                    agent_name: (direction === 'outbound' && !insertedMsg.rows[0].user_id) ? 'Agente de IA' : null
                 };
                 console.log(`[Webhook] Emitting message to room ${room}`);
                 io.to(room).emit('message:received', payload);
@@ -636,6 +637,7 @@ export const getMessages = async (req: Request, res: Response) => {
                     CASE 
                         WHEN m.campaign_id IS NOT NULL THEN 'Campanha'
                         WHEN m.follow_up_id IS NOT NULL THEN 'Follow-Up'
+                        WHEN m.direction = 'outbound' AND m.user_id IS NULL THEN 'Agente de IA'
                         ELSE u.full_name 
                     END as agent_name 
              FROM whatsapp_messages m 
