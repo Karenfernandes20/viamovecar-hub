@@ -46,7 +46,7 @@ import {
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
 import { io } from "socket.io-client";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
 import type { FormEvent } from "react";
 import { cn } from "../lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
@@ -129,7 +129,8 @@ const AtendimentoPage = () => {
   const newContactFormRef = useRef<HTMLFormElement | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const isNearBottomRef = useRef(true); // Default to true so it scrolls on first load
+  const isNearBottomRef = useRef(true);
+  const isInitialLoadRef = useRef(true);
 
   // New states for contact import
   const [importedContacts, setImportedContacts] = useState<Contact[]>([]);
@@ -476,11 +477,11 @@ const AtendimentoPage = () => {
   // ... (Rest of the component)
 
   // Scroll Logic mimicking WhatsApp Web
-  const scrollToBottom = (smooth = false) => {
+  const scrollToBottom = (behavior: 'auto' | 'smooth' = 'auto') => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({
         top: scrollRef.current.scrollHeight,
-        behavior: smooth ? 'smooth' : 'auto'
+        behavior: behavior
       });
     }
   };
@@ -494,18 +495,28 @@ const AtendimentoPage = () => {
     isNearBottomRef.current = distanceFromBottom < 100;
   };
 
-  // 1. Force Scroll to bottom when opening a conversation
-  useEffect(() => {
-    isNearBottomRef.current = true; // Reset assumption
-    setTimeout(() => scrollToBottom(), 100); // Small delay to ensure render
+  // 1. Reset flags when switching conversation
+  useLayoutEffect(() => {
+    isNearBottomRef.current = true;
+    isInitialLoadRef.current = true;
   }, [selectedConversation?.id]);
 
-  // 2. Auto-scroll on new messages ONLY if near bottom
-  useEffect(() => {
-    if (isNearBottomRef.current) {
-      setTimeout(() => scrollToBottom(true), 100);
+  // 2. Handle scroll on messages update
+  useLayoutEffect(() => {
+    if (messages.length === 0) return;
+
+    // If it's the initial load of the conversation, jump immediately to bottom
+    if (isInitialLoadRef.current) {
+      scrollToBottom('auto');
+      isInitialLoadRef.current = false;
     }
-  }, [messages]);
+    // If user is near bottom, smooth scroll to show new message
+    else if (isNearBottomRef.current) {
+      scrollToBottom('smooth');
+    }
+    // If user is scrolled up, DO NOT SCROLL. User reads old messages.
+
+  }, [messages, selectedConversation?.id]);
 
   // Socket.io Integration
   useEffect(() => {
