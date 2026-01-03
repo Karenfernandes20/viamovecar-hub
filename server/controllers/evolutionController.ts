@@ -1684,3 +1684,46 @@ export const deleteMessage = async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Internal Server Error" });
   }
 };
+
+export const getEvolutionWebhook = async (req: Request, res: Response) => {
+  const targetCompanyId = req.query.companyId as string;
+  const config = await getEvolutionConfig((req as any).user, 'get_webhook', targetCompanyId);
+  const { url: EVOLUTION_API_URL, apikey: EVOLUTION_API_KEY, instance: EVOLUTION_INSTANCE } = config;
+
+  if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+    return res.status(500).json({ error: "Configuração da Evolution API ausente." });
+  }
+
+  try {
+    const url = `${EVOLUTION_API_URL.replace(/\/$/, "")}/webhook/find/${EVOLUTION_INSTANCE}`;
+    console.log(`[Webhook] Checking webhook for instance ${EVOLUTION_INSTANCE} at ${url}`);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: EVOLUTION_API_KEY
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Webhook] Failed to get webhook. Status: ${response.status}, Error: ${errorText}`);
+      return res.status(response.status).json({
+        error: "Falha ao buscar webhook",
+        details: errorText,
+        instance: EVOLUTION_INSTANCE
+      });
+    }
+
+    const data = await response.json();
+    return res.json({
+      instance: EVOLUTION_INSTANCE,
+      webhook: data
+    });
+
+  } catch (error: any) {
+    console.error("Error getting webhook:", error);
+    return res.status(500).json({ error: "Erro interno ao buscar webhook.", details: error.message });
+  }
+};
