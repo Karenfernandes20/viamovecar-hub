@@ -65,10 +65,12 @@ export function FollowUpModal({ isOpen, onClose, initialData }: FollowUpModalPro
         }
     };
 
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!selectedContact?.phone) {
+        const phone = selectedContact?.phone || initialData?.phone;
+        if (!phone) {
             toast.error("Selecione um contato");
             return;
         }
@@ -89,8 +91,8 @@ export function FollowUpModal({ isOpen, onClose, initialData }: FollowUpModalPro
                 },
                 body: JSON.stringify({
                     ...formData,
-                    phone: selectedContact.phone,
-                    contact_name: selectedContact.name || selectedContact.push_name,
+                    phone: phone,
+                    contact_name: selectedContact?.name || selectedContact?.push_name || initialData?.contact_name,
                     lead_id: initialData?.lead_id,
                     conversation_id: initialData?.conversation_id,
                     origin: initialData?.origin || "Follow-up"
