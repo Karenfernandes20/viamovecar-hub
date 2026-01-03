@@ -565,7 +565,12 @@ export const getMessages = async (req: Request, res: Response) => {
             [conversationId]
         );
 
-        console.log(`[getMessages] Success. Found ${result.rows.length} messages.`);
+        console.log(`[getMessages] Success. Found ${result.rows.length} messages. Resetting unread count.`);
+
+        // Reset unread count in background
+        pool.query('UPDATE whatsapp_conversations SET unread_count = 0 WHERE id = $1', [conversationId])
+            .catch(e => console.error('[getMessages] Failed to reset unread count:', e));
+
         res.json(result.rows);
     } catch (error) {
         console.error('[getMessages Error]:', error);

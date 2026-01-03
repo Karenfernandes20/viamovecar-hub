@@ -1616,7 +1616,8 @@ const AtendimentoPage = () => {
       key={conv.id}
       onClick={() => {
         setSelectedConversation(conv);
-        // Force fetch logic handled by useEffect on selectedConversation, but this ensures state update
+        // Instant local reset for better UX
+        setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c));
       }}
       className={cn(
         "group mx-3 my-1 p-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent flex flex-col gap-2",
