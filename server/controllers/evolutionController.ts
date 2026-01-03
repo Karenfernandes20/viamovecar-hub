@@ -148,7 +148,7 @@ export const getEvolutionQrCode = async (req: Request, res: Response) => {
           method: "POST",
           headers: { "Content-Type": "application/json", apikey: EVOLUTION_API_KEY },
           body: JSON.stringify({
-            url: webhookUrl,
+            webhook: webhookUrl,
             enabled: true,
             webhook_by_events: false,
             events: [
@@ -1584,7 +1584,7 @@ export const setEvolutionWebhook = async (req: Request, res: Response) => {
             apikey: EVOLUTION_API_KEY
           },
           body: JSON.stringify({
-            url: webhookUrl,
+            webhook: webhookUrl,
             enabled: true,
             webhook_by_events: false,
             events: [
