@@ -418,6 +418,7 @@ const AtendimentoPage = () => {
   useEffect(() => {
     const phoneParam = searchParams.get('phone');
     const nameParam = searchParams.get('name');
+    const msgParam = searchParams.get('msg');
 
     if (!phoneParam) {
       // If param is gone, reset the ref so we can process it again if it returns
@@ -463,8 +464,13 @@ const AtendimentoPage = () => {
       const newParams = new URLSearchParams(prev);
       newParams.delete('phone');
       newParams.delete('name');
+      newParams.delete('msg');
       return newParams;
     }, { replace: true });
+
+    if (msgParam) {
+      setNewMessage(msgParam);
+    }
 
   }, [searchParams, conversations, isLoadingConversations, importedContacts, contacts, setSearchParams, user?.id]);
 

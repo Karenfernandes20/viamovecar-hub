@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Search, HelpCircle, Rocket, MessageCircle, Users, ShieldCheck, Megaphone, Wallet2, Globe, AlertCircle, MessageSquare } from "lucide-react";
 import { Input } from "../components/ui/input";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../components/ui/accordion";
@@ -265,6 +266,16 @@ const FaqPage = () => {
 
     const isSuperAdmin = user?.role?.toUpperCase() === 'SUPERADMIN';
 
+    const navigate = useNavigate();
+
+    const handleSupportClick = () => {
+        const supportPhone = "553898352965";
+        const message = "Olá! Estou com uma dúvida";
+
+        // Redirect to Atendimento with query params
+        navigate(`/app/atendimento?phone=${supportPhone}&name=Suporte Integrai&msg=${encodeURIComponent(message)}`);
+    };
+
     const filteredFaq = faqData.map(category => ({
         ...category,
         items: category.items.filter(item =>
@@ -461,7 +472,11 @@ const FaqPage = () => {
                         Nossa equipe está pronta para ajudar você com qualquer questão técnica ou operacional.
                     </p>
                     <div className="flex flex-wrap justify-center gap-4">
-                        <Button size="lg" className="rounded-full px-10 font-bold shadow-lg hover:shadow-primary/20 transition-all">
+                        <Button
+                            size="lg"
+                            className="rounded-full px-10 font-bold shadow-lg hover:shadow-primary/20 transition-all"
+                            onClick={handleSupportClick}
+                        >
                             Falar com Suporte
                         </Button>
 
