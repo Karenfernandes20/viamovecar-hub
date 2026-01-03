@@ -463,7 +463,8 @@ const AtendimentoPage = () => {
       }
 
       // Clear params to keep URL clean
-    }, [searchParams, conversations, isLoadingConversations, importedContacts, contacts, setSearchParams, selectedConversation, viewMode, user?.id]);
+    }
+  }, [searchParams, conversations, isLoadingConversations, importedContacts, contacts, setSearchParams, selectedConversation, viewMode, user?.id]);
 
   // AUTO-REFRESH GROUP METADATA (Similar to Grupos.tsx)
   useEffect(() => {
