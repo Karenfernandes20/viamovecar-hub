@@ -1618,6 +1618,34 @@ const AtendimentoPage = () => {
     }
   };
 
+  const handleReopenAtendimento = async (conversation?: Conversation) => {
+    const conv = conversation || selectedConversation;
+    if (!conv) return;
+    if (!confirm("Deseja realmente reabrir este atendimento?")) return;
+
+    try {
+      const res = await fetch(`/api/crm/conversations/${conv.id}/start`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const userId = user?.id ? Number(user.id) : undefined;
+        setConversations(prev => prev.map(c =>
+          c.id === conv.id ? { ...c, status: 'OPEN' as const, user_id: userId } : c
+        ));
+        if (selectedConversation?.id === conv.id) {
+          setSelectedConversation(prev => prev ? { ...prev, status: 'OPEN' as const, user_id: userId } : null);
+        }
+        setViewMode('OPEN');
+      } else {
+        const err = await res.json();
+        alert(err.error || "Erro ao reabrir atendimento");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao conectar.");
+    }
+  };
 
 
   // Check Permissions
@@ -1725,11 +1753,34 @@ const AtendimentoPage = () => {
               >
                 <Play className="h-3 w-3" /> Iniciar
               </Button>
-              {/* Delete button temporarily disabled */}
             </div>
           )}
-          {/* Close button temporarily disabled */}
-          {/* Reopen button temporarily disabled */}
+          {conv.status === 'OPEN' && (
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-[10px] gap-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 font-bold"
+                onClick={(e) => { e.stopPropagation(); handleCloseAtendimento(conv); }}
+                title="Encerrar Atendimento"
+              >
+                <XCircle className="h-3 w-3" /> Encerrar
+              </Button>
+            </div>
+          )}
+          {conv.status === 'CLOSED' && (
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-[10px] gap-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/20 font-bold"
+                onClick={(e) => { e.stopPropagation(); handleReopenAtendimento(conv); }}
+                title="Reabrir Atendimento"
+              >
+                <RotateCcw className="h-3 w-3" /> Reabrir
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>
