@@ -582,6 +582,7 @@ export const getMessages = async (req: Request, res: Response) => {
             `SELECT m.*, 
                     CASE 
                         WHEN m.campaign_id IS NOT NULL THEN 'Campanha'
+                        WHEN m.follow_up_id IS NOT NULL THEN 'Follow-Up'
                         ELSE u.full_name 
                     END as agent_name 
              FROM whatsapp_messages m 

@@ -58,14 +58,14 @@ export const createFollowUp = async (req: Request, res: Response) => {
 
         const user = (req as any).user;
         const companyId = user?.company_id;
-        const { title, description, type, scheduled_at, lead_id, conversation_id, user_id, origin } = req.body;
+        const { title, description, type, scheduled_at, lead_id, conversation_id, user_id, origin, message, phone, contact_name, priority } = req.body;
 
         const result = await pool.query(
             `INSERT INTO crm_follow_ups 
-            (title, description, type, scheduled_at, lead_id, conversation_id, user_id, company_id, origin) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+            (title, description, type, scheduled_at, lead_id, conversation_id, user_id, company_id, origin, message, phone, contact_name, priority) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
             RETURNING *`,
-            [title, description, type, scheduled_at, lead_id, conversation_id, user_id || user.id, companyId, origin || 'Manual']
+            [title, description, type, scheduled_at, lead_id, conversation_id, user_id || user.id, companyId, origin || 'Manual', message, phone, contact_name, priority || 'medium']
         );
 
         res.status(201).json(result.rows[0]);

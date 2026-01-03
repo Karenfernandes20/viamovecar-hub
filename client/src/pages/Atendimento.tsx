@@ -2243,7 +2243,9 @@ const AtendimentoPage = () => {
                       className={cn(
                         "relative max-w-[90%] sm:max-w-[75%] px-3 py-1.5 shadow-sm text-sm break-words",
                         msg.direction === "outbound"
-                          ? "bg-[#d9fdd3] dark:bg-[#005c4b] text-zinc-900 dark:text-zinc-100 rounded-lg rounded-tr-none"
+                          ? msg.agent_name === "Follow-Up"
+                            ? "bg-[#fff9c4] dark:bg-[#ecc300] text-zinc-900 dark:text-zinc-900 rounded-lg rounded-tr-none"
+                            : "bg-[#d9fdd3] dark:bg-[#005c4b] text-zinc-900 dark:text-zinc-100 rounded-lg rounded-tr-none"
                           : "bg-white dark:bg-[#202c33] text-zinc-900 dark:text-zinc-100 rounded-lg rounded-tl-none"
                       )}
                     >

@@ -242,6 +242,7 @@ const runWhatsappMigrations = async () => {
         await addColumn('whatsapp_campaigns', 'media_type', 'VARCHAR(20)');
         await addColumn('whatsapp_campaigns', 'completed_at', 'TIMESTAMP');
         await addColumn('whatsapp_messages', 'campaign_id', 'INTEGER');
+        await addColumn('whatsapp_messages', 'follow_up_id', 'INTEGER');
 
         // Ensure message uniqueness by external_id (WhatsApp message ID)
         try {
@@ -332,6 +333,11 @@ const runWhatsappMigrations = async () => {
             } catch (e) { }
         };
         await addPriorityColumn();
+
+        // Add message field for automated follow-ups
+        await addColumn('crm_follow_ups', 'message', 'TEXT');
+        await addColumn('crm_follow_ups', 'phone', 'VARCHAR(50)');
+        await addColumn('crm_follow_ups', 'contact_name', 'VARCHAR(255)');
 
         // Index for performance
         await pool.query('CREATE INDEX IF NOT EXISTS idx_follow_ups_company_user ON crm_follow_ups(company_id, user_id)');
