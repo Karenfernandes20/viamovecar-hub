@@ -316,6 +316,30 @@ const AtendimentoPage = () => {
     return conv.phone?.replace(/\D/g, "") || "";
   }, [contactMap]);
 
+  // Helper to extract real phone number from contact data
+  const getContactPhone = (contact: Contact): string => {
+    const c = contact as any;
+
+    // Try all possible phone fields
+    let phoneNumber =
+      c.number ||
+      c.phone ||
+      (typeof c.remoteJid === 'string' ? c.remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '') : null) ||
+      (typeof c.jid === 'string' ? c.jid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '') : null) ||
+      (typeof c.id === 'string' && c.id.includes('@') ? c.id.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '') : c.id);
+
+    if (!phoneNumber) return "Sem telefone";
+
+    // Clean and format
+    const raw = String(phoneNumber).replace(/\D/g, "");
+
+    // Don't add 55 if number already has it or if it's too short/long
+    if (!raw) return "Sem telefone";
+    if (raw.startsWith('55')) return raw;
+    if (raw.length >= 10 && raw.length <= 11) return `55${raw}`;
+    return raw;
+  };
+
   const handleRefreshMetadata = async () => {
     if (!selectedConversation) return;
     const toastId = toast.loading("Atualizando dados...");
@@ -2001,29 +2025,7 @@ const AtendimentoPage = () => {
                           {contact.push_name || contact.name || "Sem nome"}
                         </div>
                         <div className="text-[13px] text-zinc-500 font-normal whitespace-nowrap">
-                          {(() => {
-                            // Cast to any to access all possible fields
-                            const c = contact as any;
-
-                            // Try multiple fields in priority order
-                            let phoneNumber =
-                              c.number ||
-                              c.phone ||
-                              (typeof c.remoteJid === 'string' ? c.remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '') : null) ||
-                              (typeof c.jid === 'string' ? c.jid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '') : null) ||
-                              (typeof c.id === 'string' && c.id.includes('@') ? c.id.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '') : c.id);
-
-                            if (!phoneNumber) return "Sem telefone";
-
-                            // Clean and format
-                            const raw = String(phoneNumber).replace(/\D/g, "");
-
-                            // Don't add 55 if number already has it or if it's too short/long
-                            if (!raw) return "Sem telefone";
-                            if (raw.startsWith('55')) return raw;
-                            if (raw.length >= 10 && raw.length <= 11) return `55${raw}`;
-                            return raw;
-                          })()}
+                          {getContactPhone(contact)}
                         </div>
                       </div>
 
