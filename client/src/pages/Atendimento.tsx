@@ -532,48 +532,32 @@ const AtendimentoPage = () => {
   // Scroll Logic - Consolidated & Robust
 
   // 1. Check if user is near bottom
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Scroll Logic mimic - IMPROVED
   const handleScroll = () => {
     if (!scrollRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    // Buffer for "stickiness"
     isNearBottomRef.current = distanceFromBottom < 100;
   };
 
   const scrollToBottom = (behavior: 'auto' | 'smooth' = 'auto') => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: behavior
-      });
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
-  // 2. Main Scroll Effect - Handles New Messages & Conversation Changes
+  // 2. Main Scroll Effect
   useEffect(() => {
-    if (!scrollRef.current) return;
-
-    // Force scroll if we are supposed to be at bottom
+    // Only auto-scroll if we are near bottom OR it's a fresh load (no scroll capability yet?)
+    // actually just force it if isNearBottomRef is true.
     if (isNearBottomRef.current) {
-      // Immediate
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-
-      // Delay to handle layout shifts (images, etc)
-      setTimeout(() => {
-        if (scrollRef.current && isNearBottomRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-      }, 100);
-
-      setTimeout(() => {
-        if (scrollRef.current && isNearBottomRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-      }, 300);
+      // Use timeout to ensure DOM is ready
+      setTimeout(() => scrollToBottom('auto'), 50);
+      setTimeout(() => scrollToBottom('auto'), 150); // Double tap
     }
-  }, [messages, selectedConversation?.id]);
+  }, [messages, selectedConversation?.id]); // Depend on messages count/content changes
 
-  // 3. Reset "Stickiness" when opening a new chat
+  // 3. Reset to bottom on new chat
   useLayoutEffect(() => {
     isNearBottomRef.current = true;
     scrollToBottom('auto');
@@ -2395,7 +2379,9 @@ const AtendimentoPage = () => {
                       </div>
                     </div>
                   </div>
+
                 ))}
+                <div ref={messagesEndRef} />
               </div>
             </div>
 
