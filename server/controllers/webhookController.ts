@@ -461,22 +461,44 @@ export const handleWebhook = async (req: Request, res: Response) => {
                     } else {
                         const leadsStageId = stageRes.rows[0].id;
 
+                        const cleanPhone = phone.replace(/\D/g, '');
+                        // Search for lead with variations (with and without 55, or just matching the last 10-11 digits)
                         const [contactCheck, checkLead] = await Promise.all([
                             // Check if contact is saved with a real name (not just the phone)
                             pool!.query(`SELECT id FROM whatsapp_contacts WHERE jid = $1 AND instance = $2 AND name IS NOT NULL AND name != '' AND name != $3 LIMIT 1`, [remoteJid, instance, phone]),
-                            pool!.query('SELECT id FROM crm_leads WHERE phone = $1 AND company_id = $2', [phone, companyId])
+                            pool!.query(`
+                                SELECT id, name, stage_id FROM crm_leads 
+                                WHERE (phone = $1 OR phone = $2 OR phone LIKE '%' || $2) 
+                                AND company_id = $3 
+                                LIMIT 1
+                            `, [phone, cleanPhone.length > 10 ? cleanPhone.slice(-10) : cleanPhone, companyId])
                         ]);
 
                         if (checkLead.rows.length === 0 && contactCheck.rows.length === 0) {
                             console.log(`[Webhook] Creating auto-lead for unregistered contact ${phone} in LEADS stage.`);
+
+                            // Try to get the name from whatsapp_contacts even if it was just the phone (maybe it's updated now)
+                            const savedContact = await pool!.query(
+                                "SELECT name FROM whatsapp_contacts WHERE jid = $1 AND instance = $2 LIMIT 1",
+                                [remoteJid, instance]
+                            );
+                            const bestName = (savedContact.rows[0]?.name && savedContact.rows[0].name !== phone)
+                                ? savedContact.rows[0].name
+                                : name;
+
                             await pool!.query(
                                 `INSERT INTO crm_leads (name, phone, origin, stage_id, company_id, created_at, updated_at, description) 
                                  VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), 'Lead automático (Nova mensagem)')`,
-                                [name || phone, phone, 'WhatsApp', leadsStageId, companyId]
+                                [bestName || name || phone, phone, 'WhatsApp', leadsStageId, companyId]
                             );
                         } else if (checkLead.rows.length > 0) {
-                            // Update existing lead timestamp
-                            await pool!.query('UPDATE crm_leads SET updated_at = NOW() WHERE id = $1', [checkLead.rows[0].id]);
+                            const lead = checkLead.rows[0];
+                            // If lead name is just the phone, and we have a better name now, update it
+                            if (lead.name === phone && name && name !== phone) {
+                                await pool!.query('UPDATE crm_leads SET name = $1, updated_at = NOW() WHERE id = $2', [name, lead.id]);
+                            } else {
+                                await pool!.query('UPDATE crm_leads SET updated_at = NOW() WHERE id = $1', [lead.id]);
+                            }
                         }
                     }
                 }

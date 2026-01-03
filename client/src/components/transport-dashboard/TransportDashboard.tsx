@@ -1,32 +1,31 @@
-import { ArrowUpRight, MapPin, Users, Wallet2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowUpRight, MapPin, Users, Wallet2, LayoutDashboard, AlertCircle, TrendingUp, Globe, ShieldCheck, Map, ArrowDownRight, Clock, Ban, Calendar, Filter } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
     ChartContainer,
     ChartTooltip,
     ChartTooltipContent,
     type ChartConfig,
 } from "@/components/ui/chart";
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, Bar, BarChart, ResponsiveContainer, YAxis, Tooltip } from "recharts";
 import { CompanySummary } from "@/pages/Dashboard";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
-// Dados reais serão preenchidos pela API futuramente
-const chartData: Array<{ name: string; corridas: number }> = [];
+// Tipagem para os dados reais (quando integrados)
+const chartData: Array<{ name: string; corridas: number; receita: number }> = [];
 
 const chartConfig = {
     corridas: {
         label: "Corridas",
         color: "hsl(var(--primary))",
     },
+    receita: {
+        label: "Receita",
+        color: "hsl(var(--accent))",
+    },
 } satisfies ChartConfig;
-
-const getOperationTypeLabel = (type: string | undefined, plural = true) => {
-    // Default to 'motoristas' logic if undefined, though this dashboard is strictly for motoristas
-    return plural ? 'Motoristas' : 'Motorista';
-};
-
-const getSecondaryTypeLabel = (type: string | undefined, plural = true) => {
-    return plural ? 'Passageiros' : 'Passageiro';
-}
 
 interface TransportDashboardProps {
     company: CompanySummary | null;
@@ -35,227 +34,364 @@ interface TransportDashboardProps {
 }
 
 export const TransportDashboard = ({ company, isLoadingCompany, companyError }: TransportDashboardProps) => {
+
+    // Fallback labels helpers
+    const getStatusBadge = (status: string) => {
+        switch (status) {
+            case 'stable': return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200">🟢 Estável</Badge>;
+            case 'attention': return <Badge className="bg-amber-500/10 text-amber-600 border-amber-200">🟡 Atenção</Badge>;
+            case 'critical': return <Badge className="bg-red-500/10 text-red-600 border-red-200">🔴 Crítica</Badge>;
+            default: return <Badge variant="outline">—</Badge>;
+        }
+    };
+
     return (
-        <div className="space-y-5 sm:space-y-6 animate-in fade-in duration-500">
-            {company && (
-                <section className="mb-2 rounded-lg border border-primary-soft bg-primary-soft/20 px-3 py-2 text-xs sm:mb-3">
-                    {isLoadingCompany ? (
-                        <p className="text-muted-foreground">Carregando dados da empresa selecionada...</p>
-                    ) : company ? (
-                        <div className="flex items-center gap-3">
-                            {company.logo_url && (
-                                <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-border bg-background">
-                                    <img
-                                        src={company.logo_url}
-                                        alt={`Logo da empresa ${company.name}`}
-                                        className="h-full w-full object-cover"
-                                    />
+        <div className="space-y-6 pb-10 animate-in fade-in duration-700">
+            {/* 9️⃣ Filtros Globais */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card/50 p-4 rounded-xl border border-border/50 backdrop-blur-sm">
+                <div className="flex items-center gap-2">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                        <LayoutDashboard className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-bold tracking-tight">Torre de Controle</h2>
+                        <p className="text-xs text-muted-foreground font-medium">Gestão Estratégica Nacional</p>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <Filter className="h-4 w-4 text-muted-foreground" />
+                        <Select defaultValue="30d">
+                            <SelectTrigger className="w-[140px] h-9 text-xs bg-background">
+                                <SelectValue placeholder="Período" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="7d">Últimos 7 dias</SelectItem>
+                                <SelectItem value="30d">Últimos 30 dias</SelectItem>
+                                <SelectItem value="90d">Últimos 90 dias</SelectItem>
+                                <SelectItem value="year">Este ano</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <Select defaultValue="all">
+                        <SelectTrigger className="w-[140px] h-9 text-xs bg-background">
+                            <SelectValue placeholder="Estado/Região" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Brasil (Geral)</SelectItem>
+                            <SelectItem value="sp">São Paulo</SelectItem>
+                            <SelectItem value="rj">Rio de Janeiro</SelectItem>
+                            <SelectItem value="mg">Minas Gerais</SelectItem>
+                        </SelectContent>
+                    </Select>
+
+                    <Select defaultValue="active">
+                        <SelectTrigger className="w-[140px] h-9 text-xs bg-background">
+                            <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Todos os Status</SelectItem>
+                            <SelectItem value="active">Operação Ativa</SelectItem>
+                            <SelectItem value="critical">Em Alerta</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
+            {/* 1️⃣ Topo – Visão Geral Nacional (Status Macro) */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <Card className="relative overflow-hidden border-none shadow-sm hover:shadow-md transition-shadow">
+                    <div className="absolute top-0 right-0 p-3 opacity-10">
+                        <Globe className="h-12 w-12" />
+                    </div>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status da Plataforma</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-center gap-2">
+                            <span className="text-2xl font-bold">—</span>
+                            {getStatusBadge('none')}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-2 leading-tight">
+                            Este indicador será ativado após integração com os dados de todas as cidades.
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <Card className="relative overflow-hidden border-none shadow-sm hover:shadow-md transition-shadow">
+                    <div className="absolute top-0 right-0 p-3 opacity-10">
+                        <MapPin className="h-12 w-12" />
+                    </div>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cidades em Operação</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">—</div>
+                        <p className="text-[10px] text-muted-foreground mt-2 leading-tight">
+                            Total de municípios com operação ativa na plataforma.
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <Card className="relative overflow-hidden border-none shadow-sm hover:shadow-md transition-shadow">
+                    <div className="absolute top-0 right-0 p-3 opacity-10">
+                        <AlertCircle className="h-12 w-12" />
+                    </div>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cidades em Alerta</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-amber-600">—</div>
+                        <p className="text-[10px] text-muted-foreground mt-2 leading-tight">
+                            Quantidade de cidades com status crítico ou atenção.
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <Card className="relative overflow-hidden border-none shadow-sm hover:shadow-md transition-shadow">
+                    <div className="absolute top-0 right-0 p-3 opacity-10">
+                        <TrendingUp className="h-12 w-12" />
+                    </div>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Oferta x Demanda Global</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-primary">—</div>
+                        <p className="text-[10px] text-muted-foreground mt-2 leading-tight">
+                            Equilíbrio entre passageiros e motoristas disponíveis.
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* 2️⃣ Mapa Nacional + 4️⃣ Painel de Alertas Estratégicos */}
+            <div className="grid gap-6 lg:grid-cols-3">
+                <Card className="lg:col-span-2 border-none shadow-sm overflow-hidden min-h-[400px] flex flex-col">
+                    <CardHeader className="bg-muted/30 pb-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle className="text-sm">Mapa Estratégico Regional</CardTitle>
+                                <CardDescription className="text-[10px]">Distribuição e status da operação nacional</CardDescription>
+                            </div>
+                            <Map className="h-4 w-4 text-primary opacity-50" />
+                        </div>
+                    </CardHeader>
+                    <CardContent className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-gradient-to-b from-transparent to-primary/5">
+                        <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                            < Globe className="h-10 w-10 text-primary/40 animate-pulse" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-foreground/80">Mapa estratégico em integração</h3>
+                        <p className="text-sm text-muted-foreground max-w-xs mx-auto mt-2">
+                            O mapa visual de calor e status será ativado após integração com os dados geográficos da operação.
+                        </p>
+                        <div className="mt-6 flex gap-3">
+                            <div className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Estável
+                            </div>
+                            <div className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                                <span className="w-2 h-2 rounded-full bg-amber-500"></span> Atenção
+                            </div>
+                            <div className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                                <span className="w-2 h-2 rounded-full bg-red-500"></span> Crítico
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-none shadow-sm flex flex-col">
+                    <CardHeader className="bg-red-500/5 border-b border-red-500/10">
+                        <div className="flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4 text-red-500" />
+                            <CardTitle className="text-sm">Alertas Estratégicos</CardTitle>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="flex-1 p-0">
+                        <div className="flex flex-col h-full items-center justify-center p-8 text-center bg-muted/10">
+                            <p className="text-xs text-muted-foreground font-medium italic">
+                                "Nenhum alerta estratégico ativo no momento."
+                            </p>
+                            <div className="mt-4 p-4 border border-dashed rounded-lg bg-background/50 max-w-[200px]">
+                                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                    Alertas de queda de faturamento, falta de motoristas ou problemas de SLA aparecerão aqui.
+                                </p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* 5️⃣ Financeiro Consolidado */}
+            <Card className="border-none shadow-sm overflow-hidden">
+                <CardHeader className="bg-primary/5 border-b border-primary/10">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <Wallet2 className="h-4 w-4 text-primary" />
+                            <CardTitle className="text-sm">Visualização Financeira Consolidada</CardTitle>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] bg-background">Nacional</Badge>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <div className="grid grid-cols-2 md:grid-cols-5 divide-x divide-y md:divide-y-0 border-b">
+                        <div className="p-4 space-y-1">
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase">Faturamento Total</p>
+                            <p className="text-xl font-bold">R$ —</p>
+                            <p className="text-[9px] text-muted-foreground italic leading-tight">Receita bruta gerada pela plataforma no período.</p>
+                        </div>
+                        <div className="p-4 space-y-1">
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase">Comissão Plataforma</p>
+                            <p className="text-xl font-bold text-primary">R$ —</p>
+                            <p className="text-[9px] text-muted-foreground italic leading-tight">Taxa de intermediação (Net Revenue).</p>
+                        </div>
+                        <div className="p-4 space-y-1">
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase">Repasse Motoristas</p>
+                            <p className="text-xl font-bold">R$ —</p>
+                            <p className="text-[9px] text-muted-foreground italic leading-tight">Valores destinados à base de condutores.</p>
+                        </div>
+                        <div className="p-4 space-y-1">
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase">Parceiros Locais</p>
+                            <p className="text-xl font-bold">R$ —</p>
+                            <p className="text-[9px] text-muted-foreground italic leading-tight">Comissões de franquias e donos de cidade.</p>
+                        </div>
+                        <div className="p-4 space-y-1">
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase">Ticket Médio</p>
+                            <p className="text-xl font-bold">R$ —</p>
+                            <p className="text-[9px] text-muted-foreground italic leading-tight">Valor médio nacional por corrida finalizada.</p>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* 3️⃣ Ranking de Cidades + 6️⃣ Distribuição Operacional */}
+            <div className="grid gap-6 lg:grid-cols-2">
+                <Card className="border-none shadow-sm">
+                    <CardHeader>
+                        <CardTitle className="text-sm flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4 text-primary" />
+                            Ranking de Performance de Cidades
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="rounded-md border">
+                            <Table>
+                                <TableHeader className="bg-muted/50">
+                                    <TableRow>
+                                        <TableHead className="w-[50px] text-[10px] uppercase font-bold">Pos</TableHead>
+                                        <TableHead className="text-[10px] uppercase font-bold">Cidade</TableHead>
+                                        <TableHead className="text-right text-[10px] uppercase font-bold">Corridas</TableHead>
+                                        <TableHead className="text-right text-[10px] uppercase font-bold">Status</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    <TableRow>
+                                        <TableCell className="text-center font-bold text-muted-foreground">#1</TableCell>
+                                        <TableCell className="text-xs font-medium">—</TableCell>
+                                        <TableCell className="text-right text-xs">—</TableCell>
+                                        <TableCell className="text-right">{getStatusBadge('none')}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableCell className="text-center font-bold text-muted-foreground">#2</TableCell>
+                                        <TableCell className="text-xs font-medium">—</TableCell>
+                                        <TableCell className="text-right text-xs">—</TableCell>
+                                        <TableCell className="text-right">{getStatusBadge('none')}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableCell className="text-center font-bold text-muted-foreground">#3</TableCell>
+                                        <TableCell className="text-xs font-medium">—</TableCell>
+                                        <TableCell className="text-right text-xs">—</TableCell>
+                                        <TableCell className="text-right">{getStatusBadge('none')}</TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
+                        </div>
+                        <p className="mt-4 text-[11px] text-muted-foreground italic text-center">
+                            Os dados de ranking serão preenchidos automaticamente.
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-none shadow-sm">
+                    <CardHeader>
+                        <CardTitle className="text-sm">Distribuição por Região</CardTitle>
+                    </CardHeader>
+                    <CardContent className="h-[280px] flex items-center justify-center bg-muted/5 rounded-lg border border-dashed m-4 mt-0">
+                        <div className="text-center">
+                            <div className="flex justify-center mb-2">
+                                <div className="flex gap-1 items-end h-8">
+                                    <div className="w-2 bg-primary/20 h-4"></div>
+                                    <div className="w-2 bg-primary/20 h-8"></div>
+                                    <div className="w-2 bg-primary/20 h-5"></div>
+                                    <div className="w-2 bg-primary/20 h-7"></div>
                                 </div>
-                            )}
-                            <div className="space-y-0.5">
-                                <p className="text-xs font-medium text-foreground">
-                                    Visão atual: <span className="font-semibold text-primary">{company.name}</span>
-                                    <span className="ml-2 text-[10px] uppercase text-muted-foreground border px-1 rounded bg-background/50">
-                                        {company.operation_type || 'MOTORISTAS'}
-                                    </span>
-                                </p>
-                                <p className="text-[11px] text-muted-foreground">
-                                    {company.city || company.state
-                                        ? [company.city, company.state].filter(Boolean).join("/")
-                                        : "Cidade/UF não informados"}
-                                </p>
+                            </div>
+                            <p className="text-xs text-muted-foreground">Gráficos analíticos de corridas por região aparecerão aqui após integração.</p>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* 7️⃣ Expansão e Qualidade + 8️⃣ Governança & Compliance */}
+            <div className="grid gap-6 md:grid-cols-2">
+                <Card className="border-none shadow-sm">
+                    <CardHeader className="pb-2">
+                        <div className="flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4 text-emerald-500" />
+                            <CardTitle className="text-sm">Gestão de Expansão e Qualidade</CardTitle>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="p-3 bg-muted/40 rounded-lg">
+                                <p className="text-[10px] text-muted-foreground uppercase font-bold">Novas Cidades</p>
+                                <p className="text-lg font-bold">—</p>
+                            </div>
+                            <div className="p-3 bg-muted/40 rounded-lg">
+                                <p className="text-[10px] text-muted-foreground uppercase font-bold">Avaliação Média</p>
+                                <p className="text-lg font-bold">—</p>
                             </div>
                         </div>
-                    ) : (
-                        <p className="text-muted-foreground">
-                            {companyError ?? "Empresa não encontrada ou você não tem acesso a ela."}
-                        </p>
-                    )}
-                </section>
-            )}
-
-            {/* Indicadores principais sem números fictícios */}
-            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Card className="elevated-card animate-card-fade-up border-none bg-card/90">
-                    <CardHeader className="flex flex-row items-center justify-between pb-1.5 sm:pb-2">
-                        <CardTitle className="text-[11px] font-medium text-muted-foreground sm:text-xs">
-                            {getSecondaryTypeLabel(company?.operation_type)} cadastrados
-                        </CardTitle>
-                        <Users className="h-4 w-4 text-primary" />
-                    </CardHeader>
-                    <CardContent className="pb-3 sm:pb-4">
-                        <p className="text-xl font-semibold sm:text-2xl">—</p>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                            Os dados reais serão exibidos aqui assim que a integração estiver ativa.
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card className="elevated-card animate-card-fade-up border-none bg-card/90">
-                    <CardHeader className="flex flex-row items-center justify-between pb-1.5 sm:pb-2">
-                        <CardTitle className="text-[11px] font-medium text-muted-foreground sm:text-xs">
-                            {getOperationTypeLabel(company?.operation_type)} cadastrados
-                        </CardTitle>
-                        <Users className="h-4 w-4 text-primary" />
-                    </CardHeader>
-                    <CardContent className="pb-3 sm:pb-4">
-                        <p className="text-xl font-semibold sm:text-2xl">—</p>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                            Os dados serão carregados automaticamente a partir do backend.
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card className="elevated-card animate-card-fade-up border-none bg-card/90">
-                    <CardHeader className="flex flex-row items-center justify-between pb-1.5 sm:pb-2">
-                        <CardTitle className="text-[11px] font-medium text-muted-foreground sm:text-xs">
-                            Corridas em andamento
-                        </CardTitle>
-                        <ArrowUpRight className="h-4 w-4 text-accent" />
-                    </CardHeader>
-                    <CardContent className="pb-3 sm:pb-4">
-                        <p className="text-xl font-semibold sm:text-2xl">—</p>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                            Este indicador será alimentado em tempo real quando a integração estiver pronta.
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card className="elevated-card animate-card-fade-up border-none bg-card/90">
-                    <CardHeader className="flex flex-row items-center justify-between pb-1.5 sm:pb-2">
-                        <CardTitle className="text-[11px] font-medium text-muted-foreground sm:text-xs">
-                            Cidades ativas
-                        </CardTitle>
-                        <MapPin className="h-4 w-4 text-primary" />
-                    </CardHeader>
-                    <CardContent className="pb-3 sm:pb-4">
-                        <p className="text-xl font-semibold sm:text-2xl">—</p>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                            Em breve serão exibidas aqui apenas informações reais da operação.
-                        </p>
-                    </CardContent>
-                </Card>
-            </section>
-
-            {/* Área reservada para gráficos com dados reais */}
-            <section className="grid gap-4 lg:grid-cols-[2fr,1.3fr]">
-                <Card className="elevated-card border-none bg-card/95">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3">
-                        <div>
-                            <CardTitle className="text-sm">
-                                Corridas por estado
-                            </CardTitle>
-                            <p className="text-[11px] text-muted-foreground sm:text-xs">
-                                Assim que os dados forem integrados, este gráfico mostrará os dados reais por estado.
-                            </p>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="pt-1 sm:pt-0">
-                        <ChartContainer config={chartConfig} className="mt-1 h-52 sm:mt-2 sm:h-64">
-                            <AreaChart data={chartData} margin={{ left: -24, right: 8 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} />
-                                <ChartTooltip content={<ChartTooltipContent />} />
-                                <Area
-                                    type="monotone"
-                                    dataKey="corridas"
-                                    stroke="hsl(var(--primary))"
-                                    fill="url(#area-fill)"
-                                    strokeWidth={2}
-                                    dot={false}
-                                />
-                                <defs>
-                                    <linearGradient id="area-fill" x1="0" x2="0" y1="0" y2="1">
-                                        <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                                        <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                            </AreaChart>
-                        </ChartContainer>
-                    </CardContent>
-                </Card>
-
-                <Card className="elevated-card border-none bg-card/95">
-                    <CardHeader className="flex flex-row items-center justify-between pb-3">
-                        <div>
-                            <CardTitle className="text-sm">Resumo financeiro</CardTitle>
-                            <p className="text-xs text-muted-foreground">
-                                Os valores serão alimentados automaticamente a partir dos dados reais.
-                            </p>
-                        </div>
-                        <Wallet2 className="h-4 w-4 text-primary" />
-                    </CardHeader>
-                    <CardContent className="space-y-3 pt-1 text-xs">
-                        <div className="flex items-center justify-between rounded-lg bg-primary-soft/60 px-3 py-2">
-                            <span className="text-muted-foreground">Faturamento total</span>
-                            <span className="font-semibold text-foreground">—</span>
-                        </div>
-                        <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2">
-                            <span className="text-muted-foreground">Faturamento mensal</span>
-                            <span className="font-semibold text-foreground">—</span>
-                        </div>
-                        <div className="grid gap-2 rounded-lg bg-background px-3 py-2">
-                            <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">{getOperationTypeLabel(company?.operation_type)}</span>
-                                <span className="font-medium text-foreground">—</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Parceiros locais</span>
-                                <span className="font-medium text-foreground">—</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Plataforma</span>
-                                <span className="font-medium text-foreground">—</span>
-                            </div>
-                            <p className="mt-1 text-[11px] text-muted-foreground">
-                                Nenhum número exibido aqui é fictício: os dados só aparecerão quando vierem do backend.
+                        <div className="p-3 border border-dashed rounded-lg bg-background/50">
+                            <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                Acompanhamento de onboarding de novas praças e KPI de satisfação global.
                             </p>
                         </div>
                     </CardContent>
                 </Card>
-            </section>
 
-            {/* Seção informativa, sem números falsos */}
-            <section className="grid gap-4 md:grid-cols-3">
-                <Card className="border-dashed bg-background/60">
+                <Card className="border-none shadow-sm">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm">Indicadores por cidade</CardTitle>
+                        <div className="flex items-center gap-2">
+                            <ShieldCheck className="h-4 w-4 text-primary" />
+                            <CardTitle className="text-sm">Governança & Compliance</CardTitle>
+                        </div>
                     </CardHeader>
-                    <CardContent className="space-y-2 text-xs">
-                        <p className="text-[11px] text-muted-foreground">
-                            Aqui você poderá acompanhar indicadores reais de cada cidade assim que a integração de dados for
-                            concluída.
-                        </p>
+                    <CardContent className="space-y-3">
+                        <div className="flex items-center justify-between text-xs p-2 rounded bg-muted/30">
+                            <div className="flex items-center gap-2">
+                                <Ban className="h-3.5 w-3.5 text-red-500" />
+                                <span>Motoristas bloqueados (Global)</span>
+                            </div>
+                            <span className="font-bold">—</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs p-2 rounded bg-muted/30">
+                            <div className="flex items-center gap-2">
+                                <Clock className="h-3.5 w-3.5 text-amber-500" />
+                                <span>Documentos pendentes</span>
+                            </div>
+                            <span className="font-bold">—</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs p-2 rounded bg-muted/30">
+                            <div className="flex items-center gap-2">
+                                <AlertCircle className="h-3.5 w-3.5 text-blue-500" />
+                                <span>SLA fora do padrão</span>
+                            </div>
+                            <span className="font-bold">—</span>
+                        </div>
                     </CardContent>
                 </Card>
-
-                <Card className="border-dashed bg-background/60">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm">Atendimento em destaque</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-xs">
-                        <p className="text-muted-foreground">
-                            A aba Atendimento será integrada ao Evolution API para exibir conversas reais organizadas por cidade e
-                            estado.
-                        </p>
-                        <p className="text-[11px] text-muted-foreground">
-                            No momento nenhum número é simulado: os dados serão carregados diretamente da sua operação.
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-dashed bg-background/60">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm">Pronto para escalar</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-xs">
-                        <p className="text-muted-foreground">
-                            A estrutura do painel está pronta para receber dados reais, novos módulos, relatórios e permissões
-                            avançadas.
-                        </p>
-                    </CardContent>
-                </Card>
-            </section>
+            </div>
         </div>
     );
 };

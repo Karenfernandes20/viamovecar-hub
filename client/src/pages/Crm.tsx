@@ -589,33 +589,30 @@ const CrmPage = () => {
     const activeId = active.id as string;
     const overId = over.id as string;
 
-    // We need the latest lead state
-    let targetStageId: number | null = null;
+    const activeLead = leads.find((l) => l.id === activeId);
+    if (!activeLead) return;
 
-    setLeads((prevLeads) => {
-      const activeLead = prevLeads.find((l) => l.id === activeId);
-      if (!activeLead) return prevLeads;
+    let newStageId: string | undefined;
+    if (stages.some((c) => c.id.toString() === overId)) {
+      newStageId = overId;
+    } else {
+      const overLead = leads.find((l) => l.id === overId);
+      if (overLead) newStageId = overLead.columnId;
+    }
 
-      let newStageId: string | undefined;
-      if (stages.some((c) => c.id.toString() === overId)) {
-        newStageId = overId;
-      } else {
-        const overLead = prevLeads.find((l) => l.id === overId);
-        if (overLead) newStageId = overLead.columnId;
-      }
+    if (newStageId && newStageId !== activeLead.stage_id?.toString()) {
+      const targetStageId = Number(newStageId);
 
-      if (newStageId && newStageId !== activeLead.stage_id?.toString()) {
-        targetStageId = Number(newStageId);
-        return prevLeads.map((l) =>
+      // Update local state optimistically
+      setLeads((prevLeads) =>
+        prevLeads.map((l) =>
           l.id === activeId
-            ? { ...l, columnId: newStageId, stage_id: Number(newStageId) }
+            ? { ...l, columnId: newStageId!, stage_id: targetStageId }
             : l
-        );
-      }
-      return prevLeads;
-    });
+        )
+      );
 
-    if (targetStageId !== null) {
+      // Notify backend
       await updateLeadStage(activeId, targetStageId);
     }
   };

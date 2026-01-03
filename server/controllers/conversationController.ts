@@ -140,6 +140,11 @@ export const updateContactNameWithAudit = async (req: AuthenticatedRequest, res:
             ON CONFLICT (jid, instance) DO UPDATE SET name = $2, company_id = COALESCE(whatsapp_contacts.company_id, EXCLUDED.company_id)
         `, [jid, name, instance, companyId]);
 
+        // ALSO UPDATE CRM LEADS if they exist for this phone
+        await pool.query(`
+            UPDATE crm_leads SET name = $1 WHERE phone = $2 AND company_id = $3
+        `, [name, phone, companyId]);
+
         // Audit
         await auditLog(Number(id), userId, 'EDIT_CONTACT', { new_name: name });
 
