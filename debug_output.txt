@@ -1,0 +1,1 @@
+﻿[dotenv@17.2.3] injecting env (7) from .env -- tip: ­ƒæÑ sync secrets across teammates & machines: https://dotenvx.com/ops

@@ -70,6 +70,7 @@ interface Conversation {
   closed_at?: string;
   is_group?: boolean;
   group_name?: string;
+  company_name?: string;
   // New fields for name resolution
   contact_push_name?: string;
   last_sender_name?: string;
@@ -1709,6 +1710,11 @@ const AtendimentoPage = () => {
               {conv.last_message_source === 'campaign' && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200 mt-1">
                   Campanha
+                </span>
+              )}
+              {conv.company_name && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 mt-1">
+                  {conv.company_name}
                 </span>
               )}
               {getDisplayName(conv) !== conv.phone?.replace(/\D/g, "") && (

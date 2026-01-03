@@ -136,9 +136,10 @@ export const handleWebhook = async (req: Request, res: Response) => {
                     instanceCache.set(instance, companyId!);
                     console.log(`[Webhook] Success! Instance "${instance}" mapped to companyId ${companyId}`);
                 } else {
+                    console.log(`[Webhook] Instance "${instance}" NOT matched in companies table.`);
                     // Check if there is ONLY ONE company as fallback
                     const allCompanies = await pool.query('SELECT id, evolution_instance FROM companies');
-                    console.log('[Webhook] Available companies in DB:', allCompanies.rows.map(c => `${c.id}:${c.evolution_instance}`).join(', '));
+                    console.log('[Webhook] Available instances in DB:', allCompanies.rows.map(c => `${c.id}:${c.evolution_instance}`).join(', '));
 
                     if (allCompanies.rows.length === 1) {
                         companyId = allCompanies.rows[0].id;
@@ -515,30 +516,33 @@ export const getConversations = async (req: Request, res: Response) => {
         if (!pool) return res.status(500).json({ error: 'Database not configured' });
 
         const user = (req as any).user;
-        let companyId = user?.company_id;
+        let companyId = req.query.companyId || user?.company_id;
 
         let query = `
             SELECT c.*, 
             (SELECT content FROM whatsapp_messages WHERE conversation_id = c.id ORDER BY sent_at DESC LIMIT 1) as last_message,
             (SELECT sender_name FROM whatsapp_messages WHERE conversation_id = c.id AND sender_name IS NOT NULL LIMIT 1) as last_sender_name,
             COALESCE(co.profile_pic_url, c.profile_pic_url) as profile_pic_url,
-            co.push_name as contact_push_name
+            co.push_name as contact_push_name,
+            comp.name as company_name
             FROM whatsapp_conversations c
             LEFT JOIN whatsapp_contacts co ON (c.external_id = co.jid AND c.instance = co.instance)
+            LEFT JOIN companies comp ON c.company_id = comp.id
             WHERE 1=1
         `;
         const params: any[] = [];
 
         if (user.role !== 'SUPERADMIN') {
+            // Regular users only see their company
             query += ` AND c.company_id = $1`;
-            params.push(companyId);
+            params.push(user.company_id);
         } else {
+            // Superadmins can filter or see all
             if (companyId) {
                 query += ` AND c.company_id = $1`;
                 params.push(companyId);
-            } else {
-                query += ` AND c.company_id IS NULL`;
             }
+            // If no companyId, SuperAdmin sees ALL (removed the IS NULL restriction)
         }
 
         query += ` ORDER BY c.last_message_at DESC NULLS LAST`;
