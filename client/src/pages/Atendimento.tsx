@@ -1231,9 +1231,16 @@ const AtendimentoPage = () => {
         console.log("Mensagem enviada com sucesso!", data);
 
         // Update the temp message with real IDs
-        setMessages(prev => prev.map(m =>
-          m.id === tempMessageId ? { ...m, id: dbId, external_id: externalId, status: 'sent', user_id: user?.id, agent_name: user?.full_name } : m
-        ));
+        // Update the temp message with real IDs, avoiding duplicates
+        setMessages(prev => {
+          if (prev.find(m => m.id === dbId)) {
+            // Socket already added the real message, remove optimistic
+            return prev.filter(m => m.id !== tempMessageId);
+          }
+          return prev.map(m =>
+            m.id === tempMessageId ? { ...m, id: dbId, external_id: externalId, status: 'sent', user_id: user?.id, agent_name: user?.full_name } : m
+          );
+        });
 
         // Update the conversation in the list (crucial for persisting temp chats)
         setConversations(prev => {

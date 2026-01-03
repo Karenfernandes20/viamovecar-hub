@@ -309,7 +309,12 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 // We'll proceed to socket emission with the existing message data if possible
                 // or just skip if we don't have the original row. 
                 // For now, let's fetch the existing one to emit to socket.
-                const existingResult = await pool.query('SELECT * FROM whatsapp_messages WHERE external_id = $1', [externalId]);
+                const existingResult = await pool.query(`
+                    SELECT wm.*, u.full_name as agent_name 
+                    FROM whatsapp_messages wm
+                    LEFT JOIN users u ON wm.user_id = u.id
+                    WHERE wm.external_id = $1
+                `, [externalId]);
                 if (existingResult.rows.length > 0) {
                     const existingMsg = existingResult.rows[0];
                     const io = req.app.get('io');
