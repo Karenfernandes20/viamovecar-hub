@@ -46,7 +46,7 @@ import {
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
 import { io } from "socket.io-client";
-import { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { FormEvent } from "react";
 import { cn } from "../lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
@@ -496,27 +496,20 @@ const AtendimentoPage = () => {
   };
 
   // 1. Reset flags when switching conversation
-  useLayoutEffect(() => {
-    isNearBottomRef.current = true;
-    isInitialLoadRef.current = true;
-  }, [selectedConversation?.id]);
+  // 1. Force Scroll to bottom when opening a conversation
+  useEffect(() => {
+    isNearBottomRef.current = true; // Always start at bottom
+    // Small timeout to allow render, exactly like Grupos.tsx
+    setTimeout(() => scrollToBottom('auto'), 100);
+  }, [selectedConversation?.id]); // Trigger on conversation change
 
-  // 2. Handle scroll on messages update
-  useLayoutEffect(() => {
-    if (messages.length === 0) return;
-
-    // If it's the initial load of the conversation, jump immediately to bottom
-    if (isInitialLoadRef.current) {
-      scrollToBottom('auto');
-      isInitialLoadRef.current = false;
+  // 2. Auto-scroll on new messages
+  useEffect(() => {
+    // Only scroll if we are near bottom OR if it's a fresh load (which assumes nearBottom=true)
+    if (isNearBottomRef.current) {
+      setTimeout(() => scrollToBottom('smooth'), 100);
     }
-    // If user is near bottom, smooth scroll to show new message
-    else if (isNearBottomRef.current) {
-      scrollToBottom('smooth');
-    }
-    // If user is scrolled up, DO NOT SCROLL. User reads old messages.
-
-  }, [messages, selectedConversation?.id]);
+  }, [messages]);
 
   // Socket.io Integration
   useEffect(() => {
