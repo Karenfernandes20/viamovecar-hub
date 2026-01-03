@@ -28,9 +28,18 @@ export function FollowUpModal({ isOpen, onClose, initialData }: FollowUpModalPro
     const queryClient = useQueryClient();
     const isEditing = !!(initialData as any)?.id;
 
+    // Contact search state
+    const [contacts, setContacts] = useState<any[]>([]);
+    const [contactSearchTerm, setContactSearchTerm] = useState("");
+    const [isLoadingContacts, setIsLoadingContacts] = useState(false);
+    const [selectedContact, setSelectedContact] = useState<any>(
+        initialData?.phone ? { phone: initialData.phone, name: initialData.contact_name } : null
+    );
+
     const [formData, setFormData] = useState({
         title: (initialData as any)?.title || "",
         description: (initialData as any)?.description || "",
+        message: (initialData as any)?.message || "", // New field for scheduled message
         type: (initialData as any)?.type || "whatsapp",
         priority: (initialData as any)?.priority || "medium",
         scheduled_at: (initialData as any)?.scheduled_at
@@ -39,8 +48,31 @@ export function FollowUpModal({ isOpen, onClose, initialData }: FollowUpModalPro
         user_id: user?.id || ""
     });
 
+    const fetchContacts = async () => {
+        setIsLoadingContacts(true);
+        try {
+            const res = await fetch('/api/crm/contacts', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setContacts(data);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar contatos', error);
+        } finally {
+            setIsLoadingContacts(false);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!selectedContact?.phone) {
+            toast.error("Selecione um contato");
+            return;
+        }
+
         try {
             setIsLoading(true);
             const url = isEditing
@@ -57,11 +89,11 @@ export function FollowUpModal({ isOpen, onClose, initialData }: FollowUpModalPro
                 },
                 body: JSON.stringify({
                     ...formData,
-                    // If creating, use values from initialData which are context-specific
-                    // If editing, usually we don't change lead_id/conversation_id unless specifically needed
+                    phone: selectedContact.phone,
+                    contact_name: selectedContact.name || selectedContact.push_name,
                     lead_id: initialData?.lead_id,
                     conversation_id: initialData?.conversation_id,
-                    origin: initialData?.origin || "Atendimento"
+                    origin: initialData?.origin || "Follow-up"
                 })
             });
 
@@ -93,11 +125,58 @@ export function FollowUpModal({ isOpen, onClose, initialData }: FollowUpModalPro
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-4 py-4">
+                    {/* Contact Search */}
+                    {!initialData?.phone && (
+                        <div className="grid gap-2">
+                            <Label>Selecionar Contato</Label>
+                            {selectedContact ? (
+                                <div className="flex items-center justify-between p-2 border rounded-lg">
+                                    <span className="text-sm">{selectedContact.name || selectedContact.push_name || selectedContact.phone}</span>
+                                    <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedContact(null)}>Alterar</Button>
+                                </div>
+                            ) : (
+                                <>
+                                    <Input
+                                        placeholder="Buscar contato..."
+                                        value={contactSearchTerm}
+                                        onChange={(e) => setContactSearchTerm(e.target.value)}
+                                        onFocus={() => contacts.length === 0 && fetchContacts()}
+                                    />
+                                    {contacts.length > 0 && (
+                                        <div className="max-h-[150px] overflow-y-auto border rounded-lg divide-y">
+                                            {contacts
+                                                .filter(c => {
+                                                    const search = contactSearchTerm.toLowerCase();
+                                                    return !search ||
+                                                        (c.name && c.name.toLowerCase().includes(search)) ||
+                                                        (c.push_name && c.push_name.toLowerCase().includes(search)) ||
+                                                        (c.phone && c.phone.includes(search));
+                                                })
+                                                .slice(0, 5)
+                                                .map(contact => (
+                                                    <div
+                                                        key={contact.id}
+                                                        className="p-2 hover:bg-slate-50 cursor-pointer text-sm"
+                                                        onClick={() => {
+                                                            setSelectedContact(contact);
+                                                            setContactSearchTerm("");
+                                                        }}
+                                                    >
+                                                        {contact.name || contact.push_name || contact.phone}
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
+
                     <div className="grid gap-2">
-                        <Label htmlFor="title">Título do Objetivo</Label>
+                        <Label htmlFor="title">Título do Follow-up</Label>
                         <Input
                             id="title"
-                            placeholder="Ex: Retomar negociação, Enviar proposta..."
+                            placeholder="Ex: Enviar proposta, Retomar contato..."
                             value={formData.title}
                             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                             required
@@ -148,6 +227,23 @@ export function FollowUpModal({ isOpen, onClose, initialData }: FollowUpModalPro
                             </SelectContent>
                         </Select>
                     </div>
+
+                    {/* Message Field for WhatsApp Follow-ups */}
+                    {formData.type === 'whatsapp' && (
+                        <div className="grid gap-2">
+                            <Label htmlFor="message">Mensagem Agendada (Opcional)</Label>
+                            <Textarea
+                                id="message"
+                                placeholder="Digite a mensagem que será enviada automaticamente no horário agendado..."
+                                value={formData.message}
+                                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                                rows={3}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Se preencher, a mensagem será enviada automaticamente. Caso contrário, será apenas um lembrete.
+                            </p>
+                        </div>
+                    )}
 
                     <div className="grid gap-2">
                         <Label htmlFor="notes">Observações / Detalhes</Label>
