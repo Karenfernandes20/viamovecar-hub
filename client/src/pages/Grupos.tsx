@@ -375,17 +375,17 @@ const GruposPage = () => {
                                     key={group.id}
                                     onClick={() => setSelectedGroup(group)}
                                     className={cn(
-                                        "group flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 border border-transparent",
+                                        "group flex items-center gap-2.5 p-1.5 rounded-lg cursor-pointer transition-all duration-200 border border-transparent",
                                         selectedGroup?.id === group.id
                                             ? "bg-[#e7fce3] dark:bg-[#005c4b]/30 border-[#00a884]/20 shadow-sm"
                                             : "hover:bg-zinc-50 dark:hover:bg-zinc-900 border-zinc-100/50 dark:border-zinc-800/50"
                                     )}
                                 >
                                     <div className="relative shrink-0">
-                                        <Avatar className="h-10 w-10 border-2 border-white dark:border-zinc-900 shadow-sm">
+                                        <Avatar className="h-9 w-9 border-2 border-white dark:border-zinc-900 shadow-sm">
                                             <AvatarImage src={group.profile_pic_url || `https://api.dicebear.com/7.x/initials/svg?seed=${group.group_name || group.contact_name || "G"}`} />
                                             <AvatarFallback className="bg-blue-100 text-blue-600">
-                                                <Users className="h-5 w-5" />
+                                                <Users className="h-4 w-4" />
                                             </AvatarFallback>
                                         </Avatar>
                                     </div>
@@ -393,7 +393,7 @@ const GruposPage = () => {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex justify-between items-center mb-0.5">
                                             <span className={cn(
-                                                "font-semibold truncate text-[14px]",
+                                                "font-semibold truncate text-[13px]",
                                                 selectedGroup?.id === group.id ? "text-[#008069] dark:text-[#00a884]" : "text-zinc-900 dark:text-zinc-100"
                                             )}>
                                                 {group.group_name || group.contact_name || "Grupo"}
@@ -402,13 +402,13 @@ const GruposPage = () => {
                                                 {formatTime(group.last_message_at)}
                                             </span>
                                         </div>
-                                        <p className="text-[12px] text-muted-foreground truncate opacity-90 uppercase tracking-tight">
+                                        <p className="text-[11px] text-muted-foreground truncate opacity-90 uppercase tracking-tight">
                                             {group.last_message || "Nenhuma mensagem"}
                                         </p>
                                     </div>
 
                                     {group.unread_count && group.unread_count > 0 && (
-                                        <div className="shrink-0 min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-[#25d366] text-white text-[10px] font-bold shadow-sm">
+                                        <div className="shrink-0 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-[#25d366] text-white text-[10px] font-bold shadow-sm">
                                             {group.unread_count}
                                         </div>
                                     )}
