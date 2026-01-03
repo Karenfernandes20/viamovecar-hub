@@ -60,14 +60,16 @@ export const AdminLayout = () => {
     link.href = faviconUrl;
   }, [user?.company?.logo_url, user?.role]);
 
+  const isAtendimento = location.pathname.startsWith("/app/atendimento");
+
   return (
     <SidebarProvider>
-      <div className="min-h-screen w-full bg-background">
-        <div className="flex min-h-screen w-full">
+      <div className={cn("w-full bg-background", isAtendimento ? "h-screen overflow-hidden" : "min-h-screen")}>
+        <div className={cn("flex w-full", isAtendimento ? "h-screen overflow-hidden" : "min-h-screen")}>
           <AppSidebar />
 
-          <SidebarInset>
-            <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-md">
+          <SidebarInset className={cn(isAtendimento && "h-screen overflow-hidden flex flex-col")}>
+            <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-md shrink-0">
               <div className="flex items-center gap-3">
                 <SidebarTrigger className="mr-1" />
                 <div>
@@ -121,11 +123,11 @@ export const AdminLayout = () => {
 
             <main className={cn(
               "flex-1 bg-gradient-to-b from-background via-background to-primary-soft/10",
-              location.pathname.startsWith("/app/atendimento") ? "p-0 overflow-hidden" : "px-4 pb-8 pt-4"
+              isAtendimento ? "p-0 overflow-hidden h-[calc(100vh-4rem)]" : "px-4 pb-8 pt-4"
             )}>
               <div className={cn(
                 "mx-auto flex flex-col h-full",
-                location.pathname.startsWith("/app/atendimento") ? "max-w-full gap-0" :
+                isAtendimento ? "max-w-full gap-0" :
                   location.pathname.startsWith("/app/crm") ? "max-w-full gap-4 p-4" : "max-w-6xl gap-6"
               )}>
                 <Outlet />
