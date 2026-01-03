@@ -111,6 +111,33 @@ const UsuariosPage = () => {
         </div>
       </header>
 
+      {/* Informative Message */}
+      <div className="flex items-start gap-3 p-4 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="16" x2="12" y2="12" />
+          <line x1="12" y1="8" x2="12.01" y2="8" />
+        </svg>
+        <div className="flex-1">
+          <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">
+            Informação sobre cadastro de usuários
+          </h4>
+          <p className="text-xs text-blue-800 dark:text-blue-200 leading-relaxed">
+            Atualmente, o cadastro de usuários é realizado apenas pela equipe administrativa do sistema.
+            Em breve, essa funcionalidade será liberada para que os próprios contratantes possam criar e gerenciar seus usuários.
+          </p>
+        </div>
+      </div>
+
       {/* DASHBOARD SUMMARY */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="border-none shadow-sm bg-blue-50 dark:bg-blue-950/20">
