@@ -571,7 +571,8 @@ const AtendimentoPage = () => {
         if (currentPhone === msgPhone || currentPhone == msgJid || currentSelected.id === newMessage.conversation_id) {
           setMessages((prev) => {
             // Prevent duplication: If we sent this message (outbound) and we have a pending message with same content, ignore socket.
-            if (newMessage.direction === 'outbound' && newMessage.user_id === user?.id) {
+            // Use loose equality for IDs to handle string/number differences
+            if (newMessage.direction === 'outbound' && newMessage.user_id == user?.id) {
               // Check if we have a pending message with similar content
               const hasPending = prev.some(m => m.status === 'sending' && m.content === newMessage.content);
               if (hasPending) {
@@ -1204,7 +1205,7 @@ const AtendimentoPage = () => {
         direction: "outbound",
         content: messageContent,
         sent_at: new Date().toISOString(),
-        status: "pending",
+        status: "sending",
         user_id: user?.id,
         agent_name: user?.full_name
       };
