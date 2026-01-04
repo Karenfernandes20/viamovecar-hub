@@ -634,10 +634,18 @@ export const getMessages = async (req: Request, res: Response) => {
 
         const result = await pool.query(
             `SELECT m.*, 
+                    u.full_name as user_name,
+                    CASE 
+                        WHEN m.campaign_id IS NOT NULL THEN 'campaign'
+                        WHEN m.follow_up_id IS NOT NULL THEN 'follow_up'
+                        WHEN m.user_id IS NOT NULL THEN 'system_user'
+                        WHEN m.direction = 'outbound' AND m.user_id IS NULL THEN 'whatsapp_mobile'
+                        ELSE 'unknown'
+                    END as message_origin,
                     CASE 
                         WHEN m.campaign_id IS NOT NULL THEN 'Campanha'
                         WHEN m.follow_up_id IS NOT NULL THEN 'Follow-Up'
-                        WHEN m.direction = 'outbound' AND m.user_id IS NULL THEN 'Agente de IA'
+                        WHEN m.direction = 'outbound' AND m.user_id IS NULL THEN 'Celular'
                         ELSE u.full_name 
                     END as agent_name 
              FROM whatsapp_messages m 

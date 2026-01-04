@@ -65,11 +65,11 @@ export const AdminLayout = () => {
 
   return (
     <SidebarProvider>
-      <div className={cn("w-full bg-background", isAtendimento ? "h-screen overflow-hidden" : "min-h-screen")}>
-        <div className={cn("flex w-full", isAtendimento ? "h-screen overflow-hidden" : "min-h-screen")}>
+      <div className={cn("w-full bg-background", isAtendimento ? "h-[100dvh] overflow-hidden" : "min-h-screen")}>
+        <div className={cn("flex w-full", isAtendimento ? "h-[100dvh] overflow-hidden" : "min-h-screen")}>
           <AppSidebar />
 
-          <SidebarInset className={cn(isAtendimento && "h-screen overflow-hidden flex flex-col")}>
+          <SidebarInset className={cn(isAtendimento && "h-[100dvh] overflow-hidden flex flex-col")}>
             <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-md shrink-0">
               <div className="flex items-center gap-3">
                 <SidebarTrigger className="mr-1" />
@@ -124,7 +124,7 @@ export const AdminLayout = () => {
 
             <main className={cn(
               "flex-1 bg-gradient-to-b from-background via-background to-primary-soft/10",
-              isAtendimento ? "p-0 overflow-hidden h-[calc(100vh-4rem)]" : "px-4 pb-8 pt-4"
+              isAtendimento ? "p-0 overflow-hidden h-[calc(100dvh-4rem)]" : "px-4 pb-8 pt-4"
             )}>
               <div className={cn(
                 "mx-auto flex flex-col h-full",

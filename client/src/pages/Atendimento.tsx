@@ -91,6 +91,8 @@ interface Message {
   agent_name?: string;
   user_id?: number | string;
   remoteJid?: string;
+  message_origin?: string;
+  user_name?: string;
 }
 
 interface Contact {
@@ -1845,7 +1847,8 @@ const AtendimentoPage = () => {
       {/* Sidebar - Lista de Conversas / Contatos */}
       <div className={cn(
         "flex flex-col border-r bg-white dark:bg-zinc-950 transition-all duration-300 shadow-sm z-20 shrink-0",
-        "w-full md:w-[450px]"
+        "w-full md:w-[450px]",
+        selectedConversation ? "hidden md:flex" : "flex"
       )}>
         <Tabs
           value={activeTab}
@@ -2192,7 +2195,10 @@ const AtendimentoPage = () => {
       </div>
 
       {/* Area do Chat */}
-      <div className="flex-1 flex flex-col relative min-h-0 h-full min-w-0 bg-[#efeae2] dark:bg-[#0b141a] overflow-hidden">
+      <div className={cn(
+        "flex-1 flex-col relative min-h-0 h-full min-w-0 bg-[#efeae2] dark:bg-[#0b141a] overflow-hidden",
+        !selectedConversation ? "hidden md:flex" : "flex"
+      )}>
         {/* Chat Background Pattern */}
         <div className="absolute inset-0 z-0 opacity-[0.06] pointer-events-none" style={{
           backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')",
@@ -2220,6 +2226,14 @@ const AtendimentoPage = () => {
             {/* Chat Header */}
             <div className="sticky top-0 z-30 flex-none h-[60px] bg-zinc-100 dark:bg-zinc-800 flex items-center justify-between px-4 border-l border-b border-zinc-200 dark:border-zinc-700 w-full shadow-sm">
               <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden -ml-2 text-zinc-500"
+                  onClick={() => setSelectedConversation(null)}
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </Button>
                 <Avatar className="cursor-pointer">
                   <AvatarImage src={selectedConversation.profile_pic_url || `https://api.dicebear.com/7.x/initials/svg?seed=${getDisplayName(selectedConversation)}`} />
                   <AvatarFallback>{(getDisplayName(selectedConversation)?.[0] || "?").toUpperCase()}</AvatarFallback>
@@ -2345,16 +2359,24 @@ const AtendimentoPage = () => {
                       msg.direction === "outbound" ? "items-end" : "items-start"
                     )}
                   >
-                    {msg.direction === "outbound" && (
-                      <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 px-1 uppercase tracking-wider">
-                        {msg.user_id === user?.id ? user?.full_name : (msg.agent_name || "Celular")}
-                      </span>
-                    )}
-                    {msg.direction === "inbound" && selectedConversation?.is_group && (
-                      <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400 px-1 tracking-tight">
-                        {msg.sender_name || msg.sender_jid?.split('@')[0] || "Participante"}
-                      </span>
-                    )}
+                    <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 px-1 uppercase tracking-wider mb-0.5 opacity-80">
+                      {(() => {
+                        if (msg.direction === 'inbound') {
+                          return selectedConversation?.is_group
+                            ? (msg.sender_name || msg.sender_jid?.split('@')[0] || "Participante")
+                            : (selectedConversation?.contact_name || "Contato");
+                        }
+                        // Outbound mapping
+                        if (msg.message_origin === 'campaign') return "Campanha";
+                        if (msg.message_origin === 'follow_up') return "Follow-Up";
+                        if (msg.message_origin === 'ai_agent') return "Agente de IA";
+                        if (msg.message_origin === 'whatsapp_mobile') return "Celular";
+                        if (msg.message_origin === 'system_user') return msg.user_name || msg.agent_name || "Usuário";
+
+                        // Fallback using legacy agent_name or default logic
+                        return msg.agent_name || "Celular";
+                      })()}
+                    </span>
                     <div
                       className={cn(
                         "relative max-w-[90%] sm:max-w-[75%] px-3 py-1.5 shadow-sm text-sm break-words",

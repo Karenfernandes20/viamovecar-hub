@@ -16,7 +16,7 @@ const Index = () => {
               <ShieldCheck className="h-4 w-4" />
             </div>
             <div className="flex flex-col leading-tight">
-              <span className="text-sm font-semibold tracking-tight">Integrai</span>
+              <span className="text-sm font-semibold">Integrai</span>
               <span className="text-[11px] text-muted-foreground">Painel de gestão</span>
             </div>
           </div>
@@ -52,15 +52,15 @@ const Index = () => {
       </header>
 
       {/* Hero section */}
-      <main className="mx-auto flex max-w-7xl flex-col items-center gap-12 px-4 pb-12 pt-10 sm:pt-16 md:pb-20">
-        <section className="flex flex-col items-center text-center space-y-8 max-w-4xl">
+      <main className="mx-auto flex max-w-7xl flex-col items-center gap-12 px-4 pb-12 pt-10 sm:pt-16 md:pb-20 relative z-0">
+        <section className="flex flex-col items-center text-center space-y-8 max-w-4xl relative z-10">
           <div className="space-y-4">
             <span className="inline-flex items-center gap-2 rounded-full bg-primary/5 px-3 py-1 text-[11px] font-medium text-primary border border-primary/10">
               <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
               Novo CRM + Atendimento WhatsApp
             </span>
 
-            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl text-foreground">
+            <h1 className="text-4xl font-bold tracking-normal sm:text-5xl md:text-6xl text-foreground">
               Gestão completa dos seus <span className="text-primary">atendimentos e vendas</span>
             </h1>
 
@@ -111,7 +111,7 @@ const Index = () => {
             <p className="text-muted-foreground">Módulos especializados para cada necessidade do seu negócio.</p>
           </div>
 
-          <div className="absolute -z-10 bg-primary/20 blur-[120px] w-[60%] h-[300px] rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-50" />
+          <div className="absolute -z-10 bg-primary/20 blur-[60px] w-[60%] h-[300px] rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-30" />
           <DashboardPreview />
         </section>
 
