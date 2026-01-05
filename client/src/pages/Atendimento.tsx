@@ -31,6 +31,9 @@ import {
   MessageCircle,
   ShieldAlert,
   Download,
+  X,
+  Loader2,
+  ChevronDown,
 } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import { FollowUpModal } from "../components/follow-up/FollowUpModal";
@@ -108,6 +111,28 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 
+// Helper component to highlight search terms
+const HighlightedText = ({ text, highlight }: { text: string; highlight: string }) => {
+  if (!highlight.trim()) {
+    return <span>{text}</span>;
+  }
+  const regex = new RegExp(`(${highlight})`, "gi");
+  const parts = text.split(regex);
+  return (
+    <span>
+      {parts.map((part, i) =>
+        part.toLowerCase() === highlight.toLowerCase() ? (
+          <span key={i} className="bg-yellow-200 dark:bg-yellow-800/50 text-zinc-900 dark:text-zinc-100 font-bold px-0.5 rounded">
+            {part}
+          </span>
+        ) : (
+          part
+        )
+      )}
+    </span>
+  );
+};
+
 
 
 const AtendimentoPage = () => {
@@ -140,6 +165,13 @@ const AtendimentoPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isNearBottomRef = useRef(true);
   const isInitialLoadRef = useRef(true);
+  const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string | null>(null);
+  const [globalSearchResults, setGlobalSearchResults] = useState<{ conversations: Conversation[], messages: any[] }>({ conversations: [], messages: [] });
+  const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
+  const [isMessageSearchOpen, setIsMessageSearchOpen] = useState(false);
+  const [messageSearchTerm, setMessageSearchTerm] = useState("");
+  const sidebarSearchInputRef = useRef<HTMLInputElement>(null);
+  const chatSearchInputRef = useRef<HTMLInputElement>(null);
   const lastProcessedPhoneRef = useRef<string | null>(null);
 
   // New states for contact import
@@ -155,6 +187,45 @@ const AtendimentoPage = () => {
     }
   }, [token]);
 
+  // Global search effect (Debounced)
+  useEffect(() => {
+    if (!conversationSearchTerm || conversationSearchTerm.length < 2) {
+      setGlobalSearchResults({ conversations: [], messages: [] });
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingGlobal(true);
+      try {
+        let url = `/api/evolution/search?q=${encodeURIComponent(conversationSearchTerm)}`;
+        if (selectedCompanyFilter) url += `&companyId=${selectedCompanyFilter}`;
+
+        const res = await fetch(url, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setGlobalSearchResults(data);
+        }
+      } catch (e) {
+        console.error("Global search error:", e);
+      } finally {
+        setIsSearchingGlobal(false);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [conversationSearchTerm, token, selectedCompanyFilter]);
+
+  // Focus effect for chat search
+  useEffect(() => {
+    if (isMessageSearchOpen) {
+      setTimeout(() => chatSearchInputRef.current?.focus(), 100);
+    } else {
+      setMessageSearchTerm("");
+    }
+  }, [isMessageSearchOpen]);
+
   // Socket status for debugging
   const [socketStatus, setSocketStatus] = useState<"connected" | "disconnected" | "connecting">("connecting");
   const [whatsappStatus, setWhatsappStatus] = useState<"open" | "close" | "connecting" | "unknown">("unknown");
@@ -164,7 +235,6 @@ const AtendimentoPage = () => {
 
   // SuperAdmin Filters
   const [availableCompanies, setAvailableCompanies] = useState<any[]>([]);
-  const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string | null>(null);
 
   // Notification sound settings
   const [notificationVolume, setNotificationVolume] = useState<number>(() => {
@@ -1990,14 +2060,26 @@ const AtendimentoPage = () => {
           {activeTab === 'conversas' && (
             <div className="flex-1 flex flex-col min-h-0 m-0 animate-in slide-in-from-right-20 duration-200">
               <div className="px-3 py-2 flex flex-col gap-2 border-b">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <div className="relative group">
+                  <Search
+                    className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground group-focus-within:text-[#008069] cursor-pointer"
+                    onClick={() => sidebarSearchInputRef.current?.focus()}
+                  />
                   <Input
+                    ref={sidebarSearchInputRef}
                     placeholder="Pesquisar..."
-                    className="pl-9 h-9 bg-zinc-100 dark:bg-zinc-900 border-none rounded-lg text-sm"
+                    className="pl-9 h-9 bg-zinc-100 dark:bg-zinc-900 border-none rounded-lg text-sm focus-visible:ring-1 focus-visible:ring-[#008069]/30"
                     value={conversationSearchTerm}
                     onChange={(e) => setConversationSearchTerm(e.target.value)}
                   />
+                  {conversationSearchTerm && (
+                    <button
+                      onClick={() => setConversationSearchTerm("")}
+                      className="absolute right-2.5 top-2.5 text-zinc-400 hover:text-zinc-600"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
 
                 {/* QUICK NAVIGATION TABS (Top Bar Style) */}
@@ -2035,47 +2117,124 @@ const AtendimentoPage = () => {
               </div>
 
               <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-0 bg-zinc-50/50 dark:bg-zinc-900/10 flex flex-col">
-                <div className={cn("flex flex-col flex-1", ((viewMode === 'PENDING' && pendingConversations.length === 0) || (viewMode === 'OPEN' && openConversations.length === 0) || (viewMode === 'CLOSED' && closedConversations.length === 0)) ? "justify-center" : "py-2")}>
-                  {/* DYNAMIC LIST BASED ON VIEWMODE */}
-
-                  {viewMode === 'PENDING' && pendingConversations.length > 0 &&
-                    pendingConversations.slice((pendingPage - 1) * ITEMS_PER_PAGE, pendingPage * ITEMS_PER_PAGE).map(conv => renderConversationCard(conv))
-                  }
-
-                  {viewMode === 'PENDING' && Math.ceil(pendingConversations.length / ITEMS_PER_PAGE) > 1 && (
-                    <div className="flex justify-center p-2 mb-10"><span className="text-xs text-muted-foreground">Página {pendingPage}</span></div>
-                    // Added padding at bottom ensures user can scroll past last item easily
-                  )}
-
-
-                  {viewMode === 'OPEN' && openConversations.length > 0 &&
-                    openConversations.slice((openPage - 1) * ITEMS_PER_PAGE, openPage * ITEMS_PER_PAGE).map(conv => renderConversationCard(conv))
-                  }
-                  {viewMode === 'OPEN' && Math.ceil(openConversations.length / ITEMS_PER_PAGE) > 1 && (
-                    <div className="flex justify-center p-2 mb-10"><span className="text-xs text-muted-foreground">Página {openPage}</span></div>
-                  )}
-
-                  {viewMode === 'CLOSED' && closedConversations.length > 0 &&
-                    closedConversations.slice((closedPage - 1) * ITEMS_PER_PAGE, closedPage * ITEMS_PER_PAGE).map(conv => renderConversationCard(conv))
-                  }
-                  {viewMode === 'CLOSED' && Math.ceil(closedConversations.length / ITEMS_PER_PAGE) > 1 && (
-                    <div className="flex justify-center p-2 mb-10"><span className="text-xs text-muted-foreground">Página {closedPage}</span></div>
-                  )}
-
-                  {/* EMPTY STATES */}
-                  {((viewMode === 'PENDING' && pendingConversations.length === 0) ||
-                    (viewMode === 'OPEN' && openConversations.length === 0) ||
-                    (viewMode === 'CLOSED' && closedConversations.length === 0)) && (
-                      <div className="flex flex-col items-center justify-center text-center p-6 opacity-60 m-auto">
-                        <MessageSquare className="h-10 w-10 text-zinc-300 mb-2" />
-                        <p className="text-sm font-medium text-zinc-500">
-                          {viewMode === 'PENDING' ? 'Nenhuma conversa pendente' :
-                            viewMode === 'OPEN' ? 'Nenhum atendimento aberto' :
-                              'Nenhuma conversa finalizada'}
-                        </p>
+                {conversationSearchTerm && conversationSearchTerm.length >= 2 ? (
+                  <div className="flex flex-col flex-1 divide-y divide-zinc-100 dark:divide-zinc-800">
+                    {isSearchingGlobal ? (
+                      <div className="flex flex-col items-center justify-center p-12 gap-3">
+                        <Loader2 className="h-8 w-8 animate-spin text-[#008069] opacity-40" />
+                        <span className="text-xs text-muted-foreground animate-pulse">Pesquisando no histórico...</span>
                       </div>
+                    ) : (
+                      <>
+                        {globalSearchResults.conversations.length > 0 && (
+                          <div className="flex flex-col">
+                            <div className="px-4 py-2 bg-zinc-50 dark:bg-zinc-900/50 text-[11px] font-bold text-[#008069] uppercase tracking-wider sticky top-0 z-10 border-b border-zinc-100 dark:border-zinc-800">
+                              Conversas
+                            </div>
+                            <div className="flex flex-col">
+                              {globalSearchResults.conversations.map(conv => renderConversationCard(conv))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex flex-col mt-2">
+                          <div className="px-4 py-2 bg-zinc-50 dark:bg-zinc-900/50 text-[11px] font-bold text-[#008069] uppercase tracking-wider sticky top-0 z-10 border-b border-zinc-100 dark:border-zinc-800">
+                            Mensagens
+                          </div>
+                          {globalSearchResults.messages.length > 0 ? (
+                            <div className="flex flex-col divide-y divide-zinc-50 dark:divide-zinc-900/30">
+                              {globalSearchResults.messages.map(msg => (
+                                <div
+                                  key={msg.id}
+                                  onClick={() => {
+                                    const conv = conversations.find(c => c.id === msg.conversation_id) || {
+                                      id: msg.conversation_id,
+                                      phone: msg.chat_phone,
+                                      contact_name: msg.contact_name,
+                                      is_group: msg.is_group,
+                                      group_name: msg.group_name,
+                                      profile_pic_url: msg.profile_pic_url // Use message's associated pic if available
+                                    } as Conversation;
+                                    setSelectedConversation(conv);
+                                    setConversationSearchTerm("");
+                                  }}
+                                  className="px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-900 cursor-pointer flex gap-3 transition-colors group"
+                                >
+                                  <Avatar className="h-10 w-10 shrink-0">
+                                    <AvatarImage src={msg.profile_pic_url} />
+                                    <AvatarFallback className="bg-zinc-100 dark:bg-zinc-800 text-[10px]">
+                                      {((msg.contact_name || msg.group_name || "?")[0]).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                                    <div className="flex justify-between items-center w-full">
+                                      <span className="font-semibold text-sm text-zinc-900 dark:text-zinc-100 truncate flex-1 pr-2">
+                                        {msg.contact_name || msg.group_name || msg.chat_phone}
+                                      </span>
+                                      <span className="text-[10px] text-muted-foreground shrink-0">{formatTime(msg.sent_at)}</span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                                      <HighlightedText text={msg.content} highlight={conversationSearchTerm} />
+                                    </p>
+                                    {(msg.is_group || msg.group_name) && (
+                                      <span className="text-[9px] text-[#008069] font-medium uppercase tracking-tighter mt-0.5">Grupo</span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center p-8 opacity-40">
+                              <Search className="h-8 w-8 mb-2" />
+                              <p className="text-xs italic text-center">Nenhuma mensagem encontrada com "{conversationSearchTerm}"</p>
+                            </div>
+                          )}
+                        </div>
+                      </>
                     )}
-                </div>
+                  </div>
+                ) : (
+                  <div className={cn("flex flex-col flex-1", ((viewMode === 'PENDING' && pendingConversations.length === 0) || (viewMode === 'OPEN' && openConversations.length === 0) || (viewMode === 'CLOSED' && closedConversations.length === 0)) ? "justify-center" : "py-2")}>
+                    {/* DYNAMIC LIST BASED ON VIEWMODE */}
+
+                    {viewMode === 'PENDING' && pendingConversations.length > 0 &&
+                      pendingConversations.slice((pendingPage - 1) * ITEMS_PER_PAGE, pendingPage * ITEMS_PER_PAGE).map(conv => renderConversationCard(conv))
+                    }
+
+                    {viewMode === 'PENDING' && Math.ceil(pendingConversations.length / ITEMS_PER_PAGE) > 1 && (
+                      <div className="flex justify-center p-2 mb-10"><span className="text-xs text-muted-foreground">Página {pendingPage}</span></div>
+                    )}
+
+
+                    {viewMode === 'OPEN' && openConversations.length > 0 &&
+                      openConversations.slice((openPage - 1) * ITEMS_PER_PAGE, openPage * ITEMS_PER_PAGE).map(conv => renderConversationCard(conv))
+                    }
+                    {viewMode === 'OPEN' && Math.ceil(openConversations.length / ITEMS_PER_PAGE) > 1 && (
+                      <div className="flex justify-center p-2 mb-10"><span className="text-xs text-muted-foreground">Página {openPage}</span></div>
+                    )}
+
+                    {viewMode === 'CLOSED' && closedConversations.length > 0 &&
+                      closedConversations.slice((closedPage - 1) * ITEMS_PER_PAGE, closedPage * ITEMS_PER_PAGE).map(conv => renderConversationCard(conv))
+                    }
+                    {viewMode === 'CLOSED' && Math.ceil(closedConversations.length / ITEMS_PER_PAGE) > 1 && (
+                      <div className="flex justify-center p-2 mb-10"><span className="text-xs text-muted-foreground">Página {closedPage}</span></div>
+                    )}
+
+                    {/* EMPTY STATES */}
+                    {((viewMode === 'PENDING' && pendingConversations.length === 0) ||
+                      (viewMode === 'OPEN' && openConversations.length === 0) ||
+                      (viewMode === 'CLOSED' && closedConversations.length === 0)) && (
+                        <div className="flex flex-col items-center justify-center text-center p-6 opacity-60 m-auto">
+                          <MessageSquare className="h-10 w-10 text-zinc-300 mb-2" />
+                          <p className="text-sm font-medium text-zinc-500">
+                            {viewMode === 'PENDING' ? 'Nenhuma conversa pendente' :
+                              viewMode === 'OPEN' ? 'Nenhum atendimento aberto' :
+                                'Nenhuma conversa finalizada'}
+                          </p>
+                        </div>
+                      )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2244,128 +2403,121 @@ const AtendimentoPage = () => {
           <>
             {/* Chat Header */}
             <div className="sticky top-0 z-30 flex-none h-[60px] bg-zinc-100 dark:bg-zinc-800 flex items-center justify-between px-4 border-l border-b border-zinc-200 dark:border-zinc-700 w-full shadow-sm">
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="md:hidden -ml-2 text-zinc-500"
-                  onClick={() => setSelectedConversation(null)}
-                >
-                  <ChevronLeft className="h-6 w-6" />
-                </Button>
-                <Avatar className="cursor-pointer">
-                  <AvatarImage src={selectedConversation.profile_pic_url || `https://api.dicebear.com/7.x/initials/svg?seed=${getDisplayName(selectedConversation)}`} />
-                  <AvatarFallback>{(getDisplayName(selectedConversation)?.[0] || "?").toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div className="flex flex-col cursor-pointer" onClick={() => {
-                  if (selectedConversation.is_group) handleRefreshMetadata();
-                }}>
-                  <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                    {getDisplayName(selectedConversation)}
-                    {selectedConversation.is_group && (
-                      <Badge variant="outline" className="text-[9px] h-4 px-1 bg-violet-50 text-violet-700 border-violet-200">GRUPO</Badge>
-                    )}
-                    {!selectedConversation.is_group && selectedConversation.status === 'CLOSED' && (
-                      <div className="flex items-center gap-2">
-                        <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-600 text-[9px] uppercase border border-red-200">Fechado</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 rounded-full text-green-500 hover:text-green-700 hover:bg-green-50"
-                          onClick={(e) => { e.stopPropagation(); handleStartAtendimento(); }}
-                          title="Iniciar atendimento"
-                        >
-                          <Play className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
-                    {/* {!selectedConversation.is_group && selectedConversation.status === 'OPEN' && (
-                      <div className="flex items-center gap-2">
-                        <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-600 text-[9px] uppercase border border-green-200">Aberto</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 rounded-full text-red-500 hover:text-red-700 hover:bg-red-50"
-                          onClick={(e) => { e.stopPropagation(); handleCloseAtendimento(); }}
-                          title="Encerrar atendimento"
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )} */}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground flex gap-1 items-center">
-                    {selectedConversation.is_group ? (
-                      <span className="italic flex items-center gap-1 hover:text-green-600 transition-colors" title="Clique para atualizar">
-                        <RefreshCcw className="h-3 w-3" />
-                        Atualizar dados do grupo
-                      </span>
-                    ) : (
-                      <span>{selectedConversation.phone?.replace(/\D/g, "")}</span>
-                    )}
-                    {selectedConversation.user_id && <span className="font-bold ml-1">• Atendente: {selectedConversation.user_id === user?.id ? "Você" : `ID ${selectedConversation.user_id}`}</span>}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 text-zinc-500">
-                {(selectedConversation.status === 'PENDING' || !selectedConversation.status) && (
-                  <Button
-                    size="sm"
-                    onClick={() => handleStartAtendimento()}
-                    className="bg-[#008069] hover:bg-[#006d59] text-white h-8 text-xs font-bold gap-1.5 shadow-sm shrink-0 px-3"
-                  >
-                    <Play className="h-3.5 w-3.5 fill-current" /> <span className="hidden sm:inline">INICIAR</span>
-                  </Button>
-                )}
-                {selectedConversation.status === 'OPEN' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleCloseAtendimento()}
-                    className="text-red-600 border-red-200 hover:bg-red-50 h-8 text-xs font-bold gap-1.5 shadow-sm shrink-0 px-3"
-                  >
-                    <XCircle className="h-3.5 w-3.5" /> <span className="hidden sm:inline">ENCERRAR</span>
-                  </Button>
-                )}
-                {selectedConversation.status === 'CLOSED' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleReopenAtendimento()}
-                    className="text-blue-600 border-blue-200 hover:bg-blue-50 h-8 text-xs font-bold gap-1.5 shadow-sm shrink-0 px-3"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" /> <span className="hidden sm:inline">REABRIR</span>
-                  </Button>
-                )}
-                <div className="flex items-center gap-1">
+              {isMessageSearchOpen ? (
+                <div className="flex items-center gap-2 w-full animate-in slide-in-from-right-10 duration-200">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 text-zinc-500 hover:text-[#008069] hover:bg-zinc-200/50 rounded-full"
-                    onClick={() => {
-                      setFollowUpInitialData({
-                        conversation_id: selectedConversation.id,
-                        contact_name: getDisplayName(selectedConversation),
-                        phone: selectedConversation.phone,
-                        origin: 'Atendimento'
-                      });
-                      setIsFollowUpModalOpen(true);
-                    }}
-                    title="Novo Follow-up"
+                    onClick={() => setIsMessageSearchOpen(false)}
+                    className="h-9 w-9 text-zinc-500"
                   >
-                    <CalendarCheck className="h-5 w-5" />
+                    <ChevronLeft className="h-6 w-6" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-9 w-9 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200/50 rounded-full">
-                    <Search className="h-5 w-5" />
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-9 w-9 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200/50 rounded-full">
-                        <MoreVertical className="h-5 w-5" />
+                  <div className="relative flex-1">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      ref={chatSearchInputRef}
+                      placeholder="Pesquisar mensagens nesta conversa..."
+                      className="pl-9 h-9 bg-white dark:bg-zinc-900 border-none rounded-lg text-sm"
+                      value={messageSearchTerm}
+                      onChange={(e) => setMessageSearchTerm(e.target.value)}
+                    />
+                    {messageSearchTerm && (
+                      <button
+                        onClick={() => setMessageSearchTerm("")}
+                        className="absolute right-2.5 top-2.5 text-zinc-400 hover:text-zinc-600"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="md:hidden -ml-2 text-zinc-500"
+                      onClick={() => setSelectedConversation(null)}
+                    >
+                      <ChevronLeft className="h-6 w-6" />
+                    </Button>
+                    <Avatar className="cursor-pointer">
+                      <AvatarImage src={selectedConversation.profile_pic_url || `https://api.dicebear.com/7.x/initials/svg?seed=${getDisplayName(selectedConversation)}`} />
+                      <AvatarFallback>{(getDisplayName(selectedConversation)?.[0] || "?").toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col cursor-pointer" onClick={() => {
+                      if (selectedConversation.is_group) handleRefreshMetadata();
+                    }}>
+                      <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                        {getDisplayName(selectedConversation)}
+                        {selectedConversation.is_group && (
+                          <Badge variant="outline" className="text-[9px] h-4 px-1 bg-violet-50 text-violet-700 border-violet-200">GRUPO</Badge>
+                        )}
+                        {!selectedConversation.is_group && selectedConversation.status === 'CLOSED' && (
+                          <div className="flex items-center gap-2">
+                            <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-600 text-[9px] uppercase border border-red-200">Fechado</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 rounded-full text-green-500 hover:text-green-700 hover:bg-green-50"
+                              onClick={(e) => { e.stopPropagation(); handleStartAtendimento(); }}
+                              title="Iniciar atendimento"
+                            >
+                              <Play className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground flex gap-1 items-center">
+                        {selectedConversation.is_group ? (
+                          <span className="italic flex items-center gap-1 hover:text-green-600 transition-colors" title="Clique para atualizar">
+                            <RefreshCcw className="h-3 w-3" />
+                            Atualizar dados do grupo
+                          </span>
+                        ) : (
+                          <span>{selectedConversation.phone?.replace(/\D/g, "")}</span>
+                        )}
+                        {selectedConversation.user_id && <span className="font-bold ml-1">• Atendente: {selectedConversation.user_id === user?.id ? "Você" : `ID ${selectedConversation.user_id}`}</span>}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-zinc-500">
+                    {(selectedConversation.status === 'PENDING' || !selectedConversation.status) && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleStartAtendimento()}
+                        className="bg-[#008069] hover:bg-[#006d59] text-white h-8 text-xs font-bold gap-1.5 shadow-sm shrink-0 px-3"
+                      >
+                        <Play className="h-3.5 w-3.5 fill-current" /> <span className="hidden sm:inline">INICIAR</span>
                       </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
+                    )}
+                    {selectedConversation.status === 'OPEN' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleCloseAtendimento()}
+                        className="text-red-600 border-red-200 hover:bg-red-50 h-8 text-xs font-bold gap-1.5 shadow-sm shrink-0 px-3"
+                      >
+                        <XCircle className="h-3.5 w-3.5" /> <span className="hidden sm:inline">ENCERRAR</span>
+                      </Button>
+                    )}
+                    {selectedConversation.status === 'CLOSED' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleReopenAtendimento()}
+                        className="text-blue-600 border-blue-200 hover:bg-blue-50 h-8 text-xs font-bold gap-1.5 shadow-sm shrink-0 px-3"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" /> <span className="hidden sm:inline">REABRIR</span>
+                      </Button>
+                    )}
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 text-zinc-500 hover:text-[#008069] hover:bg-zinc-200/50 rounded-full"
                         onClick={() => {
                           setFollowUpInitialData({
                             conversation_id: selectedConversation.id,
@@ -2375,22 +2527,57 @@ const AtendimentoPage = () => {
                           });
                           setIsFollowUpModalOpen(true);
                         }}
-                        className="gap-2"
+                        title="Novo Follow-up"
                       >
-                        <CalendarCheck className="h-4 w-4" /> Novo Follow-up
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleRenameContact}>
-                        Editar nome do contato
-                      </DropdownMenuItem>
-                      {(selectedConversation.user_id === user?.id || user?.role === 'SUPERADMIN' || user?.role === 'ADMIN') && (
-                        <DropdownMenuItem onClick={handleDeleteConversation} className="text-red-600 focus:text-red-600">
-                          Deletar conversa
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
+                        <CalendarCheck className="h-5 w-5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "h-9 w-9 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200/50 rounded-full",
+                          isMessageSearchOpen && "text-[#008069] bg-[#008069]/10"
+                        )}
+                        onClick={() => setIsMessageSearchOpen(!isMessageSearchOpen)}
+                        title="Pesquisar mensagens"
+                      >
+                        <Search className="h-5 w-5" />
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-9 w-9 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200/50 rounded-full">
+                            <MoreVertical className="h-5 w-5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setFollowUpInitialData({
+                                conversation_id: selectedConversation.id,
+                                contact_name: getDisplayName(selectedConversation),
+                                phone: selectedConversation.phone,
+                                origin: 'Atendimento'
+                              });
+                              setIsFollowUpModalOpen(true);
+                            }}
+                            className="gap-2"
+                          >
+                            <CalendarCheck className="h-4 w-4" /> Novo Follow-up
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={handleRenameContact}>
+                            Editar nome do contato
+                          </DropdownMenuItem>
+                          {(selectedConversation.user_id === user?.id || user?.role === 'SUPERADMIN' || user?.role === 'ADMIN') && (
+                            <DropdownMenuItem onClick={handleDeleteConversation} className="text-red-600 focus:text-red-600">
+                              Deletar conversa
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="flex-1 flex flex-col min-h-0 relative">
@@ -2399,6 +2586,14 @@ const AtendimentoPage = () => {
                 onScroll={handleScroll}
                 className={cn("flex-1 overflow-y-auto p-4 flex flex-col gap-1 relative z-10 scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-800", messages.length === 0 && "items-center justify-center")}
               >
+                {/* MESSAGE SEARCH HIGHLIGHTING/FILTERING */}
+                {messageSearchTerm && (
+                  <div className="sticky top-0 z-20 bg-zinc-100/90 dark:bg-zinc-800/90 backdrop-blur-sm p-2 mb-2 rounded-lg border border-[#008069]/20 shadow-sm text-center">
+                    <p className="text-xs text-zinc-600 dark:text-zinc-300 font-medium">
+                      Mostrando resultados para: <span className="text-[#008069] font-bold">"{messageSearchTerm}"</span>
+                    </p>
+                  </div>
+                )}
                 {messages.length === 0 && (
                   <div className="flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-700">
                     <div className="w-24 h-24 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4 shadow-sm">
@@ -2412,7 +2607,7 @@ const AtendimentoPage = () => {
                   </div>
                 )}
 
-                {messages.map((msg) => (
+                {(messageSearchTerm ? messages.filter(m => m.content?.toLowerCase().includes(messageSearchTerm.toLowerCase())) : messages).map((msg) => (
                   <div
                     key={msg.id}
                     className={cn(
@@ -2587,7 +2782,15 @@ const AtendimentoPage = () => {
                           );
                         }
 
-                        return <span className="block pr-12 pb-1 whitespace-pre-wrap break-words">{msg.content}</span>;
+                        return (
+                          <span className="block pr-12 pb-1 whitespace-pre-wrap break-words">
+                            {messageSearchTerm ? (
+                              <HighlightedText text={msg.content} highlight={messageSearchTerm} />
+                            ) : (
+                              msg.content
+                            )}
+                          </span>
+                        );
                       })()}
                       <span className="absolute right-2 bottom-1 text-[10px] flex items-center gap-1 text-zinc-500 dark:text-zinc-400">
                         {formatTime(msg.sent_at)}
@@ -2727,7 +2930,7 @@ const AtendimentoPage = () => {
             </div>
           </>
         )}
-      </div >
+      </div>
       <FollowUpModal
         isOpen={isFollowUpModalOpen}
         onClose={() => setIsFollowUpModalOpen(false)}
@@ -2807,7 +3010,7 @@ const AtendimentoPage = () => {
         </DialogContent>
       </Dialog>
 
-    </div >
+    </div>
   );
 };
 

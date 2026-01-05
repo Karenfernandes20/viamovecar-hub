@@ -1658,3 +1658,72 @@ export const getEvolutionWebhook = async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Erro interno ao buscar webhook.", details: error.message });
   }
 };
+
+export const searchEverything = async (req: Request, res: Response) => {
+  try {
+    if (!pool) return res.status(500).json({ error: 'Database not configured' });
+
+    const { q, companyId: targetCompanyId } = req.query;
+    if (!q) return res.json({ conversations: [], messages: [] });
+
+    const user = (req as any).user;
+    const companyId = targetCompanyId || user?.company_id;
+
+    const searchTerm = `%${q}%`;
+
+    // 1. Search Conversations (by name, phone or group name)
+    let convQuery = `
+      SELECT c.*, 
+      (SELECT content FROM whatsapp_messages WHERE conversation_id = c.id ORDER BY sent_at DESC LIMIT 1) as last_message,
+      (SELECT sender_name FROM whatsapp_messages WHERE conversation_id = c.id AND sender_name IS NOT NULL LIMIT 1) as last_sender_name,
+      comp.name as company_name
+      FROM whatsapp_conversations c
+      LEFT JOIN companies comp ON c.company_id = comp.id
+      WHERE (c.contact_name ILIKE $1 OR c.phone ILIKE $1 OR c.group_name ILIKE $1)
+    `;
+    const convParams: any[] = [searchTerm];
+
+    if (user.role !== 'SUPERADMIN' || companyId) {
+      convQuery += ` AND c.company_id = $2`;
+      convParams.push(companyId);
+    }
+
+    convQuery += ` ORDER BY c.last_message_at DESC NULLS LAST LIMIT 20`;
+
+    // 2. Search Message Content
+    let msgQuery = `
+      SELECT m.*, 
+             c.contact_name, 
+             c.phone as chat_phone, 
+             c.is_group, 
+             c.group_name,
+             u.full_name as user_name
+      FROM whatsapp_messages m
+      JOIN whatsapp_conversations c ON m.conversation_id = c.id
+      LEFT JOIN app_users u ON m.user_id = u.id
+      WHERE m.content ILIKE $1
+    `;
+    const msgParams: any[] = [searchTerm];
+
+    if (user.role !== 'SUPERADMIN' || companyId) {
+      msgQuery += ` AND c.company_id = $2`;
+      msgParams.push(companyId);
+    }
+
+    msgQuery += ` ORDER BY m.sent_at DESC LIMIT 30`;
+
+    const [convRes, msgRes] = await Promise.all([
+      pool.query(convQuery, convParams),
+      pool.query(msgQuery, msgParams)
+    ]);
+
+    res.json({
+      conversations: convRes.rows,
+      messages: msgRes.rows
+    });
+
+  } catch (error) {
+    console.error('[searchEverything] Error:', error);
+    res.status(500).json({ error: 'Failed to perform search' });
+  }
+};
