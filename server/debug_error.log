@@ -1,0 +1,60 @@
+[2026-01-05T01:21:34.643Z] CRITICAL ERROR in updateCompany: Error: Connection terminated unexpectedly
+Stack: Error: Connection terminated unexpectedly
+    at C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async updateCompany (C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\controllers\companyController.ts:188:24)
+
+[2026-01-05T01:22:45.164Z] CRITICAL ERROR in updateCompany: Error: Connection terminated unexpectedly
+Stack: Error: Connection terminated unexpectedly
+    at C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async updateCompany (C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\controllers\companyController.ts:156:28)
+
+[DEBUG] updateCompany ID: 1, remove_logo: true, isRemovingLogo: true
+[2026-01-05T01:24:06.769Z] CRITICAL ERROR in updateCompany: Error: Connection terminated unexpectedly
+Stack: Error: Connection terminated unexpectedly
+    at C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async updateCompany (C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\controllers\companyController.ts:160:28)
+
+[2026-01-05T01:24:52.101Z] CRITICAL ERROR in updateCompany: TypeError: Cannot destructure property 'name' of 'req.body' as it is undefined.
+Stack: TypeError: Cannot destructure property 'name' of 'req.body' as it is undefined.
+    at updateCompany (C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\controllers\companyController.ts:136:17)
+    at Layer.handleRequest (C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\node_modules\router\lib\layer.js:152:17)
+    at next (C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\node_modules\router\lib\route.js:157:13)
+    at <anonymous> (C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\middleware\authMiddleware.ts:42:9)
+    at Layer.handleRequest (C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\node_modules\router\lib\layer.js:152:17)
+    at next (C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\node_modules\router\lib\route.js:157:13)
+    at authenticateToken (C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\middleware\authMiddleware.ts:29:9)
+    at Layer.handleRequest (C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\node_modules\router\lib\layer.js:152:17)
+    at next (C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\node_modules\router\lib\route.js:157:13)
+    at Route.dispatch (C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\node_modules\router\lib\route.js:117:3)
+
+[DEBUG] updateCompany ID: 1, remove_logo: true, isRemovingLogo: true
+[2026-01-05T01:25:25.815Z] CRITICAL ERROR in updateCompany: Error: Connection terminated unexpectedly
+Stack: Error: Connection terminated unexpectedly
+    at C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async updateCompany (C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\controllers\companyController.ts:160:28)
+
+[DEBUG] updateCompany ID: 1, remove_logo: true, isRemovingLogo: true
+[2026-01-05T01:29:12.797Z] CRITICAL ERROR in updateCompany: Error: Connection terminated unexpectedly
+Stack: Error: Connection terminated unexpectedly
+    at C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async updateCompany (C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\controllers\companyController.ts:161:28)
+
+[DEBUG] updateCompany ID: 1, remove_logo: true, isRemovingLogo: true
+[2026-01-05T01:30:11.772Z] CRITICAL ERROR in updateCompany: Error: Connection terminated unexpectedly
+Stack: Error: Connection terminated unexpectedly
+    at C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async updateCompany (C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\controllers\companyController.ts:162:28)
+
+[DEBUG] updateCompany ID: 1, remove_logo: true, isRemovingLogo: true
+[2026-01-05T01:31:11.281Z] CRITICAL ERROR in updateCompany: Error: Connection terminated unexpectedly
+Stack: Error: Connection terminated unexpectedly
+    at C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async updateCompany (C:\Users\Usuario\Desktop\KAREN\Pessoal\Integrai Site\integrai\server\controllers\companyController.ts:162:28)
+

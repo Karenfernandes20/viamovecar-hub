@@ -2381,19 +2381,17 @@ const AtendimentoPage = () => {
                     <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 px-1 uppercase tracking-wider mb-0.5 opacity-80">
                       {(() => {
                         if (msg.direction === 'inbound') {
-                          return selectedConversation?.is_group
-                            ? (msg.sender_name || msg.sender_jid?.split('@')[0] || "Participante")
-                            : (selectedConversation?.contact_name || "Contato");
+                          if (selectedConversation?.is_group) {
+                            return msg.saved_name || msg.sender_name || msg.sender_jid?.split('@')[0] || "Participante";
+                          }
+                          return msg.saved_name || selectedConversation?.contact_name || "Contato";
                         }
-                        // Outbound mapping
+
+                        if (msg.user_name) return msg.user_name;
                         if (msg.message_origin === 'campaign') return "Campanha";
                         if (msg.message_origin === 'follow_up') return "Follow-Up";
-                        if (msg.message_origin === 'ai_agent') return "Agente de IA";
-                        if (msg.message_origin === 'whatsapp_mobile') return "Celular";
-                        if (msg.message_origin === 'system_user') return msg.user_name || msg.agent_name || "Usuário";
 
-                        // Fallback using legacy agent_name or default logic
-                        return msg.agent_name || "Celular";
+                        return "Celular";
                       })()}
                     </span>
                     <div

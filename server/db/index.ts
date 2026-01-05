@@ -21,19 +21,22 @@ if (!databaseUrl) {
         // instead of connectionString which might prioritize IPv6 DNS resolution in some envs.
         const url = new URL(databaseUrl);
 
+        const isLocal = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
         poolConfig = {
             user: url.username,
             password: url.password,
             host: url.hostname,
             port: parseInt(url.port || '5432'),
             database: url.pathname.slice(1), // remove leading slash
-            ssl: {
+            ssl: isLocal ? undefined : {
                 rejectUnauthorized: false, // Required for most cloud providers including Supabase
             },
             max: 20,
             idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 10000,
-            family: 4 // Strictly FORCE IPv4
+            connectionTimeoutMillis: 30000,
+            family: 4, // Strictly FORCE IPv4
+            keepAlive: true,
+            keepAliveInitialDelayMillis: 10000
         };
 
         console.log(`DB Configured within Host: ${poolConfig.host} (IPv4 Forced)`);

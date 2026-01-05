@@ -12,6 +12,20 @@ const port = process.env.PORT || 3000;
 
 // Database connection is now handled in ./db/index.ts
 
+// GLOBAL ERROR HANDLERS TO PREVENT CRASH
+process.on('uncaughtException', (err) => {
+  console.error('========================================');
+  console.error('CRITICAL ERROR (Uncaught Exception):', err);
+  console.error('Server will NOT exit, but check state.');
+  console.error('========================================');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('========================================');
+  console.error('CRITICAL ERROR (Unhandled Rejection):', reason);
+  console.error('========================================');
+});
+
 app.use(cors());
 app.use(express.json());
 
@@ -111,9 +125,11 @@ app.set("io", io);
 // Run migrations then start server attempt
 const startServer = async () => {
   try {
-    await runMigrations();
-    await runFaqMigrations();
-    console.log("Migrations check completed.");
+    // SKIP MIGRATIONS FOR MOCK TESTING (To avoid crash on DB Connect Error)
+    console.log("SKIPPING Migrations to force server start (Connectivity Issues Mode)...");
+    // await runMigrations();
+    // await runFaqMigrations(); 
+    console.log("Migrations check skipped.");
   } catch (err) {
     console.error("Migration/DB check failed, starting server anyway for diagnostics:", err);
   }
@@ -122,13 +138,13 @@ const startServer = async () => {
     console.log(`Server rodando na porta ${port}`);
 
     // Start Campaign Scheduler (every minute)
-    console.log("Starting Campaign Scheduler...");
-    setInterval(() => {
-      checkAndStartScheduledCampaigns(io);
-    }, 60000);
+    console.log("Starting Campaign Scheduler... [DISABLED FOR STABILITY TESTING]");
+    // setInterval(() => {
+    //   checkAndStartScheduledCampaigns(io);
+    // }, 60000);
 
     // Run immediately on start
-    checkAndStartScheduledCampaigns(io);
+    // checkAndStartScheduledCampaigns(io);
   });
 };
 

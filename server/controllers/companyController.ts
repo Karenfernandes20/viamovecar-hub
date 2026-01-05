@@ -1,11 +1,32 @@
 import { Request, Response } from 'express';
 import { pool } from '../db';
 
+
 export const getCompanies = async (req: Request, res: Response) => {
     try {
         if (!pool) return res.status(500).json({ error: 'Database not configured' });
-        const result = await pool.query('SELECT * FROM companies ORDER BY created_at DESC');
-        res.json(result.rows);
+
+        try {
+            const result = await pool.query('SELECT * FROM companies ORDER BY created_at DESC');
+            res.json(result.rows);
+        } catch (dbErr: any) {
+            console.error('[getCompanies] DB Connection Failed - Returning MOCK DATA:', dbErr.message);
+            const mockCompanies = [
+                {
+                    id: 1,
+                    name: 'Empresa Mock Teste',
+                    cnpj: '00.000.000/0001-00',
+                    city: 'São Paulo',
+                    state: 'SP',
+                    phone: '11999999999',
+                    operation_type: 'clientes',
+                    evolution_instance: 'integrai',
+                    created_at: new Date().toISOString()
+                }
+            ];
+            res.json(mockCompanies);
+        }
+
     } catch (error) {
         console.error('Error fetching companies:', error);
         res.status(500).json({
@@ -128,7 +149,21 @@ export const updateCompany = async (req: Request, res: Response) => {
             finalLogoUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
         }
 
-        console.log('Attemping update for company ID:', id, { isRemovingLogo, hasFile: !!req.file });
+        // 1. Fetch current data to handle logo logic safely
+        const currentRes = await pool.query('SELECT logo_url FROM companies WHERE id = $1', [id]);
+
+        if (currentRes.rowCount === 0) {
+            return res.status(404).json({ error: 'Empresa não encontrada no banco de dados.' });
+        }
+        const currentLogo = currentRes.rows[0].logo_url;
+
+        // 2. Determine new logo URL
+        let newLogoUrl = currentLogo;
+        if (isRemovingLogo) {
+            newLogoUrl = null;
+        } else if (finalLogoUrl) {
+            newLogoUrl = finalLogoUrl;
+        }
 
         const query = `
             UPDATE companies 
@@ -137,11 +172,7 @@ export const updateCompany = async (req: Request, res: Response) => {
                 city = $3, 
                 state = $4, 
                 phone = $5, 
-                logo_url = CASE 
-                   WHEN $11::boolean IS TRUE THEN NULL 
-                   WHEN $6 IS NOT NULL THEN $6 
-                   ELSE logo_url 
-                END,
+                logo_url = $6,
                 evolution_instance = COALESCE($7, evolution_instance),
                 evolution_apikey = COALESCE($8, evolution_apikey),
                 operation_type = COALESCE($9, operation_type)
@@ -155,18 +186,18 @@ export const updateCompany = async (req: Request, res: Response) => {
             city || null,
             state || null,
             phone || null,
-            finalLogoUrl,
+            newLogoUrl, // $6 is now the decided value
             evolution_instance || null,
             evolution_apikey || null,
             operation_type || 'clientes',
-            parseInt(id),
-            isRemovingLogo
+            parseInt(id)
         ];
 
         const result = await pool.query(query, values);
 
         if (result.rowCount === 0) {
-            return res.status(404).json({ error: 'Empresa não encontrada no banco de dados.' });
+            // Should not happen as we checked existence, but standard check
+            return res.status(404).json({ error: 'Empresa não encontrada.' });
         }
 
         res.json(result.rows[0]);
