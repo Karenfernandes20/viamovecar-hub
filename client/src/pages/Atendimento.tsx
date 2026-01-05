@@ -51,7 +51,7 @@ import {
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
 import { io } from "socket.io-client";
-import { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
+import { useState, useEffect, useRef, useMemo, useLayoutEffect, Fragment } from "react";
 import type { FormEvent } from "react";
 import { cn } from "../lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
@@ -1594,6 +1594,26 @@ const AtendimentoPage = () => {
     return new Date(dateString).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
+  const formatDateLabel = (dateString: string) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return "HOJE";
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return "ONTEM";
+    } else {
+      return date.toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+      });
+    }
+  };
+
   const onEmojiClick = (emojiData: EmojiClickData) => {
     setNewMessage((prev) => prev + emojiData.emoji);
   };
@@ -2607,239 +2627,257 @@ const AtendimentoPage = () => {
                   </div>
                 )}
 
-                {(messageSearchTerm ? messages.filter(m => m.content?.toLowerCase().includes(messageSearchTerm.toLowerCase())) : messages).map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={cn(
-                      "flex flex-col w-full group relative",
-                      msg.direction === "outbound" ? "items-end" : "items-start"
-                    )}
-                  >
-                    <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 px-1 uppercase tracking-wider mb-0.5 opacity-80">
-                      {(() => {
-                        if (msg.direction === 'inbound') {
-                          if (selectedConversation?.is_group) {
-                            return msg.saved_name || msg.sender_name || msg.sender_jid?.split('@')[0] || "Participante";
-                          }
-                          return msg.saved_name || selectedConversation?.contact_name || "Contato";
-                        }
+                {(() => {
+                  let currentLastDate = "";
+                  const displayMessages = (messageSearchTerm ? messages.filter(m => m.content?.toLowerCase().includes(messageSearchTerm.toLowerCase())) : messages);
 
-                        if (msg.user_name) return msg.user_name;
-                        if (msg.message_origin === 'campaign') return "Campanha";
-                        if (msg.message_origin === 'follow_up') return "Follow-Up";
-                        if (msg.message_origin === 'ai_agent') return "Agente de IA";
+                  return displayMessages.map((msg) => {
+                    const msgDateStr = msg.sent_at ? new Date(msg.sent_at).toDateString() : "";
+                    const isNewDay = msgDateStr !== currentLastDate;
+                    if (isNewDay) currentLastDate = msgDateStr;
 
-                        return "Celular";
-                      })()}
-                    </span>
-                    <div
-                      className={cn(
-                        "relative max-w-[90%] sm:max-w-[75%] px-3 py-1.5 shadow-sm text-sm break-words",
-                        msg.direction === "outbound"
-                          ? msg.agent_name === "Follow-Up"
-                            ? "bg-[#fff9c4] dark:bg-[#ecc300] text-zinc-900 dark:text-zinc-900 rounded-lg rounded-tr-none"
-                            : "bg-[#d9fdd3] dark:bg-[#005c4b] text-zinc-900 dark:text-zinc-100 rounded-lg rounded-tr-none"
-                          : "bg-white dark:bg-[#202c33] text-zinc-900 dark:text-zinc-100 rounded-lg rounded-tl-none"
-                      )}
-                    >
-                      {/* Render Message Content with Media Support */}
-                      {(() => {
-                        const type = msg.message_type || 'text';
+                    return (
+                      <Fragment key={msg.id}>
+                        {isNewDay && msg.sent_at && (
+                          <div className="flex justify-center my-4 sticky top-0 z-20 pointer-events-none">
+                            <span className="bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md px-4 py-1.5 rounded-xl text-[11px] font-bold text-zinc-500 dark:text-zinc-400 shadow-sm border border-zinc-200/50 dark:border-zinc-700/50 uppercase tracking-widest transition-all pointer-events-auto">
+                              {formatDateLabel(msg.sent_at)}
+                            </span>
+                          </div>
+                        )}
+                        <div
+                          className={cn(
+                            "flex flex-col w-full group relative",
+                            msg.direction === "outbound" ? "items-end" : "items-start"
+                          )}
+                        >
+                          <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 px-1 uppercase tracking-wider mb-0.5 opacity-80">
+                            {(() => {
+                              if (msg.direction === 'inbound') {
+                                if (selectedConversation?.is_group) {
+                                  return msg.saved_name || msg.sender_name || msg.sender_jid?.split('@')[0] || "Participante";
+                                }
+                                return msg.saved_name || selectedConversation?.contact_name || "Contato";
+                              }
 
-                        if (type === 'image') {
-                          return (
-                            <div className="flex flex-col gap-1">
-                              {msg.media_url ? (
-                                <div className="relative rounded-lg overflow-hidden bg-black/5 min-w-[200px] min-h-[150px] cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setViewingImage(getMediaUrl(msg))}>
-                                  <img src={getMediaUrl(msg)} alt="Imagem" className="w-full h-auto object-cover max-h-[300px]" loading="lazy" />
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-2 bg-black/10 dark:bg-white/10 p-3 rounded-lg">
-                                  <Image className="h-5 w-5" /> <span className="italic opacity-80">Imagem indisponível</span>
-                                </div>
-                              )}
-                              {msg.content && <span className="whitespace-pre-wrap pt-1">{msg.content}</span>}
-                            </div>
-                          );
-                        }
+                              if (msg.user_name) return msg.user_name;
+                              if (msg.message_origin === 'campaign') return "Campanha";
+                              if (msg.message_origin === 'follow_up') return "Follow-Up";
+                              if (msg.message_origin === 'ai_agent') return "Agente de IA";
 
-                        if (type === 'audio') {
-                          const audioSpeed = audioSpeeds[msg.id] || 1;
-                          return (
-                            <div className="flex items-center gap-2 min-w-[250px]">
-                              <div className="p-2 bg-zinc-200 dark:bg-zinc-700 rounded-full">
-                                <Mic className="h-5 w-5" />
-                              </div>
-                              <div className="flex flex-col flex-1">
-                                {msg.media_url ? (
-                                  <audio
-                                    controls
-                                    src={getMediaUrl(msg)}
-                                    className="w-full h-8"
-                                    ref={(el) => {
-                                      if (el) {
-                                        el.playbackRate = audioSpeed;
-                                      }
-                                    }}
-                                  />
-                                ) : (
-                                  <span className="italic opacity-80">Áudio indisponível</span>
-                                )}
-                              </div>
-                              {msg.media_url && (
+                              return "Celular";
+                            })()}
+                          </span>
+                          <div
+                            className={cn(
+                              "relative max-w-[90%] sm:max-w-[75%] px-3 py-1.5 shadow-sm text-sm break-words",
+                              msg.direction === "outbound"
+                                ? msg.agent_name === "Follow-Up"
+                                  ? "bg-[#fff9c4] dark:bg-[#ecc300] text-zinc-900 dark:text-zinc-900 rounded-lg rounded-tr-none"
+                                  : "bg-[#d9fdd3] dark:bg-[#005c4b] text-zinc-900 dark:text-zinc-100 rounded-lg rounded-tr-none"
+                                : "bg-white dark:bg-[#202c33] text-zinc-900 dark:text-zinc-100 rounded-lg rounded-tl-none"
+                            )}
+                          >
+                            {/* Render Message Content with Media Support */}
+                            {(() => {
+                              const type = msg.message_type || 'text';
+
+                              if (type === 'image') {
+                                return (
+                                  <div className="flex flex-col gap-1">
+                                    {msg.media_url ? (
+                                      <div className="relative rounded-lg overflow-hidden bg-black/5 min-w-[200px] min-h-[150px] cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setViewingImage(getMediaUrl(msg))}>
+                                        <img src={getMediaUrl(msg)} alt="Imagem" className="w-full h-auto object-cover max-h-[300px]" loading="lazy" />
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-2 bg-black/10 dark:bg-white/10 p-3 rounded-lg">
+                                        <Image className="h-5 w-5" /> <span className="italic opacity-80">Imagem indisponível</span>
+                                      </div>
+                                    )}
+                                    {msg.content && <span className="whitespace-pre-wrap pt-1">{msg.content}</span>}
+                                  </div>
+                                );
+                              }
+
+                              if (type === 'audio') {
+                                const audioSpeed = audioSpeeds[msg.id] || 1;
+                                return (
+                                  <div className="flex items-center gap-2 min-w-[250px]">
+                                    <div className="p-2 bg-zinc-200 dark:bg-zinc-700 rounded-full">
+                                      <Mic className="h-5 w-5" />
+                                    </div>
+                                    <div className="flex flex-col flex-1">
+                                      {msg.media_url ? (
+                                        <audio
+                                          controls
+                                          src={getMediaUrl(msg)}
+                                          className="w-full h-8"
+                                          ref={(el) => {
+                                            if (el) {
+                                              el.playbackRate = audioSpeed;
+                                            }
+                                          }}
+                                        />
+                                      ) : (
+                                        <span className="italic opacity-80">Áudio indisponível</span>
+                                      )}
+                                    </div>
+                                    {msg.media_url && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 px-2 text-xs font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const audioEl = e.currentTarget.parentElement?.querySelector('audio') as HTMLAudioElement;
+                                          handleAudioSpeedToggle(msg.id, audioEl);
+                                        }}
+                                      >
+                                        {audioSpeed}x
+                                      </Button>
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              if (type === 'video') {
+                                return (
+                                  <div className="flex flex-col gap-1">
+                                    {msg.media_url ? (
+                                      <video controls src={getMediaUrl(msg)} className="w-full max-h-[300px] rounded-lg bg-black" />
+                                    ) : (
+                                      <div className="flex items-center gap-2 bg-black/10 dark:bg-white/10 p-3 rounded-lg">
+                                        <Video className="h-5 w-5" /> <span className="italic opacity-80">Vídeo indisponível</span>
+                                      </div>
+                                    )}
+                                    {msg.content && <span className="whitespace-pre-wrap pt-1">{msg.content}</span>}
+                                  </div>
+                                );
+                              }
+
+                              if (type === 'document') {
+                                return (
+                                  <div className="flex items-center gap-3 bg-black/5 dark:bg-white/5 p-2 rounded-lg min-w-[200px]">
+                                    <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded text-red-600 dark:text-red-400">
+                                      <FileText className="h-6 w-6" />
+                                    </div>
+                                    <div className="flex flex-col gap-0.5 overflow-hidden flex-1">
+                                      <span className="truncate font-medium text-sm">{msg.content || 'Documento'}</span>
+                                      {msg.media_url && <a href={getMediaUrl(msg)} target="_blank" rel="noopener noreferrer" className="text-xs underline opacity-70 hover:opacity-100">Baixar arquivo</a>}
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              if (type === 'sticker') {
+                                return (
+                                  <div className="flex flex-col gap-1">
+                                    {msg.media_url ? (
+                                      <div className="relative rounded-lg overflow-hidden bg-transparent min-w-[100px] max-w-[150px]">
+                                        <img src={getMediaUrl(msg)} alt="Sticker" className="w-full h-auto object-cover" loading="lazy" />
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-2 bg-black/10 dark:bg-white/10 p-2 rounded-lg">
+                                        <Sticker className="h-5 w-5" /> <span className="italic opacity-80">Sticker</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              if (type === 'location') {
+                                return (
+                                  <div className="flex items-center gap-3 bg-black/5 dark:bg-white/5 p-3 rounded-lg min-w-[200px]">
+                                    <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded text-orange-600 dark:text-orange-400">
+                                      <MapPin className="h-6 w-6" />
+                                    </div>
+                                    <div className="flex flex-col gap-0.5 overflow-hidden flex-1">
+                                      <span className="truncate font-bold text-sm">Localização</span>
+                                      {msg.content && <span className="text-xs opacity-80 line-clamp-2">{msg.content}</span>}
+                                      {msg.media_url && (
+                                        <a href={`https://www.google.com/maps?q=${msg.media_url}`} target="_blank" rel="noopener noreferrer" className="text-xs underline text-blue-500 hover:text-blue-600 mt-1">
+                                          Ver no Maps
+                                        </a>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              if (type === 'contact') {
+                                return (
+                                  <div className="flex items-center gap-3 bg-black/5 dark:bg-white/5 p-3 rounded-lg min-w-[200px]">
+                                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded text-blue-600 dark:text-blue-400">
+                                      <ContactIcon className="h-6 w-6" />
+                                    </div>
+                                    <div className="flex flex-col gap-0.5 overflow-hidden flex-1">
+                                      <span className="truncate font-bold text-sm">Contato Compartilhado</span>
+                                      <span className="text-xs font-mono">{msg.content?.split('//')[0] || 'Ver detalhes'}</span>
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <span className="block pr-12 pb-1 whitespace-pre-wrap break-words">
+                                  {messageSearchTerm ? (
+                                    <HighlightedText text={msg.content} highlight={messageSearchTerm} />
+                                  ) : (
+                                    msg.content
+                                  )}
+                                </span>
+                              );
+                            })()}
+                            <span className="absolute right-2 bottom-1 text-[10px] flex items-center gap-1 text-zinc-500 dark:text-zinc-400">
+                              {formatTime(msg.sent_at)}
+                              {msg.direction === "outbound" && <CheckCheck className="h-3 w-3 text-[#53bdeb]" />}
+                            </span>
+                          </div>
+
+                          {/* Actions Buttons (Hover) - WhatsApp Web Style Below Message */}
+                          <div className={cn(
+                            "flex gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200",
+                            msg.direction === "outbound" ? "justify-end" : "justify-start"
+                          )}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 bg-white/90 dark:bg-zinc-800/90 hover:bg-white dark:hover:bg-zinc-700 shadow-sm border border-zinc-200 dark:border-zinc-700"
+                              onClick={(e) => { e.stopPropagation(); handleReplyMessage(msg); }}
+                              title="Responder"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-reply text-zinc-600 dark:text-zinc-300"><polyline points="9 17 4 12 9 7" /><path d="M20 18v-2a4 4 0 0 0-4-4H4" /></svg>
+                            </Button>
+
+                            {msg.direction === 'outbound' && (
+                              <>
                                 <Button
                                   variant="ghost"
-                                  size="sm"
-                                  className="h-8 px-2 text-xs font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const audioEl = e.currentTarget.parentElement?.querySelector('audio') as HTMLAudioElement;
-                                    handleAudioSpeedToggle(msg.id, audioEl);
-                                  }}
+                                  size="icon"
+                                  className="h-7 w-7 bg-white/90 dark:bg-zinc-800/90 hover:bg-white dark:hover:bg-zinc-700 shadow-sm border border-zinc-200 dark:border-zinc-700"
+                                  onClick={(e) => { e.stopPropagation(); handleEditMessage(msg); }}
+                                  title="Editar mensagem"
                                 >
-                                  {audioSpeed}x
+                                  <Pencil className="h-3.5 w-3.5 text-zinc-600 dark:text-zinc-300" />
                                 </Button>
-                              )}
-                            </div>
-                          );
-                        }
 
-                        if (type === 'video') {
-                          return (
-                            <div className="flex flex-col gap-1">
-                              {msg.media_url ? (
-                                <video controls src={getMediaUrl(msg)} className="w-full max-h-[300px] rounded-lg bg-black" />
-                              ) : (
-                                <div className="flex items-center gap-2 bg-black/10 dark:bg-white/10 p-3 rounded-lg">
-                                  <Video className="h-5 w-5" /> <span className="italic opacity-80">Vídeo indisponível</span>
-                                </div>
-                              )}
-                              {msg.content && <span className="whitespace-pre-wrap pt-1">{msg.content}</span>}
-                            </div>
-                          );
-                        }
-
-                        if (type === 'document') {
-                          return (
-                            <div className="flex items-center gap-3 bg-black/5 dark:bg-white/5 p-2 rounded-lg min-w-[200px]">
-                              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded text-red-600 dark:text-red-400">
-                                <FileText className="h-6 w-6" />
-                              </div>
-                              <div className="flex flex-col gap-0.5 overflow-hidden flex-1">
-                                <span className="truncate font-medium text-sm">{msg.content || 'Documento'}</span>
-                                {msg.media_url && <a href={getMediaUrl(msg)} target="_blank" rel="noopener noreferrer" className="text-xs underline opacity-70 hover:opacity-100">Baixar arquivo</a>}
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        if (type === 'sticker') {
-                          return (
-                            <div className="flex flex-col gap-1">
-                              {msg.media_url ? (
-                                <div className="relative rounded-lg overflow-hidden bg-transparent min-w-[100px] max-w-[150px]">
-                                  <img src={getMediaUrl(msg)} alt="Sticker" className="w-full h-auto object-cover" loading="lazy" />
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-2 bg-black/10 dark:bg-white/10 p-2 rounded-lg">
-                                  <Sticker className="h-5 w-5" /> <span className="italic opacity-80">Sticker</span>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        }
-
-                        if (type === 'location') {
-                          return (
-                            <div className="flex items-center gap-3 bg-black/5 dark:bg-white/5 p-3 rounded-lg min-w-[200px]">
-                              <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded text-orange-600 dark:text-orange-400">
-                                <MapPin className="h-6 w-6" />
-                              </div>
-                              <div className="flex flex-col gap-0.5 overflow-hidden flex-1">
-                                <span className="truncate font-bold text-sm">Localização</span>
-                                {msg.content && <span className="text-xs opacity-80 line-clamp-2">{msg.content}</span>}
-                                {msg.media_url && (
-                                  <a href={`https://www.google.com/maps?q=${msg.media_url}`} target="_blank" rel="noopener noreferrer" className="text-xs underline text-blue-500 hover:text-blue-600 mt-1">
-                                    Ver no Maps
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        if (type === 'contact') {
-                          return (
-                            <div className="flex items-center gap-3 bg-black/5 dark:bg-white/5 p-3 rounded-lg min-w-[200px]">
-                              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded text-blue-600 dark:text-blue-400">
-                                <ContactIcon className="h-6 w-6" />
-                              </div>
-                              <div className="flex flex-col gap-0.5 overflow-hidden flex-1">
-                                <span className="truncate font-bold text-sm">Contato Compartilhado</span>
-                                <span className="text-xs font-mono">{msg.content?.split('//')[0] || 'Ver detalhes'}</span>
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <span className="block pr-12 pb-1 whitespace-pre-wrap break-words">
-                            {messageSearchTerm ? (
-                              <HighlightedText text={msg.content} highlight={messageSearchTerm} />
-                            ) : (
-                              msg.content
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 bg-white/90 dark:bg-zinc-800/90 hover:bg-red-50 dark:hover:bg-red-900/20 shadow-sm border border-zinc-200 dark:border-zinc-700"
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteClick(msg); }}
+                                  title="Apagar mensagem"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+                                </Button>
+                              </>
                             )}
-                          </span>
-                        );
-                      })()}
-                      <span className="absolute right-2 bottom-1 text-[10px] flex items-center gap-1 text-zinc-500 dark:text-zinc-400">
-                        {formatTime(msg.sent_at)}
-                        {msg.direction === "outbound" && <CheckCheck className="h-3 w-3 text-[#53bdeb]" />}
-                      </span>
-                    </div>
-
-                    {/* Actions Buttons (Hover) - WhatsApp Web Style Below Message */}
-                    <div className={cn(
-                      "flex gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200",
-                      msg.direction === "outbound" ? "justify-end" : "justify-start"
-                    )}>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 bg-white/90 dark:bg-zinc-800/90 hover:bg-white dark:hover:bg-zinc-700 shadow-sm border border-zinc-200 dark:border-zinc-700"
-                        onClick={(e) => { e.stopPropagation(); handleReplyMessage(msg); }}
-                        title="Responder"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-reply text-zinc-600 dark:text-zinc-300"><polyline points="9 17 4 12 9 7" /><path d="M20 18v-2a4 4 0 0 0-4-4H4" /></svg>
-                      </Button>
-
-                      {msg.direction === 'outbound' && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 bg-white/90 dark:bg-zinc-800/90 hover:bg-white dark:hover:bg-zinc-700 shadow-sm border border-zinc-200 dark:border-zinc-700"
-                            onClick={(e) => { e.stopPropagation(); handleEditMessage(msg); }}
-                            title="Editar mensagem"
-                          >
-                            <Pencil className="h-3.5 w-3.5 text-zinc-600 dark:text-zinc-300" />
-                          </Button>
-
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 bg-white/90 dark:bg-zinc-800/90 hover:bg-red-50 dark:hover:bg-red-900/20 shadow-sm border border-zinc-200 dark:border-zinc-700"
-                            onClick={(e) => { e.stopPropagation(); handleDeleteClick(msg); }}
-                            title="Apagar mensagem"
-                          >
-                            <Trash2 className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                ))}
+                          </div>
+                        </div>
+                      </Fragment>
+                    );
+                  });
+                })()}
                 <div ref={messagesEndRef} />
               </div>
             </div>
