@@ -34,6 +34,8 @@ import {
   X,
   Loader2,
   ChevronDown,
+  Smile,
+  Plus,
 } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import { FollowUpModal } from "../components/follow-up/FollowUpModal";
@@ -1594,6 +1596,12 @@ const AtendimentoPage = () => {
     return new Date(dateString).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
+  const isSameDay = (d1: Date, d2: Date) => {
+    return d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate();
+  };
+
   const formatDateLabel = (dateString: string) => {
     if (!dateString) return "";
     const date = new Date(dateString);
@@ -1601,9 +1609,9 @@ const AtendimentoPage = () => {
     const yesterday = new Date();
     yesterday.setDate(today.getDate() - 1);
 
-    if (date.toDateString() === today.toDateString()) {
+    if (isSameDay(date, today)) {
       return "HOJE";
-    } else if (date.toDateString() === yesterday.toDateString()) {
+    } else if (isSameDay(date, yesterday)) {
       return "ONTEM";
     } else {
       return date.toLocaleDateString("pt-BR", {
@@ -1621,9 +1629,9 @@ const AtendimentoPage = () => {
     const yesterday = new Date();
     yesterday.setDate(today.getDate() - 1);
 
-    if (date.toDateString() === today.toDateString()) {
+    if (isSameDay(date, today)) {
       return "HOJE";
-    } else if (date.toDateString() === yesterday.toDateString()) {
+    } else if (isSameDay(date, yesterday)) {
       return "ONTEM";
     } else {
       return date.toLocaleDateString("pt-BR", {
@@ -1840,75 +1848,55 @@ const AtendimentoPage = () => {
   // Helper para resolver o nome do contato baseado no banco de dados sincronizado (Declaração movida para o topo)
 
 
-  const renderConversationCard = (conv: Conversation) => (
-    <div
-      key={conv.id}
-      onClick={() => {
-        setSelectedConversation(conv);
-        setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c));
-      }}
-      className={cn(
-        "group mx-3 my-1 p-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent flex flex-col gap-2",
-        selectedConversation?.id === conv.id
-          ? "bg-[#e7fce3] dark:bg-[#005c4b]/30 border-[#00a884]/20 shadow-sm"
-          : "hover:bg-zinc-50 dark:hover:bg-zinc-900 border-zinc-100/50 dark:border-zinc-800/50"
-      )}
-    >
-      <div className="flex items-center gap-3">
-        <div className="relative shrink-0">
-          <Avatar className="h-12 w-12 border-2 border-white dark:border-zinc-900 shadow-sm">
+  const renderConversationCard = (conv: Conversation) => {
+    const isSelected = selectedConversation?.id === conv.id;
+    return (
+      <div
+        key={conv.id}
+        onClick={() => {
+          setSelectedConversation(conv);
+          setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c));
+        }}
+        className={cn(
+          "flex items-center h-[72px] px-4 py-3 cursor-pointer transition-colors border-b border-[#222E35]",
+          isSelected ? "bg-[#2A3942]" : "bg-[#111B21] hover:bg-[#202C33]"
+        )}
+      >
+        <div className="relative shrink-0 mr-3">
+          <Avatar className="h-12 w-12 rounded-full border-none">
             <AvatarImage src={conv.profile_pic_url || `https://api.dicebear.com/7.x/initials/svg?seed=${getDisplayName(conv)}`} />
-            <AvatarFallback className="bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 font-bold">
+            <AvatarFallback className="bg-[#6a7175] text-white font-bold">
               {(getDisplayName(conv)?.[0] || "?").toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          {/* Online status indicator placeholder */}
-          <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></div>
         </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex justify-between items-start mb-0.5">
-            <div className="flex flex-col min-w-0 mr-2">
-              <span className={cn(
-                "font-semibold truncate text-[15px]",
-                selectedConversation?.id === conv.id ? "text-[#008069] dark:text-[#00a884]" : "text-zinc-900 dark:text-zinc-100"
-              )}>
-                {getDisplayName(conv)}
-              </span>
-              {conv.last_message_source === 'campaign' && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200 mt-1">
-                  Campanha
-                </span>
-              )}
-              {conv.company_name && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 mt-1">
-                  {conv.company_name}
-                </span>
-              )}
-              {getDisplayName(conv) !== conv.phone?.replace(/\D/g, "") && (
-                <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal truncate">
-                  {conv.phone?.replace(/\D/g, "")}
-                </span>
-              )}
-            </div>
-            <span className="text-[10px] font-bold text-[#008069] dark:text-[#00a884] whitespace-nowrap pt-1">
+        <div className="flex-1 min-w-0 h-full flex flex-col justify-center">
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-[16px] font-medium leading-5 text-[#E9EDEF] truncate">
+              {getDisplayName(conv)}
+            </span>
+            <span className={cn(
+              "text-[12px] whitespace-nowrap ml-2",
+              conv.unread_count && conv.unread_count > 0 ? "text-[#25D366] font-medium" : "text-[#8696A0]"
+            )}>
               {conv.last_message_at ? formatListDate(conv.last_message_at) : ""}
             </span>
           </div>
 
           <div className="flex justify-between items-center gap-2">
             <div className="flex items-center gap-1 flex-1 min-w-0">
-              {conv.status === 'OPEN' && conv.user_id && (
-                <div className="shrink-0 h-1.5 w-1.5 rounded-full bg-[#00a884] animate-pulse" title="Em atendimento"></div>
+              {isSelected && conv.status === 'OPEN' && conv.user_id && (
+                <div className="shrink-0 h-1.5 w-1.5 rounded-full bg-[#25D366]" title="Em atendimento"></div>
               )}
-              <p className="text-[13px] text-muted-foreground leading-snug line-clamp-2">
-                {conv.last_message || <span className="italic opacity-60">Iniciar conversa...</span>}
+              <p className="text-[14px] leading-[18px] text-[#8696A0] truncate max-w-full">
+                {conv.last_message || <span className="italic opacity-60 italic">Iniciar conversa...</span>}
               </p>
             </div>
 
             {conv.unread_count && conv.unread_count > 0 ? (
-              <div className="shrink-0 min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-[#25D366] shadow-sm animate-in fade-in zoom-in duration-300">
-                <span className="text-[10px] font-bold text-white">
+              <div className="shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-[#25D366] ml-2">
+                <span className="text-[12px] font-bold text-[#111B21]">
                   {conv.unread_count}
                 </span>
               </div>
@@ -1916,62 +1904,15 @@ const AtendimentoPage = () => {
           </div>
         </div>
       </div>
-
-      {!conv.is_group && (
-        <div className={cn(
-          "flex items-center gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end",
-          selectedConversation?.id === conv.id && "opacity-100"
-        )}>
-          {(conv.status === 'PENDING' || !conv.status) && (
-            <div className="flex gap-1">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2 text-[10px] gap-1 text-[#008069] hover:bg-[#008069]/10 font-bold"
-                onClick={(e) => { e.stopPropagation(); handleStartAtendimento(conv); }}
-                title="Iniciar Atendimento"
-              >
-                <Play className="h-3 w-3" /> Iniciar
-              </Button>
-            </div>
-          )}
-          {conv.status === 'OPEN' && (
-            <div className="flex gap-1">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2 text-[10px] gap-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 font-bold"
-                onClick={(e) => { e.stopPropagation(); handleCloseAtendimento(conv); }}
-                title="Encerrar Atendimento"
-              >
-                <XCircle className="h-3 w-3" /> Encerrar
-              </Button>
-            </div>
-          )}
-          {conv.status === 'CLOSED' && (
-            <div className="flex gap-1">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2 text-[10px] gap-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/20 font-bold"
-                onClick={(e) => { e.stopPropagation(); handleReopenAtendimento(conv); }}
-                title="Reabrir Atendimento"
-              >
-                <RotateCcw className="h-3 w-3" /> Reabrir
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-background shadow-none border-none" onClick={() => setShowEmojiPicker(false)}>
+    <div className="flex h-screen w-full overflow-hidden bg-[#111B21]" onClick={() => setShowEmojiPicker(false)}>
       {/* Sidebar - Lista de Conversas / Contatos */}
       <div className={cn(
-        "flex flex-col border-r bg-white dark:bg-zinc-950 transition-all duration-300 shadow-sm z-20 shrink-0",
-        "w-full md:w-[450px]",
+        "flex flex-col bg-[#111B21] border-r border-[#222E35] shrink-0 z-20 transition-all",
+        "w-full md:w-[360px]",
         selectedConversation ? "hidden md:flex" : "flex"
       )}>
         <Tabs
@@ -1979,183 +1920,96 @@ const AtendimentoPage = () => {
           onValueChange={(value) => setActiveTab(value as "conversas" | "contatos")}
           className="flex flex-1 flex-col min-h-0"
         >
-          {/* Header da Sidebar */}
-          <div className="bg-zinc-100/50 dark:bg-zinc-900/50 border-b">
-            {/* Top Row: Title and Controls */}
-            {/* Top Row: Title and Controls */}
-            <div className="flex flex-col gap-2 p-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 shrink-0">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback>EU</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <CardTitle className="text-sm font-bold">Atendimentos</CardTitle>
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-[10px] text-muted-foreground">integrai</p>
-                      <span className={cn(
-                        "w-1.5 h-1.5 rounded-full",
-                        socketStatus === "connected" ? "bg-green-500" : "bg-red-500"
-                      )} title={`Socket: ${socketStatus}`}></span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Volume Controls - Right Aligned */}
-                <div className="flex items-center gap-1">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7 text-zinc-500 hover:text-[#008069]"
-                    onClick={syncAllPhotos}
-                    title="Sincronizar todas as fotos do WhatsApp"
-                  >
-                    <Image className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7"
-                    onClick={() => {
-                      const newMuted = !isNotificationMuted;
-                      setIsNotificationMuted(newMuted);
-                      localStorage.setItem('notification_muted', String(newMuted));
-                    }}
-                    title={isNotificationMuted ? "Ativar som" : "Silenciar"}
-                  >
-                    {isNotificationMuted ? (
-                      <VolumeX className="h-3.5 w-3.5 text-red-500" />
-                    ) : notificationVolume > 0.5 ? (
-                      <Volume2 className="h-3.5 w-3.5" />
-                    ) : (
-                      <Volume1 className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                  {!isNotificationMuted && (
-                    <div className="hidden sm:flex items-center gap-1">
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.1"
-                        value={notificationVolume}
-                        onChange={(e) => {
-                          const newVolume = parseFloat(e.target.value);
-                          setNotificationVolume(newVolume);
-                          localStorage.setItem('notification_volume', String(newVolume));
-                        }}
-                        className="w-12 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
-                        title={`Volume: ${Math.round(notificationVolume * 100)}%`}
-                      />
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 w-6 p-0 text-[10px]"
-                        onClick={() => playNotificationSound(false)}
-                        title="Testar som"
-                      >
-                        🔔
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Filter Row - Full Width if needed */}
-              {user?.role === 'SUPERADMIN' && availableCompanies.length > 0 && (
-                <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800/50 p-1.5 rounded-md border border-zinc-100 dark:border-zinc-800">
-                  <span className="text-[10px] text-zinc-500 uppercase font-bold whitespace-nowrap">Filtro:</span>
-                  <select
-                    className="text-[11px] bg-transparent border-none w-full font-medium outline-none text-zinc-700 dark:text-zinc-300"
-                    value={selectedCompanyFilter || ""}
-                    onChange={(e) => setSelectedCompanyFilter(e.target.value || null)}
-                  >
-                    <option value="">Todas Empresas</option>
-                    {availableCompanies.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+          {/* Header da Sidebar - WhatsApp Style */}
+          <div className="h-[64px] bg-[#202C33] flex items-center justify-between px-4 shrink-0">
+            <div className="flex items-center gap-2">
+              <Avatar className="h-10 w-10">
+                <AvatarFallback className="bg-[#6a7175] text-white">EU</AvatarFallback>
+              </Avatar>
             </div>
 
-            {/* Bottom Row: Tabs */}
-            <div className="px-3 pb-2">
-              <TabsList className="grid grid-cols-2 h-8 w-full bg-zinc-200/50 dark:bg-zinc-800/50 p-0.5">
-                <TabsTrigger value="conversas" className="text-[11px] font-semibold">
-                  Conversas
-                </TabsTrigger>
-                <TabsTrigger value="contatos" className="text-[11px] font-semibold">
-                  Novas Conversas
-                </TabsTrigger>
-              </TabsList>
+            <div className="flex items-center gap-2">
+              <Button size="icon" variant="ghost" className="text-[#aebac1] hover:bg-white/10 rounded-full" onClick={syncAllPhotos} title="Sincronizar fotos">
+                <Image className="h-5 w-5" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="text-[#aebac1] hover:bg-white/10 rounded-full"
+                onClick={() => {
+                  const newMuted = !isNotificationMuted;
+                  setIsNotificationMuted(newMuted);
+                  localStorage.setItem('notification_muted', String(newMuted));
+                }}
+              >
+                {isNotificationMuted ? <VolumeX className="h-5 w-5 text-red-500" /> : <Volume2 className="h-5 w-5" />}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-[#aebac1] hover:bg-white/10 rounded-full">
+                    <MoreVertical className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-[#233138] border-none text-[#E9EDEF]">
+                  <DropdownMenuItem onClick={() => playNotificationSound(false)}>Testar som 🔔</DropdownMenuItem>
+                  {user?.role === 'SUPERADMIN' && (
+                    <DropdownMenuItem onClick={() => setSelectedCompanyFilter(null)}>Todas Empresas</DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
-
-
-          {/* CardContent removed to fix height/scroll issues */}
-          {/* Aba CONVERSAS - SINGLE COLUMN Vertical List - Manually rendered to avoid Radix ID issues */}
-          {activeTab === 'conversas' && (
-            <div className="flex-1 flex flex-col min-h-0 m-0 animate-in slide-in-from-right-20 duration-200">
-              <div className="px-3 py-2 flex flex-col gap-2 border-b">
-                <div className="relative group">
-                  <Search
-                    className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground group-focus-within:text-[#008069] cursor-pointer"
-                    onClick={() => sidebarSearchInputRef.current?.focus()}
-                  />
-                  <Input
-                    ref={sidebarSearchInputRef}
-                    placeholder="Pesquisar..."
-                    className="pl-9 h-9 bg-zinc-100 dark:bg-zinc-900 border-none rounded-lg text-sm focus-visible:ring-1 focus-visible:ring-[#008069]/30"
-                    value={conversationSearchTerm}
-                    onChange={(e) => setConversationSearchTerm(e.target.value)}
-                  />
-                  {conversationSearchTerm && (
-                    <button
-                      onClick={() => setConversationSearchTerm("")}
-                      className="absolute right-2.5 top-2.5 text-zinc-400 hover:text-zinc-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-
-                {/* QUICK NAVIGATION TABS (Top Bar Style) */}
-                <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900/50 p-1 rounded-xl shadow-inner border border-zinc-200/50 dark:border-zinc-800/50 w-full mt-2">
-
-                  <button
-                    onClick={() => setViewMode('PENDING')}
-                    className={cn(
-                      "text-[11px] px-1 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center justify-center gap-2 flex-1",
-                      viewMode === 'PENDING' ? "bg-zinc-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700 hover:bg-black/5"
-                    )}
-                  >
-                    Pendentes <span className="opacity-50 text-[9px] bg-black/10 px-1.5 rounded">{pendingConversations.length}</span>
-                  </button>
-                  <button
-                    onClick={() => setViewMode('OPEN')}
-                    className={cn(
-                      "text-[11px] px-1 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center justify-center gap-2 flex-1",
-                      viewMode === 'OPEN' ? "bg-[#008069] text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700 hover:bg-black/5"
-                    )}
-                  >
-                    Abertos <span className="opacity-60 text-[9px] bg-white/20 px-1.5 rounded">{openConversations.length}</span>
-                  </button>
-                  <button
-                    onClick={() => setViewMode('CLOSED')}
-                    className={cn(
-                      "text-[11px] px-1 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center justify-center gap-2 flex-1",
-                      viewMode === 'CLOSED' ? "bg-red-500 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-700 hover:bg-black/5"
-                    )}
-                  >
-                    Fechados <span className="opacity-50 text-[9px] bg-black/10 px-1.5 rounded">{closedConversations.length}</span>
-                  </button>
-
-                </div>
+          {/* Search/Filter Container */}
+          <div className="p-2 border-b border-[#222E35]">
+            <div className="relative group">
+              <div className="absolute left-3 top-[7px] z-10">
+                <Search className="h-4 w-4 text-[#8696A0]" />
               </div>
+              <Input
+                ref={sidebarSearchInputRef}
+                placeholder="Pesquisar ou começar uma nova conversa"
+                className="pl-12 h-9 bg-[#202C33] border-none rounded-lg text-sm text-[#E9EDEF] placeholder-[#8696A0] focus-visible:ring-0"
+                value={conversationSearchTerm}
+                onChange={(e) => setConversationSearchTerm(e.target.value)}
+              />
+            </div>
 
-              <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-0 bg-zinc-50/50 dark:bg-zinc-900/10 flex flex-col">
+            {/* QUICK NAVIGATION TABS */}
+            <div className="flex items-center gap-1 mt-2">
+              <button
+                onClick={() => setViewMode('PENDING')}
+                className={cn(
+                  "text-[12px] px-3 py-1 rounded-full transition-all",
+                  viewMode === 'PENDING' ? "bg-[#00a884] text-[#111B21] font-medium" : "bg-[#202C33] text-[#8696A0] hover:bg-[#2A3942]"
+                )}
+              >
+                Pendentes
+              </button>
+              <button
+                onClick={() => setViewMode('OPEN')}
+                className={cn(
+                  "text-[12px] px-3 py-1 rounded-full transition-all",
+                  viewMode === 'OPEN' ? "bg-[#00a884] text-[#111B21] font-medium" : "bg-[#202C33] text-[#8696A0] hover:bg-[#2A3942]"
+                )}
+              >
+                Abertos
+              </button>
+              <button
+                onClick={() => setViewMode('CLOSED')}
+                className={cn(
+                  "text-[12px] px-3 py-1 rounded-full transition-all",
+                  viewMode === 'CLOSED' ? "bg-[#00a884] text-[#111B21] font-medium" : "bg-[#202C33] text-[#8696A0] hover:bg-[#2A3942]"
+                )}
+              >
+                Fechados
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#111B21]">
+            {activeTab === 'conversas' && (
+              <div className="flex flex-col">
                 {conversationSearchTerm && conversationSearchTerm.length >= 2 ? (
                   <div className="flex flex-col flex-1 divide-y divide-zinc-100 dark:divide-zinc-800">
                     {isSearchingGlobal ? (
@@ -2275,38 +2129,29 @@ const AtendimentoPage = () => {
                   </div>
                 )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Aba NOVA CONVERSA / CONTATOS - Manually rendered to avoid Radix ID issues */}
           {activeTab === 'contatos' && (
-            <div className="flex-1 flex flex-col min-h-0 m-0 bg-white dark:bg-zinc-950 animate-in slide-in-from-left-20 duration-200">
+            <div className="flex-1 flex flex-col min-h-0 m-0 bg-[#111B21] animate-in slide-in-from-left-20 duration-200">
               {/* Header de Nova Conversa (Estilo WhatsApp) */}
-              <div className="h-[60px] bg-[#008069] dark:bg-zinc-800 flex items-center px-4 gap-4 text-white shrink-0">
-                <button onClick={() => setActiveTab("conversas")} className="hover:bg-white/10 rounded-full p-1 -ml-2">
-                  <span className="text-xl">←</span>
-                </button>
-                <div className="font-medium text-base">Nova conversa</div>
-                <div className="flex-1"></div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 w-8 p-0 text-white hover:bg-white/10"
-                  onClick={() => syncContacts()}
-                  disabled={isLoadingContacts}
-                  title="Sincronizar contatos do WhatsApp"
-                >
-                  <RefreshCcw className={cn("h-4 w-4", isLoadingContacts && "animate-spin")} />
-                </Button>
+              <div className="h-[108px] bg-[#202C33] flex flex-col px-4 gap-4 text-[#E9EDEF] shrink-0 justify-end pb-3">
+                <div className="flex items-center gap-4">
+                  <button onClick={() => setActiveTab("conversas")} className="hover:bg-white/10 rounded-full p-2 -ml-2 text-[#aebac1]">
+                    <ChevronLeft className="h-6 w-6" />
+                  </button>
+                  <div className="font-medium text-[19px]">Nova conversa</div>
+                </div>
               </div>
 
               {/* Search Bar */}
-              <div className="p-3 bg-white dark:bg-zinc-950 border-b z-10">
+              <div className="p-3 bg-[#111B21] border-b border-[#222E35] z-10">
                 <div className="relative">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#8696A0]" />
                   <Input
                     placeholder="Pesquisar nome ou número"
-                    className="pl-10 bg-gray-100 dark:bg-zinc-800 border-none rounded-lg h-10 text-sm focus-visible:ring-0"
+                    className="pl-12 bg-[#202C33] border-none rounded-lg h-9 text-sm text-[#E9EDEF] placeholder-[#8696A0] focus-visible:ring-0"
                     value={contactSearchTerm}
                     onChange={(e) => setContactSearchTerm(e.target.value)}
                   />
@@ -2414,209 +2259,99 @@ const AtendimentoPage = () => {
       {/* Area do Chat */}
       <div className={cn(
         "flex-1 flex-col relative min-h-0 h-full min-w-0 bg-[#efeae2] dark:bg-[#0b141a] overflow-hidden",
+        "flex-1 flex flex-col bg-[#0B141A] transition-all relative overflow-hidden",
         !selectedConversation ? "hidden md:flex" : "flex"
       )}>
-        {/* Chat Background Pattern */}
-        <div className="absolute inset-0 z-0 opacity-[0.06] pointer-events-none" style={{
-          backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')",
-          backgroundRepeat: "repeat",
-          backgroundSize: "400px",
-          backgroundAttachment: "fixed"
-        }}></div>
-
         {!selectedConversation ? (
-          <div className="relative z-10 flex h-full flex-col items-center justify-center p-8 text-center text-muted-foreground bg-zinc-50 dark:bg-zinc-950 border-l">
-            <div className="w-64 h-64 bg-zinc-100 dark:bg-zinc-900 rounded-full flex items-center justify-center mb-6">
-              <MessageCircleMore className="h-32 w-32 text-zinc-300 dark:text-zinc-700" />
+          <div className="flex-1 flex flex-col items-center justify-center bg-[#222E35]/20 text-center p-8">
+            <div className="w-64 h-64 bg-zinc-800/20 rounded-full flex items-center justify-center mb-8">
+              <MessageCircle className="h-32 w-32 text-[#8696A0] opacity-20" />
             </div>
-            <h2 className="text-2xl font-light text-zinc-600 dark:text-zinc-300 mb-2">WhatsApp Web</h2>
-            <p className="text-sm text-zinc-500 max-w-md">
-              Envie e receba mensagens sem precisar manter seu celular conectado.
-              Use o WhatsApp em até 4 aparelhos e 1 celular ao mesmo tempo.
+            <h2 className="text-2xl font-light text-[#E9EDEF] mb-2">WhatsApp Web</h2>
+            <p className="text-[#8696A0] text-sm max-w-sm leading-relaxed">
+              Envie e receba mensagens sem precisar manter seu celular conectado.<br />
+              Use o WhatsApp em até 4 dispositivos vinculados e 1 celular simultaneamente.
             </p>
-            <div className="mt-8 flex items-center gap-2 text-xs text-zinc-400">
-              <Phone className="h-3 w-3" /> Protegido com criptografia de ponta a ponta
+            <div className="mt-auto pt-10 text-[#8696A0] text-[12px] flex items-center gap-1 opacity-50">
+              <span className="text-[14px]">🔒</span> Criptografia de ponta a ponta
             </div>
           </div>
         ) : (
           <>
-            {/* Chat Header */}
-            <div className="sticky top-0 z-30 flex-none h-[60px] bg-zinc-100 dark:bg-zinc-800 flex items-center justify-between px-4 border-l border-b border-zinc-200 dark:border-zinc-700 w-full shadow-sm">
-              {isMessageSearchOpen ? (
-                <div className="flex items-center gap-2 w-full animate-in slide-in-from-right-10 duration-200">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setIsMessageSearchOpen(false)}
-                    className="h-9 w-9 text-zinc-500"
-                  >
-                    <ChevronLeft className="h-6 w-6" />
-                  </Button>
-                  <div className="relative flex-1">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      ref={chatSearchInputRef}
-                      placeholder="Pesquisar mensagens nesta conversa..."
-                      className="pl-9 h-9 bg-white dark:bg-zinc-900 border-none rounded-lg text-sm"
-                      value={messageSearchTerm}
-                      onChange={(e) => setMessageSearchTerm(e.target.value)}
-                    />
-                    {messageSearchTerm && (
-                      <button
-                        onClick={() => setMessageSearchTerm("")}
-                        className="absolute right-2.5 top-2.5 text-zinc-400 hover:text-zinc-600"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+            {/* Header do Chat - WhatsApp Web Original Style */}
+            <div className="h-[64px] bg-[#202C33] border-b border-[#222E35] flex items-center justify-between px-4 shrink-0 z-30">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden -ml-2 text-[#aebac1]"
+                  onClick={() => setSelectedConversation(null)}
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </Button>
+                <Avatar className="h-10 w-10 cursor-pointer">
+                  <AvatarImage src={selectedConversation.profile_pic_url || `https://api.dicebear.com/7.x/initials/svg?seed=${getDisplayName(selectedConversation)}`} />
+                  <AvatarFallback className="bg-[#6a7175] text-white">{(getDisplayName(selectedConversation)?.[0] || "?").toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col cursor-pointer min-w-0" onClick={() => {
+                  if (selectedConversation.is_group) handleRefreshMetadata();
+                }}>
+                  <span className="text-[16px] font-medium text-[#E9EDEF] truncate leading-tight flex items-center gap-2">
+                    {getDisplayName(selectedConversation)}
+                    {selectedConversation.is_group && (
+                      <span className="text-[10px] bg-[#202C33] text-[#8696A0] border border-[#222E35] px-1 rounded uppercase">Grupo</span>
                     )}
-                  </div>
+                  </span>
+                  <span className="text-[13px] text-[#8696A0] truncate leading-tight">
+                    {selectedConversation.status === 'OPEN' && selectedConversation.user_id ? "em atendimento" : "visto por último hoje às 15:42"}
+                  </span>
                 </div>
-              ) : (
-                <>
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="md:hidden -ml-2 text-zinc-500"
-                      onClick={() => setSelectedConversation(null)}
-                    >
-                      <ChevronLeft className="h-6 w-6" />
+              </div>
+
+              <div className="flex items-center gap-4 text-[#aebac1]">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 text-[#aebac1] hover:bg-white/10 rounded-full"
+                  onClick={() => setIsMessageSearchOpen(!isMessageSearchOpen)}
+                  title="Pesquisar mensagens"
+                >
+                  <Search className="h-5 w-5" />
+                </Button>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-10 w-10 text-[#aebac1] hover:bg-white/10 rounded-full">
+                      <MoreVertical className="h-5 w-5" />
                     </Button>
-                    <Avatar className="cursor-pointer">
-                      <AvatarImage src={selectedConversation.profile_pic_url || `https://api.dicebear.com/7.x/initials/svg?seed=${getDisplayName(selectedConversation)}`} />
-                      <AvatarFallback>{(getDisplayName(selectedConversation)?.[0] || "?").toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex flex-col cursor-pointer" onClick={() => {
-                      if (selectedConversation.is_group) handleRefreshMetadata();
-                    }}>
-                      <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                        {getDisplayName(selectedConversation)}
-                        {selectedConversation.is_group && (
-                          <Badge variant="outline" className="text-[9px] h-4 px-1 bg-violet-50 text-violet-700 border-violet-200">GRUPO</Badge>
-                        )}
-                        {!selectedConversation.is_group && selectedConversation.status === 'CLOSED' && (
-                          <div className="flex items-center gap-2">
-                            <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-600 text-[9px] uppercase border border-red-200">Fechado</span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 rounded-full text-green-500 hover:text-green-700 hover:bg-green-50"
-                              onClick={(e) => { e.stopPropagation(); handleStartAtendimento(); }}
-                              title="Iniciar atendimento"
-                            >
-                              <Play className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        )}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground flex gap-1 items-center">
-                        {selectedConversation.is_group ? (
-                          <span className="italic flex items-center gap-1 hover:text-green-600 transition-colors" title="Clique para atualizar">
-                            <RefreshCcw className="h-3 w-3" />
-                            Atualizar dados do grupo
-                          </span>
-                        ) : (
-                          <span>{selectedConversation.phone?.replace(/\D/g, "")}</span>
-                        )}
-                        {selectedConversation.user_id && <span className="font-bold ml-1">• Atendente: {selectedConversation.user_id === user?.id ? "Você" : `ID ${selectedConversation.user_id}`}</span>}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 text-zinc-500">
-                    {(selectedConversation.status === 'PENDING' || !selectedConversation.status) && (
-                      <Button
-                        size="sm"
-                        onClick={() => handleStartAtendimento()}
-                        className="bg-[#008069] hover:bg-[#006d59] text-white h-8 text-xs font-bold gap-1.5 shadow-sm shrink-0 px-3"
-                      >
-                        <Play className="h-3.5 w-3.5 fill-current" /> <span className="hidden sm:inline">INICIAR</span>
-                      </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-[#233138] border-none text-[#E9EDEF] w-48">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setFollowUpInitialData({
+                          conversation_id: selectedConversation.id,
+                          contact_name: getDisplayName(selectedConversation),
+                          phone: selectedConversation.phone,
+                          origin: 'Atendimento'
+                        });
+                        setIsFollowUpModalOpen(true);
+                      }}
+                      className="gap-3 py-3"
+                    >
+                      <CalendarCheck className="h-4 w-4" /> Novo Follow-up
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleRenameContact} className="py-3">Editar contato</DropdownMenuItem>
+                    {selectedConversation.status !== 'OPEN' ? (
+                      <DropdownMenuItem onClick={() => handleStartAtendimento()} className="py-3 text-[#00a884]">Iniciar Chat</DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onClick={() => handleCloseAtendimento()} className="py-3 text-red-500">Encerrar Chat</DropdownMenuItem>
                     )}
-                    {selectedConversation.status === 'OPEN' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleCloseAtendimento()}
-                        className="text-red-600 border-red-200 hover:bg-red-50 h-8 text-xs font-bold gap-1.5 shadow-sm shrink-0 px-3"
-                      >
-                        <XCircle className="h-3.5 w-3.5" /> <span className="hidden sm:inline">ENCERRAR</span>
-                      </Button>
+                    {(selectedConversation.user_id === user?.id || user?.role === 'SUPERADMIN' || user?.role === 'ADMIN') && (
+                      <DropdownMenuItem onClick={handleDeleteConversation} className="text-red-600 focus:text-red-400 py-3">Deletar conversa</DropdownMenuItem>
                     )}
-                    {selectedConversation.status === 'CLOSED' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleReopenAtendimento()}
-                        className="text-blue-600 border-blue-200 hover:bg-blue-50 h-8 text-xs font-bold gap-1.5 shadow-sm shrink-0 px-3"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" /> <span className="hidden sm:inline">REABRIR</span>
-                      </Button>
-                    )}
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 text-zinc-500 hover:text-[#008069] hover:bg-zinc-200/50 rounded-full"
-                        onClick={() => {
-                          setFollowUpInitialData({
-                            conversation_id: selectedConversation.id,
-                            contact_name: getDisplayName(selectedConversation),
-                            phone: selectedConversation.phone,
-                            origin: 'Atendimento'
-                          });
-                          setIsFollowUpModalOpen(true);
-                        }}
-                        title="Novo Follow-up"
-                      >
-                        <CalendarCheck className="h-5 w-5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={cn(
-                          "h-9 w-9 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200/50 rounded-full",
-                          isMessageSearchOpen && "text-[#008069] bg-[#008069]/10"
-                        )}
-                        onClick={() => setIsMessageSearchOpen(!isMessageSearchOpen)}
-                        title="Pesquisar mensagens"
-                      >
-                        <Search className="h-5 w-5" />
-                      </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-9 w-9 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200/50 rounded-full">
-                            <MoreVertical className="h-5 w-5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setFollowUpInitialData({
-                                conversation_id: selectedConversation.id,
-                                contact_name: getDisplayName(selectedConversation),
-                                phone: selectedConversation.phone,
-                                origin: 'Atendimento'
-                              });
-                              setIsFollowUpModalOpen(true);
-                            }}
-                            className="gap-2"
-                          >
-                            <CalendarCheck className="h-4 w-4" /> Novo Follow-up
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={handleRenameContact}>
-                            Editar nome do contato
-                          </DropdownMenuItem>
-                          {(selectedConversation.user_id === user?.id || user?.role === 'SUPERADMIN' || user?.role === 'ADMIN') && (
-                            <DropdownMenuItem onClick={handleDeleteConversation} className="text-red-600 focus:text-red-600">
-                              Deletar conversa
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                </>
-              )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
 
             <div className="flex-1 flex flex-col min-h-0 relative">
@@ -2658,43 +2393,29 @@ const AtendimentoPage = () => {
                     return (
                       <Fragment key={msg.id}>
                         {isNewDay && msg.sent_at && (
-                          <div className="flex justify-center my-4 sticky top-0 z-20 pointer-events-none">
-                            <span className="bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md px-4 py-1.5 rounded-xl text-[11px] font-bold text-zinc-500 dark:text-zinc-400 shadow-sm border border-zinc-200/50 dark:border-zinc-700/50 uppercase tracking-widest transition-all pointer-events-auto">
+                          <div className="flex justify-center my-4 sticky top-0 z-20">
+                            <span className="bg-[#182229] px-3 py-1.5 rounded-lg text-[12.5px] text-[#8696A0] shadow-sm uppercase">
                               {formatDateLabel(msg.sent_at)}
                             </span>
                           </div>
                         )}
                         <div
                           className={cn(
-                            "flex flex-col w-full group relative",
+                            "flex flex-col w-full group relative mb-1",
                             msg.direction === "outbound" ? "items-end" : "items-start"
                           )}
                         >
-                          <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 px-1 uppercase tracking-wider mb-0.5 opacity-80">
-                            {(() => {
-                              if (msg.direction === 'inbound') {
-                                if (selectedConversation?.is_group) {
-                                  return msg.saved_name || msg.sender_name || msg.sender_jid?.split('@')[0] || "Participante";
-                                }
-                                return msg.saved_name || selectedConversation?.contact_name || "Contato";
-                              }
-
-                              if (msg.user_name) return msg.user_name;
-                              if (msg.message_origin === 'campaign') return "Campanha";
-                              if (msg.message_origin === 'follow_up') return "Follow-Up";
-                              if (msg.message_origin === 'ai_agent') return "Agente de IA";
-
-                              return "Celular";
-                            })()}
-                          </span>
+                          {selectedConversation?.is_group && msg.direction === 'inbound' && (
+                            <span className="text-[12.5px] font-medium text-[#8696A0] px-2 mb-0.5">
+                              {msg.saved_name || msg.sender_name || msg.sender_jid?.split('@')[0] || "Participante"}
+                            </span>
+                          )}
                           <div
                             className={cn(
-                              "relative max-w-[90%] sm:max-w-[75%] px-3 py-1.5 shadow-sm text-sm break-words",
+                              "relative max-w-[65%] px-2 py-1.5 shadow-sm text-[14.2px] leading-[19px] break-words rounded-lg",
                               msg.direction === "outbound"
-                                ? msg.agent_name === "Follow-Up"
-                                  ? "bg-[#fff9c4] dark:bg-[#ecc300] text-zinc-900 dark:text-zinc-900 rounded-lg rounded-tr-none"
-                                  : "bg-[#d9fdd3] dark:bg-[#005c4b] text-zinc-900 dark:text-zinc-100 rounded-lg rounded-tr-none"
-                                : "bg-white dark:bg-[#202c33] text-zinc-900 dark:text-zinc-100 rounded-lg rounded-tl-none"
+                                ? "bg-[#005C4B] text-[#E9EDEF]"
+                                : "bg-[#202C33] text-[#E9EDEF]"
                             )}
                           >
                             {/* Render Message Content with Media Support */}
@@ -2847,9 +2568,9 @@ const AtendimentoPage = () => {
                                 </span>
                               );
                             })()}
-                            <span className="absolute right-2 bottom-1 text-[10px] flex items-center gap-1 text-zinc-500 dark:text-zinc-400">
+                            <span className="absolute right-2 bottom-1 text-[11px] flex items-center gap-1 text-[#8696A0]">
                               {formatTime(msg.sent_at)}
-                              {msg.direction === "outbound" && <CheckCheck className="h-3 w-3 text-[#53bdeb]" />}
+                              {msg.direction === "outbound" && <CheckCheck className="h-4 w-4 text-[#53bdeb]" />}
                             </span>
                           </div>
 
@@ -2918,69 +2639,72 @@ const AtendimentoPage = () => {
               </div>
             )}
 
-            {/* Chat Input Area */}
-            <div className="sticky bottom-0 z-30 flex-none bg-zinc-100 dark:bg-zinc-800 px-4 py-2 flex items-end gap-2 border-l border-t border-zinc-200 dark:border-zinc-700 w-full" onClick={(e) => e.stopPropagation()}>
+            {/* Chat Input Area - WhatsApp Dark Style */}
+            <div className="flex-none bg-[#202C33] px-4 py-2 flex items-center gap-2 w-full min-h-[62px] z-30" onClick={(e) => e.stopPropagation()}>
 
               {/* Emoji Picker Popover */}
               {showEmojiPicker && (
-                <div className="absolute bottom-16 left-4 z-50 shadow-xl border rounded-lg">
-                  <EmojiPicker onEmojiClick={onEmojiClick} width={300} height={400} />
+                <div className="absolute bottom-16 left-4 z-50 shadow-2xl border-none rounded-lg overflow-hidden">
+                  <EmojiPicker theme={Theme.DARK} onEmojiClick={onEmojiClick} width={300} height={400} />
                 </div>
               )}
 
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn("text-zinc-500 hover:text-zinc-600 hover:bg-transparent mb-1", showEmojiPicker && "text-[#00a884]")}
-                disabled={!selectedConversation}
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                type="button"
-              >
-                <span className="text-2xl">😊</span>
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn("text-[#8696A0] hover:bg-white/10 rounded-full", showEmojiPicker && "text-[#00a884]")}
+                  disabled={!selectedConversation}
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  type="button"
+                >
+                  <Smile className="h-6 w-6" />
+                </Button>
 
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                onChange={handleFileChange}
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-zinc-500 hover:text-zinc-600 hover:bg-transparent mb-1"
-                disabled={!selectedConversation}
-                onClick={handleAttachmentClick}
-                type="button"
-              >
-                <Paperclip className="h-5 w-5" />
-              </Button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-[#8696A0] hover:bg-white/10 rounded-full"
+                  disabled={!selectedConversation}
+                  onClick={handleAttachmentClick}
+                  type="button"
+                >
+                  <Plus className="h-6 w-6" />
+                </Button>
+              </div>
 
               <form
-                className="flex-1 flex items-center gap-2 mb-1"
+                className="flex-1 flex items-center gap-2"
                 onSubmit={handleSendMessage}
               >
-                <Input
-                  className="flex-1 bg-white dark:bg-zinc-700 border-none focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-zinc-400 min-h-[40px] py-2"
-                  placeholder={
-                    !selectedConversation ? "Selecione um contato" :
-                      (isPending && !selectedConversation.is_group) ? "Inicie o atendimento para responder" :
-                        (isClosed && !selectedConversation.is_group) ? "Esta conversa está encerrada (Somente Leitura)" :
-                          isReadOnly ? "Aguardando resposta de outro atendente" : "Digite uma mensagem"
-                  }
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  disabled={!selectedConversation || isReadOnly}
-                  title={isReadOnly ? "Inicie o atendimento para responder" : ""}
-                  onFocus={() => setShowEmojiPicker(false)}
-                />
+                <div className="flex-1 relative flex items-center">
+                  <Input
+                    className="flex-1 bg-[#2A3942] border-none text-[#E9EDEF] focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-[#8696A0] min-h-[42px] py-2 rounded-lg text-sm"
+                    placeholder={
+                      !selectedConversation ? "Selecione um contato" :
+                        (isPending && !selectedConversation.is_group) ? "Inicie o atendimento para responder" :
+                          (isClosed && !selectedConversation.is_group) ? "Conversa encerrada" : "Digite uma mensagem"
+                    }
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    disabled={!selectedConversation || isReadOnly}
+                    onFocus={() => setShowEmojiPicker(false)}
+                  />
+                </div>
+
                 {newMessage.trim() && selectedConversation ? (
-                  <Button type="submit" size="icon" className="h-10 w-10 shrink-0 bg-[#00a884] hover:bg-[#008f6f] text-white rounded-full">
-                    <Send className="h-5 w-5 ml-0.5" />
+                  <Button type="submit" size="icon" className="h-[42px] w-[42px] shrink-0 text-[#8696A0] hover:text-[#00a884] bg-transparent shadow-none hover:bg-white/5 rounded-full">
+                    <Send className="h-6 w-6" />
                   </Button>
                 ) : (
-                  <Button type="button" size="icon" variant="ghost" className="h-10 w-10 shrink-0 text-zinc-500" disabled={!selectedConversation}>
-                    <Phone className="h-6 w-6" /> {/* Placeholder for Mic */}
+                  <Button type="button" size="icon" variant="ghost" className="h-[42px] w-[42px] shrink-0 text-[#8696A0] hover:bg-white/5 rounded-full" disabled={!selectedConversation}>
+                    <Mic className="h-6 w-6" />
                   </Button>
                 )}
               </form>
