@@ -708,11 +708,11 @@ const AtendimentoPage = () => {
       const currentSelected = selectedConvRef.current;
       if (currentSelected) {
         // Normalize IDs for comparison (handle LIDs and Phones)
-        const currentPhone = normalizePhone(currentSelected.phone);
-        const msgPhone = normalizePhone(newMessage.phone);
-        const msgJid = normalizePhone(newMessage.remoteJid || '');
+        const currentPhoneMatch = normalizePhoneForMatch(currentSelected.phone);
+        const msgPhoneMatch = normalizePhoneForMatch(newMessage.phone);
+        const msgJidMatch = normalizePhoneForMatch(newMessage.remoteJid || '');
 
-        if (currentPhone === msgPhone || currentPhone == msgJid || currentSelected.id === newMessage.conversation_id) {
+        if (currentPhoneMatch === msgPhoneMatch || currentPhoneMatch === msgJidMatch || currentSelected.id == newMessage.conversation_id) {
           setMessages((prev) => {
             // Prevent duplication: If we sent this message (outbound) and we have a pending message with same content, ignore socket.
             // Use loose equality for IDs to handle string/number differences
@@ -743,7 +743,8 @@ const AtendimentoPage = () => {
 
       // 2. Atualiza a lista de conversas
       setConversations((prev) => {
-        const existingIndex = prev.findIndex((c) => c.phone === newMessage.phone);
+        const msgPhoneMatch = normalizePhoneForMatch(newMessage.phone);
+        const existingIndex = prev.findIndex((c) => normalizePhoneForMatch(c.phone) === msgPhoneMatch || c.id == newMessage.conversation_id);
         let updatedList = [...prev];
         let conversationToUpdate: Conversation;
 
@@ -1547,10 +1548,10 @@ const AtendimentoPage = () => {
           );
         });
 
-        // Update the conversation in the list (crucial for persisting temp chats)
+        const targetMatch = normalizePhoneForMatch(targetPhone);
         setConversations(prev => {
           return prev.map(c => {
-            if (c.phone === targetPhone || c.id === selectedConversation.id) {
+            if (normalizePhoneForMatch(c.phone) === targetMatch || c.id == selectedConversation.id) {
               return {
                 ...c,
                 id: convId || c.id,

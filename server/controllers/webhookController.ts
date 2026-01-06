@@ -375,7 +375,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 // We want to ensure conversation metadata (last_message, unread_count) is consistent 
                 // even if we received valid duplicate webhooks (e.g. SEND_MESSAGE + UPSERT)
             } else {
-                console.log(`[Webhook] Message inserted into DB: "${content.substring(0, 30)}..."`);
+                console.log(`[Webhook] Message inserted into DB: ID=${insertedMsg.rows[0].id} | direction=${direction} | content="${content.substring(0, 30)}..."`);
 
                 // Emit Socket (Critical Path for UI Responsiveness)
                 const io = req.app.get('io');
@@ -397,7 +397,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
                         agent_name: (direction === 'outbound' && !insertedMsg.rows[0].user_id) ? 'Agente de IA' : null,
                         message_origin: (direction === 'outbound' && !insertedMsg.rows[0].user_id) ? 'ai_agent' : 'whatsapp_mobile'
                     };
-                    console.log(`[Webhook] Emitting message to room ${room}`);
+                    console.log(`[Webhook] Emitting message to room ${room} for JID ${remoteJid}`);
                     io.to(room).emit('message:received', payload);
                 }
             }

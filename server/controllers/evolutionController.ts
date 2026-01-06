@@ -410,8 +410,8 @@ export const sendEvolutionMessage = async (req: Request, res: Response) => {
 
         // Emit Socket to all users in the company
         const io = req.app.get('io');
-        if (io && companyId) {
-          const room = `company_${companyId}`;
+        if (io && resolvedCompanyId) {
+          const room = `company_${resolvedCompanyId}`;
           console.log(`[Evolution] Emitting system-sent message to room ${room}`);
           io.to(room).emit('message:received', resultPayload);
         }
