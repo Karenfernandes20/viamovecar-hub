@@ -203,7 +203,7 @@ const GruposPage = () => {
         const interval = setInterval(fetchGroups, 10000);
 
         const socket = io({
-            transports: ["websocket"],
+            transports: ["polling", "websocket"],
         });
 
         socket.on("connect", () => {

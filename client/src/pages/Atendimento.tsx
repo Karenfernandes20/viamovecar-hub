@@ -666,7 +666,7 @@ const AtendimentoPage = () => {
   useEffect(() => {
     // Force new connection
     const socket = io({
-      transports: ["websocket"],
+      transports: ["polling", "websocket"],
       reconnectionAttempts: 10,
     });
 
@@ -1071,9 +1071,9 @@ const AtendimentoPage = () => {
           });
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao buscar conversas", error);
-      setApiError("Falha ao carregar conversas.");
+      setApiError(`Falha ao carregar conversas: ${error?.message || 'Erro desconhecido'}`);
     } finally {
       setIsLoadingConversations(false); // Stop loading
     }
@@ -2293,8 +2293,8 @@ const AtendimentoPage = () => {
 
       {/* Area do Chat */}
       <div className={cn(
-        "flex-1 flex-col relative min-h-0 h-full min-w-0 bg-[#efeae2] dark:bg-[#0b141a] overflow-hidden",
-        "flex-1 flex flex-col bg-[#0B141A] transition-all relative overflow-hidden",
+        "flex-1 flex flex-col relative min-h-0 h-full min-w-0 transition-all overflow-hidden",
+        "bg-[#efeae2] dark:bg-[#0b141a]",
         !selectedConversation ? "hidden md:flex" : "flex"
       )}>
         {!selectedConversation ? (

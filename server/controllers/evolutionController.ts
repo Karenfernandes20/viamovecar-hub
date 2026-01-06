@@ -17,8 +17,8 @@ const DEFAULT_URL = "https://freelasdekaren-evolution-api.nhvvzr.easypanel.host"
 export const getEvolutionConfig = async (user: any, source: string = 'unknown', targetCompanyId?: number | string) => {
   // Base configuration from env (fallback)
   let config = {
-    url: (process.env.EVOLUTION_API_URL || DEFAULT_URL).replace(/\/$/, ""),
-    apikey: process.env.EVOLUTION_API_KEY || "",
+    url: (process.env.EVOLUTION_API_URL || DEFAULT_URL).replace(/['"]/g, "").replace(/\/$/, ""),
+    apikey: (process.env.EVOLUTION_API_KEY || "").replace(/['"]/g, ""),
     instance: "integrai", // Default instance for Integrai
     company_id: null as number | null
   };
