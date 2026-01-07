@@ -76,6 +76,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
             const isMessageEvent = [
                 'MESSAGES_UPSERT', 'MESSAGES.UPSERT',
                 'MESSAGE_UPSERT', 'MESSAGE.UPSERT',
+                'MESSAGES_UPDATE', 'MESSAGES.UPDATE',
+                'MESSAGE_UPDATE', 'MESSAGE.UPDATE',
                 'MESSAGES_SET', 'MESSAGES.SET',
                 'MESSAGE_SET', 'MESSAGE.SET',
                 'MESSAGES_RECEIVE', 'MESSAGE_RECEIVE',
