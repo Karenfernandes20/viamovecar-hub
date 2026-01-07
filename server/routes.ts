@@ -174,6 +174,11 @@ router.get('/financial/categories', authenticateToken, getCategories);
 router.post('/financial/categories', authenticateToken, createCategory);
 router.delete('/financial/categories/:id', authenticateToken, deleteCategory);
 
+import { getCostCenters, createCostCenter, deleteCostCenter } from './controllers/costCenterController';
+router.get('/financial/cost-centers', authenticateToken, getCostCenters);
+router.post('/financial/cost-centers', authenticateToken, createCostCenter);
+router.delete('/financial/cost-centers/:id', authenticateToken, deleteCostCenter);
+
 // FAQ
 router.get('/faq/questions', authenticateToken, getFaqQuestions);
 router.post('/faq/questions', authenticateToken, createFaqQuestion);
