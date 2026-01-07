@@ -130,8 +130,14 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 msg.status === 'sent' ||
                 msg.status === 'delivered' ||
                 msg.status === 'read' ||
-                // Many integrations use prefixes like 'BAE5' or '3EB0' for outbound/system messages
-                (msg.key?.id && /^(BAE5|3EB0|3A|BAE)/.test(msg.key.id)) ||
+                // Evolution API v2 fields for API-sent messages
+                msg.messageSource === 'api' ||
+                msg.data?.messageSource === 'api' ||
+                msg.messageSource === 'system' ||
+                // If it's a message event and fromMe is not explicitly false, but status is 'sent', it's likely ours
+                (msg.status !== undefined && ['sent', 'delivered', 'read'].includes(msg.status)) ||
+                // ID prefixes for outbound messages
+                (msg.key?.id && /^(BAE5|3EB0|3A|BAE|ACK|SNT)/.test(msg.key.id)) ||
                 (msg.key && !msg.key.remoteJid?.includes('@s.whatsapp.net') && !msg.key.remoteJid?.includes('@g.us') && msg.key.fromMe !== false)
             );
 
@@ -139,10 +145,15 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 (msg.key?.fromMe !== undefined ? `msg.key.fromMe(${msg.key.fromMe})` :
                     (msg.fromMe !== undefined ? `msg.fromMe(${msg.fromMe})` :
                         (msg.isSent !== undefined ? `msg.isSent(${msg.isSent})` :
-                            (msg.key?.id && /^(BAE5|3EB0|3A|BAE)/.test(msg.key.id) ? `prefix:${msg.key.id.substring(0, 4)}` :
-                                (msg.status === 'sent' ? "msg.status:sent" : "default(false)")))));
+                            (msg.messageSource === 'api' ? "msg.messageSource:api" :
+                                (msg.key?.id && /^(BAE5|3EB0|3A|BAE|ACK)/.test(msg.key.id) ? `prefix:${msg.key.id.substring(0, 4)}` :
+                                    (msg.status === 'sent' ? "msg.status:sent" : "default(false)"))))));
 
             console.log(`[Webhook] JID: ${remoteJid} | fromMe: ${isFromMe} (${fromMeSource}) | Type: ${normalizedType} | Instance: ${instance}`);
+            if (isFromMe && !msg.user_id) {
+                console.log(`[Webhook] Potential AI message detected. Raw msg keys:`, Object.keys(msg));
+                // console.log(`[Webhook] Raw message object:`, JSON.stringify(msg)); // Too verbose, enable if needed
+            }
 
             if (remoteJid === 'status@broadcast') return;
 
@@ -214,6 +225,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
             // Prepare Data
             const direction = isFromMe ? 'outbound' : 'inbound';
+            console.log(`[Webhook] Classified message: JID=${remoteJid} | direction=${direction} | fromMeSource=${fromMeSource}`);
             // Normalize phone: remove JID suffix and any device suffix (e.g. 5511999999999:1@s.whatsapp.net -> 5511999999999)
             const phone = remoteJid.split('@')[0].split(':')[0];
             const name = msg.pushName || msg.pushname || phone;
@@ -228,10 +240,13 @@ export const handleWebhook = async (req: Request, res: Response) => {
             }
 
             // UPSERT Conversation
+            // Normalize remoteJid for lookup: remove device suffix for comparison (e.g. jid:1@s.whatsapp.net -> jid@s.whatsapp.net)
+            const cleanRemoteJid = remoteJid.includes(':') && remoteJid.includes('@') ? remoteJid.split(':')[0] + '@' + remoteJid.split('@')[1] : remoteJid;
+
             let conversationId: number;
             let checkConv = await pool.query(
-                `SELECT id, status, is_group, contact_name, group_name, profile_pic_url FROM whatsapp_conversations WHERE external_id = $1 AND instance = $2 AND company_id = $3`,
-                [remoteJid, instance, companyId]
+                `SELECT id, status, is_group, contact_name, group_name, profile_pic_url FROM whatsapp_conversations WHERE (external_id = $1 OR external_id = $2) AND instance = $3 AND company_id = $4`,
+                [remoteJid, cleanRemoteJid, instance, companyId]
             );
 
             // Fallback: If not found by JID, try by phone number variations
@@ -397,6 +412,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
                     const io = req.app.get('io');
                     if (io) {
                         const room = `company_${companyId}`;
+                        const instanceRoom = `instance_${instance}`;
                         const payload = {
                             ...existingMsg,
                             phone: phone,
@@ -414,6 +430,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
                             message_origin: (existingMsg.direction === 'outbound' && !existingMsg.user_id) ? 'ai_agent' : 'whatsapp_mobile' // Simple fallback, usually it's null user_id so ai_agent or legacy mobile
                         };
                         io.to(room).emit('message:received', payload);
+                        io.to(instanceRoom).emit('message:received', payload);
                     }
                 }
 
@@ -427,6 +444,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 const io = req.app.get('io');
                 if (io) {
                     const room = `company_${companyId}`;
+                    const instanceRoom = `instance_${instance}`;
                     const payload = {
                         ...insertedMsg.rows[0],
                         phone,
@@ -443,8 +461,9 @@ export const handleWebhook = async (req: Request, res: Response) => {
                         agent_name: (direction === 'outbound' && !insertedMsg.rows[0].user_id) ? (msg.agent_name || 'Agente de IA') : null,
                         message_origin: (direction === 'outbound' && !insertedMsg.rows[0].user_id) ? 'ai_agent' : 'whatsapp_mobile'
                     };
-                    console.log(`[Webhook] Emitting message to room ${room} | Conversation: ${conversationId} | Direction: ${direction}`);
+                    console.log(`[Webhook] Emitting message to rooms ${room}, ${instanceRoom} | Conversation: ${conversationId} | Direction: ${direction}`);
                     io.to(room).emit('message:received', payload);
+                    io.to(instanceRoom).emit('message:received', payload);
                 }
             }
 
@@ -637,6 +656,10 @@ export const getConversations = async (req: Request, res: Response) => {
             if (companyId) {
                 query += ` AND c.company_id = $1`;
                 params.push(companyId);
+            } else {
+                // User is Superadmin and didn't select a company. 
+                // Filter by 'integrai' instance as requested.
+                query += ` AND c.instance = 'integrai'`;
             }
         }
 

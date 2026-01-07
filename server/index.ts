@@ -107,7 +107,11 @@ io.on("connection", (socket) => {
 
   socket.on("join:company", (companyId: string | number) => {
     if (companyId) {
-      const room = `company_${companyId}`;
+      // If it starts with instance_ or already has company_, use it directly
+      const room = (typeof companyId === 'string' && (companyId.startsWith('instance_') || companyId.startsWith('company_')))
+        ? companyId
+        : `company_${companyId}`;
+
       socket.join(room);
       console.log(`Socket ${socket.id} joined room ${room}`);
     }

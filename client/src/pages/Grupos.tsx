@@ -481,8 +481,8 @@ const GruposPage = () => {
                                             className={cn(
                                                 "relative max-w-[85%] px-3 py-1.5 shadow-sm text-[14px] break-words",
                                                 msg.direction === "outbound"
-                                                    ? "bg-[#d9fdd3] dark:bg-[#005c4b] text-zinc-900 dark:text-zinc-100 rounded-lg rounded-tr-none"
-                                                    : "bg-white dark:bg-[#202c33] text-zinc-900 dark:text-zinc-100 rounded-lg rounded-tl-none"
+                                                    ? "bg-[#d9fdd3] dark:bg-[#005c4b] text-zinc-900 dark:text-zinc-100 self-end ml-auto rounded-lg rounded-tr-none"
+                                                    : "bg-white dark:bg-[#202c33] text-zinc-900 dark:text-zinc-100 self-start mr-auto rounded-lg rounded-tl-none"
                                             )}
                                         >
                                             {/* Render sender name for inbound group messages */}

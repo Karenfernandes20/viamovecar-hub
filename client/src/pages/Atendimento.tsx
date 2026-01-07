@@ -175,6 +175,7 @@ const AtendimentoPage = () => {
   const sidebarSearchInputRef = useRef<HTMLInputElement>(null);
   const chatSearchInputRef = useRef<HTMLInputElement>(null);
   const lastProcessedPhoneRef = useRef<string | null>(null);
+  const socketRef = useRef<any>(null);
 
   // New states for contact import
   const [importedContacts, setImportedContacts] = useState<Contact[]>([]);
@@ -669,15 +670,11 @@ const AtendimentoPage = () => {
       transports: ["polling", "websocket"],
       reconnectionAttempts: 10,
     });
+    socketRef.current = socket;
 
     socket.on("connect", () => {
       console.log("Connected to socket server");
       setSocketStatus("connected");
-
-      if (user?.company_id) {
-        socket.emit("join:company", user.company_id);
-      }
-
       fetchConversations(); // Refresh list on connect
     });
 
@@ -692,7 +689,7 @@ const AtendimentoPage = () => {
     });
 
     socket.on("message:received", (newMessage: any) => {
-      console.log("New message received via socket:", newMessage);
+      console.log(`[Socket] New message: ID=${newMessage.id} | Direction=${newMessage.direction} | Origin=${newMessage.message_origin} | Content=${newMessage.content?.substring(0, 30)}`);
 
       // Play notification sound and show alert for inbound messages
       if (newMessage.direction === 'inbound') {
@@ -848,6 +845,26 @@ const AtendimentoPage = () => {
       socket.disconnect();
     };
   }, [user?.id, user?.company_id]); // Stable: only reconnect if user changes
+
+  // Effect to join rooms whenever socket connects or selectedCompanyFilter changes
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (socket && socketStatus === 'connected') {
+      if (user?.role === 'SUPERADMIN') {
+        if (selectedCompanyFilter) {
+          socket.emit("join:company", selectedCompanyFilter);
+          console.log(`[Socket] Superadmin joining room company_${selectedCompanyFilter}`);
+        } else {
+          // Default: join the room for the 'integrai' instance
+          socket.emit("join:company", "instance_integrai");
+          console.log(`[Socket] Superadmin joining room instance_integrai`);
+        }
+      } else if (user?.company_id) {
+        socket.emit("join:company", user.company_id);
+        console.log(`[Socket] User joining room company_${user.company_id}`);
+      }
+    }
+  }, [socketStatus, selectedCompanyFilter, user?.id, user?.company_id]);
 
 
   // Automatic fetch when switching to 'contatos' tab
@@ -2546,9 +2563,9 @@ const AtendimentoPage = () => {
                                 className={cn(
                                   "relative max-w-[65%] min-w-[80px] shadow-[0_1px_0.5px_rgba(0,0,0,0.13)] text-[14.2px] leading-[19px] break-words mb-[2px] group",
                                   msg.direction === "outbound"
-                                    ? "bg-[#dcf8c6] dark:bg-[#005C4B] text-[#111B21] dark:text-[#E9EDEF] self-end"
-                                    : "bg-white dark:bg-[#202C33] text-[#111B21] dark:text-[#E9EDEF] self-start",
-                                  // Border radius logic for grouping
+                                    ? "bg-[#dcf8c6] dark:bg-[#005C4B] text-[#111B21] dark:text-[#E9EDEF] self-end ml-auto"
+                                    : "bg-white dark:bg-[#202C33] text-[#111B21] dark:text-[#E9EDEF] self-start mr-auto",
+                                  // Border radius logic for grouping (WhatsApp style)
                                   isFirstInGroup && msg.direction === 'outbound' ? "rounded-l-lg rounded-tr-none rounded-br-lg" :
                                     isFirstInGroup && msg.direction === 'inbound' ? "rounded-r-lg rounded-tl-none rounded-bl-lg" : "rounded-lg",
                                   "px-[12px] py-[8px]"
