@@ -341,6 +341,7 @@ async function processCampaign(campaignId: number, io?: any) {
             return;
         }
 
+
         // Processing loop
         for (const contact of contacts) {
             try {
@@ -371,8 +372,6 @@ async function processCampaign(campaignId: number, io?: any) {
 
                 if (currentMinutes < startMinutes || currentMinutes > endMinutes) {
                     console.log(`[Campaign ${campaignId}] Outside window (${campaign.start_time}-${campaign.end_time}). Current: ${brazilTimeStr}. Waiting for window...`);
-                    // Instead of busy wait, we'll terminate the process for now and let the scheduler restart it later
-                    // This is cleaner for memory/threads
                     return;
                 }
 
@@ -413,7 +412,13 @@ async function processCampaign(campaignId: number, io?: any) {
                         [campaignId]
                     );
                 } else {
-                    const errorMsg = (result.error || 'Evolution API failed').substring(0, 255);
+                    let errorMsg = (result.error || 'Evolution API failed (Unknown Error)').substring(0, 255);
+                    if (!errorMsg || errorMsg.trim() === "") {
+                        errorMsg = "Falha crítica: erro ocorreu no envio de imagem e não foi retornado pela Evolution API";
+                    }
+
+                    console.error(`[Campaign ${campaignId}] FAILED for ${contact.phone}: ${errorMsg}`);
+
                     await pool.query(
                         `UPDATE whatsapp_campaign_contacts SET status = 'failed', error_message = $1 WHERE id = $2`,
                         [errorMsg, contact.id]
@@ -430,10 +435,11 @@ async function processCampaign(campaignId: number, io?: any) {
                 await new Promise(r => setTimeout(r, delayMs));
 
             } catch (err: any) {
-                console.error(`[Campaign ${campaignId}] Error on contact ${contact.phone}:`, err.message);
+                console.error(`[Campaign ${campaignId}] EXCEPTION on contact ${contact.phone}:`, err);
+                const errorMsg = (err.message || "Erro interno não tratado").substring(0, 255);
                 await pool.query(
                     `UPDATE whatsapp_campaign_contacts SET status = 'failed', error_message = $1 WHERE id = $2`,
-                    [err.message, contact.id]
+                    [errorMsg, contact.id]
                 );
             }
         }
@@ -643,6 +649,17 @@ async function sendWhatsAppMessage(
             if (mediaType === 'document') {
                 payload.mediaMessage.fileName = mediaUrl!.split('/').pop() || 'document.pdf';
             }
+
+            // LOG THE MEDIA PAYLOAD (SENSITIVE)
+            console.log("[sendWhatsAppMessage] MEDIA PAYLOAD PREVIEW:", JSON.stringify({
+                ...payload,
+                mediaMessage: {
+                    ...payload.mediaMessage,
+                    media: "BASE64_CONTENT_HIDDEN_FOR_LOGS",
+                    mediaLength: finalMedia?.length,
+                }
+            }, null, 2));
+
         } else {
             payload.textMessage = { text: message };
             payload.text = message; // backward compat key
@@ -657,23 +674,23 @@ async function sendWhatsAppMessage(
             body: JSON.stringify(payload)
         });
 
-        if (!response.ok) {
-            const errText = await response.text();
-            let errDetail = errText;
-            try {
-                // Try parse JSON error
-                const jsonErr = JSON.parse(errText);
-                if (jsonErr.message) errDetail = jsonErr.message;
-                if (jsonErr.error) errDetail = jsonErr.error;
-                // Evolution sometimes returns { response: { message: ... } }
-                if (jsonErr.response?.message) errDetail = jsonErr.response.message;
-            } catch (e) { /* ignore JSON parse error */ }
+        const responseText = await response.text();
 
-            console.error(`[sendWhatsAppMessage] Failed: ${response.status} - ${errDetail}`);
-            return { success: false, error: `${response.status} - ${errDetail}` };
+        if (!response.ok) {
+            console.error(`[sendWhatsAppMessage] FAILED RESPONSE: Status ${response.status}`);
+            console.error(`[sendWhatsAppMessage] RESPONSE BODY: ${responseText}`);
+
+            // Try to extract a clean error message
+            let cleanError = `Evolution API Error ${response.status}: ${responseText.substring(0, 100)}`;
+            try {
+                const jsonErr = JSON.parse(responseText);
+                cleanError = jsonErr.message || jsonErr.error || jsonErr.response?.message || cleanError;
+            } catch (p) { }
+
+            return { success: false, error: cleanError };
         }
 
-        const data = await response.json();
+        const data = JSON.parse(responseText);
 
         // SYNC WITH ATENDIMENTO (OPEN status as requested)
         if (pool) {
@@ -742,8 +759,9 @@ async function sendWhatsAppMessage(
 
         return { success: true };
     } catch (error: any) {
-        console.error('[sendWhatsAppMessage] Fatal Error:', error.message);
-        return { success: false, error: error.message };
+        console.error('[sendWhatsAppMessage] Fatal Catch Error:', error);
+        console.error('[sendWhatsAppMessage] Stack:', error.stack);
+        return { success: false, error: 'Internal Exception: ' + error.message };
     }
 }
 
