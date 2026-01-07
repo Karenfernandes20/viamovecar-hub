@@ -2541,6 +2541,39 @@ const AtendimentoPage = () => {
                             </span>
                           )}
 
+                          {/* Origin label for outbound messages */}
+                          {firstMsg.direction === 'outbound' && (
+                            <span className="text-[11px] font-medium text-[#8696A0] px-2 mb-0.5 uppercase tracking-wider flex items-center gap-1">
+                              {/* System user (has user_id) */}
+                              {firstMsg.user_id ? (
+                                <>
+                                  {String(firstMsg.user_id) === String(user?.id) ? (
+                                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                                  ) : (
+                                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                                  )}
+                                  {firstMsg.agent_name || firstMsg.user_name || "Operador"}
+                                </>
+                              ) : (
+                                <>
+                                  {/* WhatsApp Mobile/Web */}
+                                  {(firstMsg as any).message_source === 'whatsapp_mobile' ? (
+                                    <>
+                                      <span className="w-1.5 h-1.5 bg-cyan-500 rounded-full" />
+                                      Celular
+                                    </>
+                                  ) : (
+                                    /* Evolution API / AI Agent */
+                                    <>
+                                      <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse" />
+                                      {firstMsg.agent_name || "Agente de IA"}
+                                    </>
+                                  )}
+                                </>
+                              )}
+                            </span>
+                          )}
+
                           {group.map((msg, msgIdx) => {
                             const isFirstInGroup = msgIdx === 0;
                             const isLastInGroup = msgIdx === group.length - 1;

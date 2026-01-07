@@ -238,9 +238,24 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 return;
             }
 
+
             // Prepare Data
             const direction = isFromMe ? 'outbound' : 'inbound';
-            console.log(`[Webhook] Classified message: JID=${remoteJid} | direction=${direction} | fromMeSource=${fromMeSource}`);
+
+            // Determine message source for outbound messages
+            let messageSource = null;
+            if (direction === 'outbound') {
+                // If it's a send.message event, it came from WhatsApp Mobile/Web
+                if (normalizedType === 'SEND.MESSAGE' || normalizedType === 'SEND_MESSAGE') {
+                    messageSource = 'whatsapp_mobile';
+                }
+                // Otherwise, it was sent via Evolution API programmatically
+                else {
+                    messageSource = 'evolution_api';
+                }
+            }
+
+            console.log(`[Webhook] Classified message: JID=${remoteJid} | direction=${direction} | source=${messageSource || 'inbound'} | fromMeSource=${fromMeSource}`);
             // Normalize phone: remove JID suffix and any device suffix (e.g. 5511999999999:1@s.whatsapp.net -> 5511999999999)
             const phone = remoteJid.split('@')[0].split(':')[0];
             const name = msg.pushName || msg.pushname || phone;
@@ -499,6 +514,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
                         status: currentStatus,
                         sender_jid: insertedMsg.rows[0].sender_jid,
                         sender_name: insertedMsg.rows[0].sender_name,
+                        message_source: messageSource, // whatsapp_mobile or evolution_api
                         agent_name: (direction === 'outbound' && !insertedMsg.rows[0].user_id) ? (msg.agent_name || 'Agente de IA') : null,
                         message_origin: (direction === 'outbound' && !insertedMsg.rows[0].user_id) ? 'ai_agent' : 'whatsapp_mobile'
                     };
