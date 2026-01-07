@@ -397,6 +397,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
             const sent_at = new Date((msg.messageTimestamp || msg.timestamp || Date.now() / 1000) * 1000);
             const externalId = msg.key?.id || msg.id || `gen-${Date.now()}`;
 
+            console.log(`[Webhook] Preparing to save message: direction=${direction}, externalId=${externalId}, convId=${conversationId}, content="${content.substring(0, 30)}..."`);
+
             // Insert Message into database
             const insertedMsg = await pool.query(
                 `INSERT INTO whatsapp_messages (conversation_id, direction, content, sent_at, status, external_id, message_type, media_url, user_id, sender_jid, sender_name, company_id) 
@@ -404,6 +406,10 @@ export const handleWebhook = async (req: Request, res: Response) => {
                  ON CONFLICT (external_id) DO NOTHING RETURNING *`,
                 [conversationId, direction, content, sent_at, 'received', externalId, messageType, mediaUrl, null, senderJid, senderName, companyId]
             );
+
+            if (insertedMsg.rows.length > 0) {
+                console.log(`[Webhook] ✅ Message SAVED to DB: ID=${insertedMsg.rows[0].id}, direction=${direction}, external_id=${externalId}`);
+            }
 
             // If duplicate message (conflict), we still want to emit conversation update
             if (insertedMsg.rows.length === 0) {
