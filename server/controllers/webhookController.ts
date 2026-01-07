@@ -426,7 +426,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 const existingResult = await pool.query(`
                     SELECT wm.*, u.full_name as agent_name 
                     FROM whatsapp_messages wm
-                    LEFT JOIN users u ON wm.user_id = u.id
+                    LEFT JOIN app_users u ON wm.user_id = u.id
                     WHERE wm.external_id = $1
                 `, [externalId]);
 
