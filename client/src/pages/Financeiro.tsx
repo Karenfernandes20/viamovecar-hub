@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { ManageCostCentersDialog } from "../components/ManageCostCentersDialog";
 import {
   Card,
   CardContent,
@@ -256,6 +257,7 @@ const FinanceiroPage = () => {
     if (token) {
       fetchData();
       fetchCategories();
+      fetchCostCenters();
     }
   }, [mainTab, startDate, endDate, statusFilter, categoryFilter, token]);
 
@@ -1509,6 +1511,15 @@ const FinanceiroPage = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Manage Cost Centers Dialog */}
+      <ManageCostCentersDialog
+        isOpen={isManageCostCentersOpen}
+        onClose={() => setIsManageCostCentersOpen(false)}
+        costCenters={costCenters}
+        onRefresh={fetchCostCenters}
+        token={token}
+      />
 
     </div>
   );
