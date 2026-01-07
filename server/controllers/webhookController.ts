@@ -82,7 +82,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 'MESSAGE_SET', 'MESSAGE.SET',
                 'MESSAGES_RECEIVE', 'MESSAGE_RECEIVE',
                 'MESSAGES.RECEIVE', 'MESSAGE.RECEIVE',
-                'SEND_MESSAGE'
+                'SEND_MESSAGE', 'SEND.MESSAGE'
             ].includes(normalizedType);
 
             if (!isMessageEvent) {
