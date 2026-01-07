@@ -558,18 +558,23 @@ async function sendWhatsAppMessage(
         console.log(`[sendWhatsAppMessage] POST ${targetUrl} | Target: ${cleanPhone} | Type: ${isMedia ? mediaType : 'text'}`);
 
         // FIX: Convert local media to Base64 for remote Evolution API
+        // Always try to resolve the file locally if it looks like it belongs to our uploads
         let finalMedia = mediaUrl;
-        if (isMedia && mediaUrl && (mediaUrl.includes('localhost') || mediaUrl.includes('127.0.0.1'))) {
+
+        if (isMedia && mediaUrl) {
             try {
-                const part = mediaUrl.split('/uploads/')[1];
-                if (part) {
-                    const filename = part.split('?')[0]; // Remove query params if any
+                // Try to extract filename. Usually it is the last part of URL.
+                // Works for http://localhost:3000/uploads/file.jpg or https://domain.com/uploads/file.jpg
+                const urlParts = mediaUrl.split('/uploads/');
+                const filename = urlParts.length > 1 ? urlParts[1].split('?')[0] : null;
+
+                if (filename) {
                     const __filename = fileURLToPath(import.meta.url);
                     const __dirname = path.dirname(__filename);
                     const filePath = path.join(__dirname, '../uploads', filename);
 
                     if (fs.existsSync(filePath)) {
-                        console.log(`[sendWhatsAppMessage] Converting local file to Base64: ${filename}`);
+                        console.log(`[sendWhatsAppMessage] Local file found: ${filename}. Converting to Base64...`);
                         const fileBuffer = fs.readFileSync(filePath);
                         const base64 = fileBuffer.toString('base64');
                         const ext = path.extname(filename).toLowerCase().replace('.', '');
@@ -583,11 +588,11 @@ async function sendWhatsAppMessage(
                         const mime = mimes[ext] || 'application/octet-stream';
                         finalMedia = `data:${mime};base64,${base64}`;
                     } else {
-                        console.warn(`[sendWhatsAppMessage] Local file not found: ${filePath}`);
+                        console.warn(`[sendWhatsAppMessage] Local file expected but not found at: ${filePath}`);
                     }
                 }
             } catch (e) {
-                console.error(`[sendWhatsAppMessage] Failed to convert local media:`, e);
+                console.error(`[sendWhatsAppMessage] Failed to process media:`, e);
             }
         }
 
