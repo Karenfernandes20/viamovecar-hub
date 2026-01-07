@@ -449,21 +449,32 @@ const CampanhasPage = () => {
                     <DialogHeader>
                         <DialogTitle>Relatório de Falhas</DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-2">
+                    <div className="space-y-4 pr-2">
                         {failures.length === 0 ? (
-                            <p className="text-center text-muted-foreground">Nenhuma falha registrada ou erro ao carregar.</p>
+                            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground gap-2">
+                                <span className="text-4xl">🤷‍♂️</span>
+                                <p>Nenhuma falha registrada ou erro ao carregar.</p>
+                            </div>
                         ) : (
                             failures.map((f, i) => (
-                                <div key={i} className="flex justify-between items-start border-b pb-2 text-sm">
-                                    <div>
-                                        <div className="font-semibold">{f.name || f.phone}</div>
-                                        <div className="text-xs text-muted-foreground">{f.phone}</div>
-                                    </div>
-                                    <div className="text-red-600 max-w-[60%] text-right font-medium text-xs">
-                                        {f.error_message || "Erro desconhecido"}
-                                        <div className="text-[10px] text-gray-400">
-                                            {f.failed_at ? new Date(f.failed_at).toLocaleString() : ''}
+                                <div key={i} className="flex gap-4 p-4 border rounded-xl bg-red-50/50 hover:bg-red-50 transition-colors">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="font-bold text-sm text-zinc-900">{f.name || "Sem Nome"}</span>
+                                            <span className="text-xs text-zinc-500 font-mono bg-zinc-100 px-2 py-0.5 rounded-full">{f.phone}</span>
                                         </div>
+                                        <div className="text-sm bg-white p-3 rounded-lg border border-red-100 shadow-sm">
+                                            <span className="font-bold text-red-600 text-xs uppercase block mb-1">Motivo do Erro:</span>
+                                            <span className="text-zinc-700 font-medium break-words leading-relaxed">
+                                                {f.error_message || "Erro desconhecido"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-1 shrink-0">
+                                        <span className="text-[10px] font-bold text-zinc-400 uppercase">Ocorreu em</span>
+                                        <span className="text-xs font-mono text-zinc-600">
+                                            {f.failed_at ? new Date(f.failed_at).toLocaleString('pt-BR') : '--/--/-- --:--'}
+                                        </span>
                                     </div>
                                 </div>
                             ))
