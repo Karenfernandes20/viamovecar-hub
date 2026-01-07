@@ -1921,50 +1921,114 @@ const AtendimentoPage = () => {
           setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c));
         }}
         className={cn(
-          "flex items-center h-[72px] px-4 py-3 cursor-pointer transition-colors border-b border-[#222E35]",
+          "flex flex-col px-4 py-3 cursor-pointer transition-colors border-b border-[#222E35] min-h-[72px]",
           isSelected ? "bg-[#2A3942]" : "bg-[#111B21] hover:bg-[#202C33]"
         )}
       >
-        <div className="relative shrink-0 mr-3">
-          <Avatar className="h-12 w-12 rounded-full border-none">
-            <AvatarImage src={conv.profile_pic_url || `https://api.dicebear.com/7.x/initials/svg?seed=${getDisplayName(conv)}`} />
-            <AvatarFallback className="bg-[#6a7175] text-white font-bold">
-              {(getDisplayName(conv)?.[0] || "?").toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-        </div>
-
-        <div className="flex-1 min-w-0 h-full flex flex-col justify-center">
-          <div className="flex justify-between items-center mb-1">
-            <span className="text-[16px] font-medium leading-5 text-[#E9EDEF] truncate">
-              {getDisplayName(conv)}
-            </span>
-            <span className={cn(
-              "text-[12px] whitespace-nowrap ml-2",
-              conv.unread_count && conv.unread_count > 0 ? "text-[#25D366] font-medium" : "text-[#8696A0]"
-            )}>
-              {conv.last_message_at ? formatListDate(conv.last_message_at) : ""}
-            </span>
+        <div className="flex items-center w-full">
+          <div className="relative shrink-0 mr-3">
+            <Avatar className="h-12 w-12 rounded-full border-none">
+              <AvatarImage src={conv.profile_pic_url || `https://api.dicebear.com/7.x/initials/svg?seed=${getDisplayName(conv)}`} />
+              <AvatarFallback className="bg-[#6a7175] text-white font-bold">
+                {(getDisplayName(conv)?.[0] || "?").toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
           </div>
 
-          <div className="flex justify-between items-center gap-2">
-            <div className="flex items-center gap-1 flex-1 min-w-0">
-              {isSelected && conv.status === 'OPEN' && conv.user_id && (
-                <div className="shrink-0 h-1.5 w-1.5 rounded-full bg-[#25D366]" title="Em atendimento"></div>
-              )}
-              <p className="text-[14px] leading-[18px] text-[#8696A0] truncate max-w-full">
-                {conv.last_message || <span className="italic opacity-60 italic">Iniciar conversa...</span>}
-              </p>
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-[16px] font-medium leading-5 text-[#E9EDEF] truncate">
+                {getDisplayName(conv)}
+              </span>
+              <span className={cn(
+                "text-[12px] whitespace-nowrap ml-2",
+                conv.unread_count && conv.unread_count > 0 ? "text-[#25D366] font-medium" : "text-[#8696A0]"
+              )}>
+                {conv.last_message_at ? formatListDate(conv.last_message_at) : ""}
+              </span>
             </div>
 
-            {conv.unread_count && conv.unread_count > 0 ? (
-              <div className="shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-[#25D366] ml-2">
-                <span className="text-[12px] font-bold text-[#111B21]">
-                  {conv.unread_count}
-                </span>
+            <div className="flex justify-between items-center gap-2">
+              <div className="flex items-center gap-1 flex-1 min-w-0">
+                {isSelected && conv.status === 'OPEN' && conv.user_id && (
+                  <div className="shrink-0 h-1.5 w-1.5 rounded-full bg-[#25D366]" title="Em atendimento"></div>
+                )}
+                <p className="text-[14px] leading-[18px] text-[#8696A0] truncate max-w-full">
+                  {conv.last_message || <span className="italic opacity-60 italic">Iniciar conversa...</span>}
+                </p>
               </div>
-            ) : null}
+
+              {conv.unread_count && conv.unread_count > 0 ? (
+                <div className="shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-[#25D366] ml-2">
+                  <span className="text-[12px] font-bold text-[#111B21]">
+                    {conv.unread_count}
+                  </span>
+                </div>
+              ) : null}
+            </div>
           </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-2 mt-2 w-full justify-end">
+          {(!conv.status || conv.status === 'PENDING') && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-[10px] uppercase font-bold text-[#00a884] border-[#00a884] hover:bg-[#00a884] hover:text-[#111B21]"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleStartAtendimento(conv);
+              }}
+            >
+              Iniciar Conversa
+            </Button>
+          )}
+
+          {conv.status === 'OPEN' && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[10px] uppercase font-bold text-[#00a884] border-[#00a884] hover:bg-[#00a884] hover:text-[#111B21]"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleStartAtendimento(conv);
+                }}
+              >
+                Iniciar Conversa
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[10px] uppercase font-bold text-red-500 border-red-500 hover:bg-red-500 hover:text-white"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleCloseAtendimento(conv);
+                }}
+              >
+                Encerrar
+              </Button>
+            </>
+          )}
+
+          {conv.status === 'CLOSED' && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-[10px] uppercase font-bold text-zinc-400 border-zinc-600 hover:bg-zinc-700 hover:text-zinc-200"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleReopenAtendimento(conv);
+              }}
+            >
+              Reabrir
+            </Button>
+          )}
         </div>
       </div>
     );

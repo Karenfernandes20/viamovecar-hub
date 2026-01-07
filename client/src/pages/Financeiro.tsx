@@ -1056,12 +1056,37 @@ const FinanceiroPage = () => {
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-muted-foreground uppercase">Centro de Custo</label>
-                      <Input
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-muted-foreground uppercase">Centro de Custo</label>
+                        <button
+                          type="button"
+                          onClick={() => setIsManageCostCentersOpen(true)}
+                          className="text-[10px] text-blue-600 hover:text-blue-800 font-bold uppercase"
+                        >
+                          Gerenciar
+                        </button>
+                      </div>
+                      <Select
                         value={formData.cost_center || ""}
-                        onChange={e => setFormData({ ...formData, cost_center: e.target.value })}
-                        placeholder="Ex: Marketing, Operacional, Administrativo..."
-                      />
+                        onValueChange={(v) => setFormData({ ...formData, cost_center: v })}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {costCenters.length === 0 ? (
+                            <div className="p-2 text-center text-sm text-gray-500">
+                              Nenhum cadastrado
+                            </div>
+                          ) : (
+                            costCenters.map(cc => (
+                              <SelectItem key={cc.id} value={cc.name}>
+                                {cc.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2 pb-4">
                       <label className="text-xs font-bold text-muted-foreground uppercase">Status</label>
