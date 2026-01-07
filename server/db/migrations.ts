@@ -112,6 +112,22 @@ export const runMigrations = async () => {
             console.log("Verified table: financial_categories");
         } catch (e) { console.error("Error creating financial_categories:", e); }
 
+        // 3.5. Financial Cost Centers
+        try {
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS financial_cost_centers (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(name, company_id)
+                );
+            `);
+            await pool.query('CREATE INDEX IF NOT EXISTS idx_cost_centers_company ON financial_cost_centers(company_id)');
+            console.log("Verified table: financial_cost_centers");
+        } catch (e) { console.error("Error creating financial_cost_centers:", e); }
+
         // 4. CRM Tables
         await pool.query(`
             CREATE TABLE IF NOT EXISTS crm_stages (
