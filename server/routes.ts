@@ -27,9 +27,10 @@ const router = express.Router();
 // Auth routes
 router.post('/auth/login', login);
 router.post('/auth/register', register);
-router.put('/auth/profile', authenticateToken, updateProfile);
 
 import { upload } from './middleware/uploadMiddleware';
+
+router.put('/auth/profile', authenticateToken, upload.single('logo'), updateProfile);
 
 // Company routes
 router.get('/companies', authenticateToken, authorizeRole(['SUPERADMIN']), getCompanies);

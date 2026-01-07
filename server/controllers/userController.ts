@@ -208,9 +208,11 @@ export const updateProfile = async (req: Request, res: Response) => {
     if (!pool) return res.status(500).json({ error: 'Database not configured' });
 
     const id = (req as any).user?.id;
+    const companyId = (req as any).user?.company_id;
     if (!id) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { full_name, email, phone, password } = req.body;
+    const { full_name, email, phone, password, remove_logo } = req.body;
+    const logoFile = req.file;
 
     let password_hash = null;
     if (password) {
@@ -218,6 +220,7 @@ export const updateProfile = async (req: Request, res: Response) => {
       password_hash = await bcrypt.hash(password, salt);
     }
 
+    // Update user profile
     const result = await pool.query(
       `UPDATE app_users 
           SET full_name = COALESCE($1, full_name), 
@@ -231,6 +234,31 @@ export const updateProfile = async (req: Request, res: Response) => {
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Handle company logo update
+    if (companyId && (logoFile || remove_logo === 'true')) {
+      try {
+        if (remove_logo === 'true') {
+          // Remove logo
+          await pool.query('UPDATE companies SET logo_url = NULL WHERE id = $1', [companyId]);
+        } else if (logoFile) {
+          // Convert to base64
+          const base64Logo = logoFile.buffer.toString('base64');
+          const logoDataUrl = `data:${logoFile.mimetype};base64,${base64Logo}`;
+
+          await pool.query('UPDATE companies SET logo_url = $1 WHERE id = $2', [logoDataUrl, companyId]);
+        }
+
+        // Fetch updated company info
+        const companyResult = await pool.query('SELECT logo_url FROM companies WHERE id = $1', [companyId]);
+        if (companyResult.rows.length > 0) {
+          (result.rows[0] as any).company = companyResult.rows[0];
+        }
+      } catch (logoError) {
+        console.error('Error updating company logo:', logoError);
+        // Continue even if logo update fails
+      }
     }
 
     res.json(result.rows[0]);

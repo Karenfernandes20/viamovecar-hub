@@ -5,7 +5,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { toast } from "sonner";
-import { Save, User, Phone, Lock } from "lucide-react";
+import { Save, User, Phone, Lock, Upload, X, Building2 } from "lucide-react";
 
 interface EditProfileModalProps {
     isOpen: boolean;
@@ -22,6 +22,43 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
         confirmPassword: "",
     });
     const [isLoading, setIsLoading] = useState(false);
+    const [logoFile, setLogoFile] = useState<File | null>(null);
+    const [logoPreview, setLogoPreview] = useState<string | null>(u?.company?.logo_url || null);
+    const [removeLogo, setRemoveLogo] = useState(false);
+
+
+    const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            // Validate file size (max 2MB)
+            if (file.size > 2 * 1024 * 1024) {
+                toast.error("Logo muito grande. Máximo 2MB.");
+                return;
+            }
+
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                toast.error("Por favor, selecione uma imagem válida.");
+                return;
+            }
+
+            setLogoFile(file);
+            setRemoveLogo(false);
+
+            // Create preview
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setLogoPreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleRemoveLogo = () => {
+        setLogoFile(null);
+        setLogoPreview(null);
+        setRemoveLogo(true);
+    };
 
     const handleSave = async () => {
         if (formData.password && formData.password !== formData.confirmPassword) {
@@ -31,17 +68,25 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
 
         setIsLoading(true);
         try {
+            const formDataToSend = new FormData();
+            formDataToSend.append('full_name', formData.full_name);
+            formDataToSend.append('phone', formData.phone);
+            if (formData.password) {
+                formDataToSend.append('password', formData.password);
+            }
+            if (logoFile) {
+                formDataToSend.append('logo', logoFile);
+            }
+            if (removeLogo) {
+                formDataToSend.append('remove_logo', 'true');
+            }
+
             const response = await fetch("/api/auth/profile", {
                 method: "PUT",
                 headers: {
-                    "Content-Type": "application/json",
                     Authorization: `Bearer ${token}`,
                 },
-                body: JSON.stringify({
-                    full_name: formData.full_name,
-                    phone: formData.phone,
-                    password: formData.password || undefined,
-                }),
+                body: formDataToSend,
             });
 
             if (response.ok) {
@@ -99,6 +144,45 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
                                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                             />
                         </div>
+                    </div>
+
+                    {/* Logo Upload Section */}
+                    <div className="space-y-2 pt-2 border-t mt-4">
+                        <Label className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4" />
+                            Logo da Empresa
+                        </Label>
+
+                        {logoPreview ? (
+                            <div className="relative inline-block">
+                                <img
+                                    src={logoPreview}
+                                    alt="Logo Preview"
+                                    className="w-32 h-32 object-contain border rounded-lg bg-gray-50"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleRemoveLogo}
+                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
+                        ) : (
+                            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    <Upload className="h-8 w-8 mb-2 text-gray-400" />
+                                    <p className="text-sm text-gray-500">Clique para fazer upload</p>
+                                    <p className="text-xs text-gray-400 mt-1">PNG, JPG (máx. 2MB)</p>
+                                </div>
+                                <input
+                                    type="file"
+                                    className="hidden"
+                                    accept="image/*"
+                                    onChange={handleLogoChange}
+                                />
+                            </label>
+                        )}
                     </div>
 
                     <div className="pt-2 border-t mt-4">
