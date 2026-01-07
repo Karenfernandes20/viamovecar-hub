@@ -555,46 +555,68 @@ async function sendWhatsAppMessage(
         const endpoint = isMedia ? 'sendMedia' : 'sendText';
         const targetUrl = `${EVOLUTION_API_BASE}/message/${endpoint}/${evolution_instance}`;
 
-        console.log(`[sendWhatsAppMessage] POST ${targetUrl} | Target: ${cleanPhone} | Type: ${isMedia ? mediaType : 'text'}`);
-
         // FIX: Convert local media to Base64 for remote Evolution API
         // Always try to resolve the file locally if it looks like it belongs to our uploads
         let finalMedia = mediaUrl;
+        let finalMimeType = 'application/octet-stream';
 
         if (isMedia && mediaUrl) {
             try {
-                // Try to extract filename. Usually it is the last part of URL.
-                // Works for http://localhost:3000/uploads/file.jpg or https://domain.com/uploads/file.jpg
-                const urlParts = mediaUrl.split('/uploads/');
-                const filename = urlParts.length > 1 ? urlParts[1].split('?')[0] : null;
+                // Check if it's a local file URL
+                if (mediaUrl.includes('localhost') || mediaUrl.includes('127.0.0.1') || mediaUrl.includes('/uploads/')) {
+                    const urlParts = mediaUrl.split('/uploads/');
+                    const filename = urlParts.length > 1 ? urlParts[1].split('?')[0] : null;
 
-                if (filename) {
-                    const __filename = fileURLToPath(import.meta.url);
-                    const __dirname = path.dirname(__filename);
-                    const filePath = path.join(__dirname, '../uploads', filename);
+                    if (filename) {
+                        const __filename = fileURLToPath(import.meta.url);
+                        const __dirname = path.dirname(__filename);
 
-                    if (fs.existsSync(filePath)) {
-                        console.log(`[sendWhatsAppMessage] Local file found: ${filename}. Converting to Base64...`);
-                        const fileBuffer = fs.readFileSync(filePath);
-                        const base64 = fileBuffer.toString('base64');
-                        const ext = path.extname(filename).toLowerCase().replace('.', '');
+                        // Try typical paths
+                        const possiblePaths = [
+                            path.join(__dirname, '../uploads', filename), // source layout
+                            path.join(__dirname, '../../uploads', filename), // dist/server/controllers layout
+                            path.join(process.cwd(), 'server/uploads', filename), // cwd relative
+                            path.join(process.cwd(), 'uploads', filename) // cwd relative (root)
+                        ];
 
-                        const mimes: Record<string, string> = {
-                            'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'gif': 'image/gif', 'webp': 'image/webp',
-                            'pdf': 'application/pdf', 'mp4': 'video/mp4', 'mp3': 'audio/mpeg', 'ogg': 'audio/ogg',
-                            'doc': 'application/msword', 'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                            'xls': 'application/vnd.ms-excel', 'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                        };
-                        const mime = mimes[ext] || 'application/octet-stream';
-                        finalMedia = `data:${mime};base64,${base64}`;
-                    } else {
-                        console.warn(`[sendWhatsAppMessage] Local file expected but not found at: ${filePath}`);
+                        let fileFoundPath = null;
+                        for (const p of possiblePaths) {
+                            if (fs.existsSync(p)) {
+                                fileFoundPath = p;
+                                break;
+                            }
+                        }
+
+                        if (fileFoundPath) {
+                            console.log(`[sendWhatsAppMessage] Local file found at: ${fileFoundPath}. Converting to Base64...`);
+                            const fileBuffer = fs.readFileSync(fileFoundPath);
+                            const base64 = fileBuffer.toString('base64');
+                            const ext = path.extname(filename).toLowerCase().replace('.', '');
+
+                            const mimes: Record<string, string> = {
+                                'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'gif': 'image/gif', 'webp': 'image/webp',
+                                'pdf': 'application/pdf', 'mp4': 'video/mp4', 'mp3': 'audio/mpeg', 'ogg': 'audio/ogg',
+                                'doc': 'application/msword', 'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                                'xls': 'application/vnd.ms-excel', 'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                            };
+                            finalMimeType = mimes[ext] || 'application/octet-stream';
+                            finalMedia = `data:${finalMimeType};base64,${base64}`;
+                        } else {
+                            console.warn(`[sendWhatsAppMessage] Local file expected but NOT found in any likely path. Filename: ${filename}`);
+                            // If we can't find the file locally, and it's a localhost URL, Evolution will definitely fail.
+                            if (mediaUrl.includes('localhost') || mediaUrl.includes('127.0.0.1')) {
+                                return { success: false, error: `Local media file not found: ${filename}` };
+                            }
+                        }
                     }
                 }
             } catch (e) {
                 console.error(`[sendWhatsAppMessage] Failed to process media:`, e);
+                return { success: false, error: `Media processing failed: ${(e as Error).message}` };
             }
         }
+
+        console.log(`[sendWhatsAppMessage] POST ${targetUrl} | Target: ${cleanPhone} | Type: ${isMedia ? mediaType : 'text'} | Media: ${finalMedia?.substring(0, 50)}...`);
 
         let payload: any = {
             number: cleanPhone,
@@ -606,18 +628,24 @@ async function sendWhatsAppMessage(
         };
 
         if (isMedia) {
+            // Robust Media Payload for Evolution API
+            // Some versions expect 'mediatype', others 'type'. Some accept 'mimetype'.
+            // Providing comprehensive payload.
             payload.mediaMessage = {
-                mediatype: mediaType,
-                caption: message, // Caption is the text message
-                media: finalMedia
+                mediatype: mediaType, // Primary for many versions
+                type: mediaType,      // Fallback/Alternative
+                caption: message,
+                media: finalMedia,
+                mimetype: finalMimeType
             };
-            // Evolution v2 might expect 'fileName' for documents, optional for others
+
+            // If document, add fileName
             if (mediaType === 'document') {
                 payload.mediaMessage.fileName = mediaUrl!.split('/').pop() || 'document.pdf';
             }
         } else {
             payload.textMessage = { text: message };
-            payload.text = message; // backward compat
+            payload.text = message; // backward compat key
         }
 
         const response = await fetch(targetUrl, {
@@ -631,8 +659,18 @@ async function sendWhatsAppMessage(
 
         if (!response.ok) {
             const errText = await response.text();
-            console.error(`[sendWhatsAppMessage] Failed: ${response.status} - ${errText}`);
-            return { success: false, error: `${response.status} - ${errText}` };
+            let errDetail = errText;
+            try {
+                // Try parse JSON error
+                const jsonErr = JSON.parse(errText);
+                if (jsonErr.message) errDetail = jsonErr.message;
+                if (jsonErr.error) errDetail = jsonErr.error;
+                // Evolution sometimes returns { response: { message: ... } }
+                if (jsonErr.response?.message) errDetail = jsonErr.response.message;
+            } catch (e) { /* ignore JSON parse error */ }
+
+            console.error(`[sendWhatsAppMessage] Failed: ${response.status} - ${errDetail}`);
+            return { success: false, error: `${response.status} - ${errDetail}` };
         }
 
         const data = await response.json();
