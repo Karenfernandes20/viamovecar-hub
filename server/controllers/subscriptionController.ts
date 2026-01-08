@@ -18,6 +18,8 @@ export const getSubscription = async (req: Request, res: Response) => {
     if (!companyId) return res.status(400).json({ error: "Company ID required" });
 
     try {
+        // If no active subscription is found in 'subscriptions' table, check 'companies' table for plan_id fallback
+        // This is common for legacy or manually set plans that didn't go through the billing flow
         const result = await pool?.query(`
             SELECT s.*, p.name as plan_name, p.price as plan_price, p.max_users
             FROM subscriptions s
@@ -25,11 +27,35 @@ export const getSubscription = async (req: Request, res: Response) => {
             WHERE s.company_id = $1
         `, [companyId]);
 
-        if (!result || result.rows.length === 0) {
+        let subscriptionData = result?.rows[0];
+
+        if (!subscriptionData) {
+            // Fallback: Check company directly
+            const companyRes = await pool?.query(`
+                SELECT c.plan_id, p.name as plan_name, c.due_date 
+                FROM companies c
+                LEFT JOIN plans p ON c.plan_id = p.id
+                WHERE c.id = $1
+            `, [companyId]);
+
+            if (companyRes && companyRes.rows && companyRes.rows.length > 0 && companyRes.rows[0].plan_id) {
+                // Construct a mock subscription object based on company plan
+                const companyData = companyRes.rows[0];
+                subscriptionData = {
+                    status: 'active', // Assume active if assigned in company
+                    plan_name: companyData.plan_name,
+                    plan_id: companyData.plan_id,
+                    current_period_end: companyData.due_date,
+                    trial_end: null
+                };
+            }
+        }
+
+        if (!subscriptionData) {
             return res.json({ status: 'none', message: "No active subscription" });
         }
 
-        res.json(result.rows[0]);
+        res.json(subscriptionData);
     } catch (error) {
         console.error("Error fetching subscription:", error);
         res.status(500).json({ error: "Internal server error" });
