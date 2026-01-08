@@ -3,15 +3,23 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 export interface PlanStatus {
-    plan: any; // Ideally refine this
-    usage: any;
-    overdue?: boolean;
-    due_date?: string | null;
-    status?: string;
-    plan_name?: string;
-    trial_end?: string;
-    current_period_end?: string;
-    current_period_start?: string;
+    plan: {
+        name: string;
+        features: {
+            campaigns: boolean;
+            schedules: boolean;
+            internal_chat: boolean;
+            sub_accounts: boolean;
+        };
+    };
+    usage: {
+        users: { current: number; max: number };
+        ai_agents: { current: number; max: number };
+        automations: { current: number; max: number };
+        messages: { current: number; max: number; period: string };
+    };
+    overdue: boolean;
+    due_date: string | null;
 }
 
 export function useSubscriptionBanner() {

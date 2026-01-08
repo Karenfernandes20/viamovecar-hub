@@ -9,68 +9,55 @@ export function SubscriptionBanner() {
     const { status, loading } = useSubscriptionBanner();
     const [showUpgrade, setShowUpgrade] = useState(false);
 
-    if (loading) return null;
+    if (loading || !status) return null;
 
-    // Status Logic
-    // If no subscription or status is 'none', maybe show nothing or generic 'Free Tier'
-    const subStatus = status?.status || 'none';
-    const trialEnd = status?.trial_end;
-    const planName = status?.plan_name;
+    // 1. Verify Plan Name (Must be 'Teste')
+    const planName = status.plan?.name;
+    const isTestPlan = planName?.toLowerCase() === 'teste';
 
-    // USER REQUEST: Only show upgrade banner for "Teste" plan.
-    if (planName !== 'Teste' && planName !== 'teste') return null;
+    if (!isTestPlan) return null;
 
-    // Logic for contextual messages
-    let message = "";
-    let icon = <Stars className="h-4 w-4" />;
-    let variant = "promo"; // promo, warning, danger
-    let actionLabel = "Fazer Upgrade";
+    // 2. Calculate Days Remaining
+    let daysMessage = "";
+    if (status.due_date) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const due = new Date(status.due_date);
+        due.setHours(0, 0, 0, 0);
 
-    if (subStatus === 'trialing' && trialEnd) {
-        const daysLeft = Math.ceil((new Date(trialEnd).getTime() - Date.now()) / (1000 * 3600 * 24));
-        if (daysLeft > 0) {
-            message = `🚀 Período de Teste Gratuito: Restam ${daysLeft} dias.`;
-            actionLabel = "Assinar Agora";
+        const diffTime = due.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays >= 0) {
+            daysMessage = ` (${diffDays} dias restantes)`;
         } else {
-            message = "⚠️ Seu período de teste acabou. Algumas funcionalidades foram bloqueadas.";
-            variant = "danger";
-            icon = <AlertTriangle className="h-4 w-4" />;
+            daysMessage = " (Expirado)";
         }
-    } else if (subStatus === 'active') {
-        // Since we filtered for Test plan above, if it's active, it's an active Test plan.
-        message = "Você está no plano teste. Faça o upgrade e libere todos os recursos.";
-        actionLabel = "Fazer upgrade";
-        variant = "promo";
-    } else if (subStatus === 'past_due' || subStatus === 'cancelled') {
-        message = "⚠️ Sua assinatura está pendente ou cancelada. Evite o bloqueio do sistema.";
-        icon = <AlertTriangle className="h-4 w-4" />;
-        variant = "danger";
-        actionLabel = "Regularizar";
-    } else if (subStatus === 'none') {
-        // Maybe a visitor/free user
-        message = "💎 Você está no plano Gratuito. Desbloqueie todo o potencial do sistema.";
-        icon = <Zap className="h-4 w-4" />;
-        variant = "promo";
     }
 
-    if (!message) return null;
+    // 3. Define Content using requested visual style
+    const message = `Sua empresa está no plano teste. Faça o upgrade para liberar todos os recursos.${daysMessage}`;
 
-    const bgClass = variant === 'danger'
-        ? "bg-red-600 text-white"
-        : variant === 'promo'
-            // Soft Blue/Yellow as requested. Let's go with a professional soft blue/slate.
-            ? "bg-blue-50 border-b border-blue-200 text-blue-900"
-            : "bg-amber-50 border-b border-amber-200 text-amber-800";
+    // Using a soft blue/indigo scheme for "professional and non-invasive"
+    // or Amber for Teste/Warning? Prompt says "suaves".
+    // "Teste" often implies a trial, so keeping it noticeable but not "Danger" red unless expired.
 
     return (
         <>
-            <div className={`w-full px-4 py-2 text-sm font-medium flex items-center justify-between shadow-md z-30 transition-all ${bgClass}`}>
+            <div className="w-full px-4 py-2 text-sm font-medium flex items-center justify-between shadow-sm z-30 transition-all bg-indigo-50 border-b border-indigo-100 text-indigo-900">
                 <div className="flex items-center gap-2">
-                    {icon}
+                    <Stars className="h-4 w-4 text-indigo-600" />
                     <span>{message}</span>
                 </div>
-                <Button size="sm" variant="secondary" className="h-7 text-xs font-bold hover:bg-white/90 transition-colors" onClick={() => setShowUpgrade(true)}>
-                    {actionLabel}
+                <Button
+                    size="sm"
+                    className="h-7 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white border-0 transition-colors shadow-none"
+                    onClick={() => {
+                        console.log("Analytics: Upgrade Banner Clicked");
+                        setShowUpgrade(true);
+                    }}
+                >
+                    Fazer upgrade
                 </Button>
             </div>
             <UpgradeModal open={showUpgrade} onOpenChange={setShowUpgrade} />
