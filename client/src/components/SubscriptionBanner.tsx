@@ -38,8 +38,8 @@ export function SubscriptionBanner() {
         }
     } else if (subStatus === 'active') {
         // Since we filtered for Test plan above, if it's active, it's an active Test plan.
-        message = "🚀 Você está no Plano Teste. Faça um upgrade para ter acesso ilimitado.";
-        actionLabel = "Fazer Upgrade";
+        message = "Você está no plano teste. Faça o upgrade e libere todos os recursos.";
+        actionLabel = "Fazer upgrade";
         variant = "promo";
     } else if (subStatus === 'past_due' || subStatus === 'cancelled') {
         message = "⚠️ Sua assinatura está pendente ou cancelada. Evite o bloqueio do sistema.";
@@ -57,7 +57,10 @@ export function SubscriptionBanner() {
 
     const bgClass = variant === 'danger'
         ? "bg-red-600 text-white"
-        : "bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white animate-gradient-xy"; // Rich aesthetic
+        : variant === 'promo'
+            // Soft Blue/Yellow as requested. Let's go with a professional soft blue/slate.
+            ? "bg-blue-50 border-b border-blue-200 text-blue-900"
+            : "bg-amber-50 border-b border-amber-200 text-amber-800";
 
     return (
         <>
