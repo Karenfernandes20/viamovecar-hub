@@ -294,6 +294,20 @@ export const updateCompany = async (req: Request, res: Response) => {
             });
         }
 
+        // SYNC SUBSCRIPTION if due_date changed
+        // Ensure that if there is a formal subscription record, it stays in sync with the manual company override
+        if (due_date) {
+            try {
+                await pool.query(
+                    'UPDATE subscriptions SET current_period_end = $1, status = CASE WHEN $1 > NOW() THEN \'active\' ELSE status END WHERE company_id = $2',
+                    [due_date, updatedCompany.id]
+                );
+                console.log(`[Update Company] Synced due_date to subscriptions table for company ${updatedCompany.id}`);
+            } catch (syncErr) {
+                console.warn(`[Update Company] Failed to sync subscription due_date:`, syncErr);
+            }
+        }
+
         res.json(updatedCompany);
     } catch (error) {
         console.error('CRITICAL ERROR in updateCompany:', error);

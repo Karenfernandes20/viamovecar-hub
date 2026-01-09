@@ -540,7 +540,7 @@ const SuperadminPage = () => {
                     <span>Nome</span>
                     <span>CNPJ</span>
                     <span>Cidade/UF</span>
-                    <span>Ramo</span>
+                    <span>Vencimento</span>
                     <span>Logo</span>
                     <span className="text-right">Ações</span>
                   </div>
@@ -561,7 +561,11 @@ const SuperadminPage = () => {
                         <span className="truncate text-muted-foreground">
                           {company.city || company.state ? `${company.city ?? ""}/${company.state ?? ""}` : "-"}
                         </span>
-                        <span className="truncate text-muted-foreground capitalize">{company.operation_type || "-"}</span>
+                        <span className={cn("truncate font-medium",
+                          company.due_date && new Date(company.due_date) < new Date() ? "text-destructive" : "text-muted-foreground"
+                        )}>
+                          {company.due_date ? new Date(company.due_date).toLocaleDateString('pt-BR') : "-"}
+                        </span>
                         <div className="truncate text-primary flex items-center gap-2">
                           {company.logo_url ? (
                             <>
