@@ -5,11 +5,12 @@ import { cn } from "../lib/utils";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../components/ui/button";
 import { ShieldAlert, LogOut } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { GlobalSearch } from "../components/GlobalSearch";
 import { SystemModeBanner } from "../components/SystemModeBanner";
 import { SubscriptionBanner } from "../components/SubscriptionBanner";
 import { useSubscriptionBanner } from "../hooks/useSubscriptionBanner";
+import { UpgradeModal } from "../components/UpgradeModal";
 
 
 const SECTION_TITLES: Record<string, string> = {
@@ -39,6 +40,15 @@ export const AdminLayout = () => {
   const title = getSectionTitle(location.pathname);
   const { user, logout } = useAuth();
   const { status } = useSubscriptionBanner();
+
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  // Auto-open modal if overdue
+  useEffect(() => {
+    if (status?.overdue && user?.role !== 'SUPERADMIN') {
+      setShowUpgradeModal(true);
+    }
+  }, [status?.overdue, user?.role]);
 
   const handleLogout = () => {
     const role = user?.role;
@@ -77,6 +87,8 @@ export const AdminLayout = () => {
       <div className={cn("w-full bg-background flex flex-col", isAtendimento ? "h-[100dvh] overflow-hidden" : "min-h-screen")}>
         <SystemModeBanner />
         <SubscriptionBanner />
+        <UpgradeModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
+
         <div className={cn("flex w-full flex-1", isAtendimento ? "h-full overflow-hidden" : "")}>
           <AppSidebar />
 
@@ -155,9 +167,14 @@ export const AdminLayout = () => {
                   <div className="p-4 bg-muted rounded-lg border border-border">
                     <p className="text-sm font-semibold">Vencimento: {status.due_date ? new Date(status.due_date).toLocaleDateString() : 'N/A'}</p>
                   </div>
-                  <Button onClick={() => window.open('https://wa.me/5511999999999?text=Quero%20regularizar%20meu%20plano', '_blank')}>
-                    Falar com Suporte Financeiro
-                  </Button>
+                  <div className="flex flex-col gap-3 w-full max-w-sm">
+                    <Button size="lg" className="w-full font-bold text-lg h-12" onClick={() => setShowUpgradeModal(true)}>
+                      Renovar Assinatura Agora
+                    </Button>
+                    <Button variant="outline" className="w-full" onClick={() => window.open('https://wa.me/5511999999999?text=Preciso%20de%20ajuda%20financeira', '_blank')}>
+                      Falar com Suporte
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className={cn(

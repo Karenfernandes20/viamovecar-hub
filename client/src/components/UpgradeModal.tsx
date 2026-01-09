@@ -9,41 +9,54 @@ import { Badge } from "./ui/badge";
 
 const PLANS = [
     {
-        name: "Básico",
-        description: "Estrutura completa para profissionalizar seu atendimento e vendas.",
-        monthly: 497,
-        annual: 497 * 0.8, // 20% off roughly or just manual if preferred. Let's keep the math dynamic or fixed. User gave 497. 
-        // User didn't specify annual pricing, but component uses 'annual' field.
-        // Let's assume 497 is monthly.
-        // 497 * 12 = 5964.
-        // If discount, maybe 397 * 12? 
-        // Use logic proportional to previous. 97 -> 77 (~20% off).
-        // 497 - 20% = 397.6. Let's say 397 to be clean? Or just 497/month and calculate annual.
-        // Let's use 397 for annual monthly equivalent.
+        name: "Basic",
+        description: "Ideal para quem está começando a organizar o atendimento.",
+        monthly: 97,
+        annual: 97 * 12 * 0.8, // 20% off
+        stripeLinkMonthly: "https://buy.stripe.com/test_basic_monthly",
+        stripeLinkAnnual: "https://buy.stripe.com/test_basic_annual",
         features: [
-            "Até 5 Usuários",
-            "CRM Completo",
+            "1 Usuário",
             "1 Conexão WhatsApp",
-            "Automações de Mensagens",
+            "CRM Básico",
             "Agendamentos",
-            "Suporte via Email"
+            "Suporte por Email"
         ],
         highlight: false
     },
     {
-        name: "Avançado",
-        description: "Potência máxima com IA e múltiplos canais para escalar.",
-        monthly: 597,
-        annual: 497, // 597 - 100 roughly.
+        name: "Professional",
+        description: "Para empresas que buscam escalar vendas com automação.",
+        monthly: 147,
+        annual: 147 * 12 * 0.8,
+        stripeLinkMonthly: "https://buy.stripe.com/test_pro_monthly",
+        stripeLinkAnnual: "https://buy.stripe.com/test_pro_annual",
         features: [
-            "Usuários Ilimitados",
+            "Até 5 Usuários",
             "3 Conexões WhatsApp",
-            "Agentes de IA Ilimitados",
-            "Automações Avançadas (n8n)",
-            "Disparos em Massa",
-            "Gerente de Contas"
+            "CRM Avançado",
+            "Automações de Mensagens",
+            "Disparos em Massa (Limitado)",
+            "Suporte Prioritário"
         ],
         highlight: true
+    },
+    {
+        name: "Enterprise",
+        description: "Poder total com IA e recursos ilimitados.",
+        monthly: 497,
+        annual: 497 * 12 * 0.8,
+        stripeLinkMonthly: "https://buy.stripe.com/test_enterprise_monthly",
+        stripeLinkAnnual: "https://buy.stripe.com/test_enterprise_annual",
+        features: [
+            "Usuários Ilimitados",
+            "Conexões Ilimitadas",
+            "Agentes de IA Personalizados",
+            "API de Integração Completa",
+            "Gestor de Conta Dedicado",
+            "Disparos Ilimitados"
+        ],
+        highlight: false
     }
 ];
 
@@ -55,16 +68,19 @@ interface UpgradeModalProps {
 export function UpgradeModal({ open, onOpenChange }: UpgradeModalProps) {
     const [isAnnual, setIsAnnual] = useState(false);
 
-    const handleSelectPlan = (planName: string) => {
-        const period = isAnnual ? 'Anual' : 'Mensal';
-        const msg = `Olá, quero contratar o plano *${planName}* no formato *${period}*.`;
-        window.open(`https://wa.me/5511999999999?text=${encodeURIComponent(msg)}`, '_blank');
+    const handleSelectPlan = (plan: typeof PLANS[0]) => {
+        const link = isAnnual ? plan.stripeLinkAnnual : plan.stripeLinkMonthly;
+        // In production, you would Create a Checkout Session via backend. 
+        // For now, using direct link redirection as requested.
+        window.open(link, '_blank');
+        // Do not close immediately if we want them to come back and see something? 
+        // Usually, we close or keep open. Let's close.
         onOpenChange(false);
     };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto w-full">
                 <DialogHeader>
                     <div className="flex flex-col items-center gap-2">
                         <Badge variant="outline" className="text-primary border-primary/50 bg-primary/10">Planos & Preços</Badge>
@@ -88,59 +104,59 @@ export function UpgradeModal({ open, onOpenChange }: UpgradeModalProps) {
                     </Label>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-6 px-4">
+                <div className="grid md:grid-cols-3 gap-4 px-1">
                     {PLANS.map((plan) => {
-                        const price = isAnnual ? plan.annual : plan.monthly;
+                        const price = isAnnual ? (plan.monthly * 0.8).toFixed(0) : plan.monthly;
 
                         return (
                             <div
                                 key={plan.name}
                                 className={`
                                     border rounded-xl p-5 transition-all relative bg-card flex flex-col
-                                    ${plan.highlight ? 'border-primary shadow-lg scale-100 ring-1 ring-primary/20 z-10' : 'border-border hover:border-primary/50'}
+                                    ${plan.highlight ? 'border-primary shadow-lg ring-1 ring-primary/20 z-10' : 'border-border hover:border-primary/50'}
                                 `}
                             >
                                 {plan.highlight && (
-                                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-primary to-purple-600 text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-lg">
-                                        Recomendado
+                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm">
+                                        Mais Popular
                                     </div>
                                 )}
 
-                                <div className="mb-6">
-                                    <h3 className="text-2xl font-bold">{plan.name}</h3>
-                                    <p className="text-sm text-muted-foreground mt-1 min-h-[40px]">{plan.description}</p>
+                                <div className="mb-4">
+                                    <h3 className="text-xl font-bold">{plan.name}</h3>
+                                    <p className="text-xs text-muted-foreground mt-1 min-h-[32px]">{plan.description}</p>
                                 </div>
 
-                                <div className="mb-6">
+                                <div className="mb-4">
                                     <div className="flex items-baseline gap-1">
-                                        <span className="text-sm font-medium text-muted-foreground">R$</span>
-                                        <span className="text-4xl font-extrabold tracking-tight">{price}</span>
-                                        <span className="text-muted-foreground">/mês</span>
+                                        <span className="text-xs font-medium text-muted-foreground">R$</span>
+                                        <span className="text-3xl font-extrabold tracking-tight">{price}</span>
+                                        <span className="text-muted-foreground text-sm">/mês</span>
                                     </div>
                                     {isAnnual && (
-                                        <p className="text-xs text-green-600 font-medium mt-1">
-                                            Cobrado anualmente (R$ {price * 12})
+                                        <p className="text-[10px] text-green-600 font-medium mt-1">
+                                            Cobrado anualmente
                                         </p>
                                     )}
                                 </div>
 
                                 <Button
-                                    className={`w-full mb-8 font-bold ${plan.highlight ? 'bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25' : ''}`}
+                                    className={`w-full mb-6 font-bold ${plan.highlight ? 'bg-primary hover:bg-primary/90' : ''}`}
                                     variant={plan.highlight ? "default" : "outline"}
-                                    onClick={() => handleSelectPlan(plan.name)}
+                                    onClick={() => handleSelectPlan(plan)}
                                 >
-                                    {plan.highlight ? 'Começar Agora' : 'Escolher ' + plan.name}
+                                    Assinar {plan.name}
                                 </Button>
 
-                                <div className="space-y-4 flex-1">
-                                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">O que está incluso:</p>
-                                    <ul className="space-y-3">
+                                <div className="space-y-3 flex-1">
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Incluso:</p>
+                                    <ul className="space-y-2">
                                         {plan.features.map((feature, i) => (
-                                            <li key={i} className="flex items-start gap-3 text-sm">
-                                                <div className="mt-1 min-w-[16px]">
-                                                    <Check className={`h-4 w-4 ${plan.highlight ? 'text-primary' : 'text-muted-foreground'}`} />
+                                            <li key={i} className="flex items-start gap-2 text-xs">
+                                                <div className="mt-0.5 min-w-[14px]">
+                                                    <Check className={`h-3.5 w-3.5 ${plan.highlight ? 'text-primary' : 'text-muted-foreground'}`} />
                                                 </div>
-                                                <span className="text-muted-foreground/90">{feature}</span>
+                                                <span className="text-muted-foreground/90 leading-tight">{feature}</span>
                                             </li>
                                         ))}
                                     </ul>
@@ -150,33 +166,33 @@ export function UpgradeModal({ open, onOpenChange }: UpgradeModalProps) {
                     })}
                 </div>
 
-                <div className="mt-8 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+                <div className="mt-6 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
                     <Info className="h-4 w-4" />
-                    <span>Precisa de algo customizado? <button onClick={() => handleSelectPlan('Custom')} className="underline hover:text-primary">Fale com vendas</button></span>
+                    <span>Precisa de algo customizado? <button onClick={() => window.open('https://wa.me/5511999999999', '_blank')} className="underline hover:text-primary">Fale com vendas</button></span>
                 </div>
 
-                <div className="mt-8 pt-8 border-t">
-                    <h4 className="text-center font-semibold text-muted-foreground mb-6 text-sm uppercase tracking-wider">Empresas que confiam na Integrai</h4>
-                    <div className="grid md:grid-cols-2 gap-6">
-                        <div className="bg-muted/30 p-4 rounded-lg relative">
-                            <Quote className="h-6 w-6 text-primary/20 absolute top-2 left-2" />
-                            <p className="text-sm italic text-muted-foreground pt-4 mb-2">"O plano Pro transformou nosso atendimento. As automações economizam horas da equipe todos os dias."</p>
+                <div className="mt-6 pt-6 border-t px-4">
+                    <h4 className="text-center font-semibold text-muted-foreground mb-4 text-xs uppercase tracking-wider">Empresas que confiam na Integrai</h4>
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <div className="bg-muted/30 p-3 rounded-lg relative">
+                            <Quote className="h-5 w-5 text-primary/20 absolute top-2 left-2" />
+                            <p className="text-xs italic text-muted-foreground pt-3 mb-2">"O plano Pro transformou nosso atendimento. As automações economizam horas da equipe todos os dias."</p>
                             <div className="flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center font-bold text-xs text-blue-700">RC</div>
+                                <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center font-bold text-[10px] text-blue-700">RC</div>
                                 <div>
-                                    <p className="text-xs font-bold text-foreground">Ricardo Costa</p>
-                                    <p className="text-[10px] text-muted-foreground">Diretor Comercial, Viamove</p>
+                                    <p className="text-[10px] font-bold text-foreground">Ricardo Costa</p>
+                                    <p className="text-[9px] text-muted-foreground">Diretor Comercial, Viamove</p>
                                 </div>
                             </div>
                         </div>
-                        <div className="bg-muted/30 p-4 rounded-lg relative">
-                            <Quote className="h-6 w-6 text-primary/20 absolute top-2 left-2" />
-                            <p className="text-sm italic text-muted-foreground pt-4 mb-2">"A IA é incrível. Qualificamos 3x mais leads desde que ativamos o módulo Enterprise."</p>
+                        <div className="bg-muted/30 p-3 rounded-lg relative">
+                            <Quote className="h-5 w-5 text-primary/20 absolute top-2 left-2" />
+                            <p className="text-xs italic text-muted-foreground pt-3 mb-2">"A IA é incrível. Qualificamos 3x mais leads desde que ativamos o módulo Enterprise."</p>
                             <div className="flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-full bg-pink-100 flex items-center justify-center font-bold text-xs text-pink-700">MT</div>
+                                <div className="h-6 w-6 rounded-full bg-pink-100 flex items-center justify-center font-bold text-[10px] text-pink-700">MT</div>
                                 <div>
-                                    <p className="text-xs font-bold text-foreground">Maria Torres</p>
-                                    <p className="text-[10px] text-muted-foreground">Gestora de Marketing, SolarTech</p>
+                                    <p className="text-[10px] font-bold text-foreground">Maria Torres</p>
+                                    <p className="text-[9px] text-muted-foreground">Gestora de Marketing, SolarTech</p>
                                 </div>
                             </div>
                         </div>
