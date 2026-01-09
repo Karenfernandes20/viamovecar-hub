@@ -64,18 +64,18 @@ export function UpgradeModal({ open, onOpenChange }: UpgradeModalProps) {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-5xl h-[90vh] md:h-auto overflow-y-auto">
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <div className="flex flex-col items-center gap-2">
                         <Badge variant="outline" className="text-primary border-primary/50 bg-primary/10">Planos & Preços</Badge>
-                        <DialogTitle className="text-3xl font-bold text-center">Invista no crescimento da sua empresa</DialogTitle>
-                        <DialogDescription className="text-center text-lg">
+                        <DialogTitle className="text-2xl font-bold text-center">Invista no crescimento da sua empresa</DialogTitle>
+                        <DialogDescription className="text-center text-base">
                             Escolha o plano ideal desbloquear todo o potencial do seu negócio.
                         </DialogDescription>
                     </div>
                 </DialogHeader>
 
-                <div className="flex justify-center items-center gap-4 mt-4 mb-8">
+                <div className="flex justify-center items-center gap-4 mt-2 mb-6">
                     <Label htmlFor="billing-mode" className={`cursor-pointer ${!isAnnual ? 'font-bold' : ''}`}>Mensal</Label>
                     <Switch
                         id="billing-mode"
@@ -88,7 +88,7 @@ export function UpgradeModal({ open, onOpenChange }: UpgradeModalProps) {
                     </Label>
                 </div>
 
-                <div className="grid md:grid-cols-3 gap-6 px-2">
+                <div className="grid md:grid-cols-2 gap-6 px-4">
                     {PLANS.map((plan) => {
                         const price = isAnnual ? plan.annual : plan.monthly;
 
@@ -96,8 +96,8 @@ export function UpgradeModal({ open, onOpenChange }: UpgradeModalProps) {
                             <div
                                 key={plan.name}
                                 className={`
-                                    border rounded-2xl p-6 transition-all relative bg-card flex flex-col
-                                    ${plan.highlight ? 'border-primary shadow-xl scale-105 shadow-primary/20 z-10' : 'border-border hover:border-primary/50'}
+                                    border rounded-xl p-5 transition-all relative bg-card flex flex-col
+                                    ${plan.highlight ? 'border-primary shadow-lg scale-100 ring-1 ring-primary/20 z-10' : 'border-border hover:border-primary/50'}
                                 `}
                             >
                                 {plan.highlight && (

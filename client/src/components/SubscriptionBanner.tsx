@@ -44,7 +44,7 @@ export function SubscriptionBanner() {
 
     return (
         <>
-            <div className="w-full px-4 py-2 text-sm font-medium flex items-center justify-between shadow-sm z-30 transition-all bg-indigo-50 border-b border-indigo-100 text-indigo-900">
+            <div className="absolute top-0 left-0 w-full px-4 py-2 text-sm font-medium flex items-center justify-between shadow-sm z-50 transition-all duration-300 bg-indigo-50 border-b border-indigo-100 text-indigo-900 hover:opacity-0">
                 <div className="flex items-center gap-2">
                     <Stars className="h-4 w-4 text-indigo-600" />
                     <span>{message}</span>
