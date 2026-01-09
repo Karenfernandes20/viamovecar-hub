@@ -13,6 +13,8 @@ interface User {
         id: number;
         name: string;
         logo_url: string;
+        plan_id?: number;
+        due_date?: string;
     };
     profile_pic_url?: string;
     permissions?: string[];

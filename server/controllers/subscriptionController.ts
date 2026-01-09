@@ -55,6 +55,17 @@ export const getSubscription = async (req: Request, res: Response) => {
             return res.json({ status: 'none', message: "No active subscription" });
         }
 
+        // Calculate overdue status
+        if (subscriptionData.current_period_end) {
+            subscriptionData.overdue = new Date(subscriptionData.current_period_end) < new Date();
+            // Ensure due_date is present for frontend compatibility
+            if (!subscriptionData.due_date) {
+                subscriptionData.due_date = subscriptionData.current_period_end;
+            }
+        } else {
+            subscriptionData.overdue = false;
+        }
+
         res.json(subscriptionData);
     } catch (error) {
         console.error("Error fetching subscription:", error);
