@@ -479,6 +479,13 @@ const AtendimentoPage = () => {
         const s = c.status || 'PENDING';
         if (s !== status) return false;
 
+        // Safety Filter: Reject invalid phone numbers (Ghost Cards)
+        const numericPhone = c.phone.replace(/\D/g, '');
+        if (!isGroup && (numericPhone.length < 10 || numericPhone.length > 14)) {
+          // console.warn('Hiding invalid conversation card:', c.phone);
+          return false;
+        }
+
         if (conversationSearchTerm) {
           const search = conversationSearchTerm.toLowerCase();
           const name = getDisplayName(c).toLowerCase();

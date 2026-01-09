@@ -265,7 +265,10 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 // A valid individual contact phone should be numeric.
                 const isNumericPhone = /^\d+$/.test(phone);
 
-                if (!isGroup && (!isNumericPhone || phone.length < 8)) {
+                // STRICT PHONE VALIDATION
+                // Reject technical IDs, session IDs, shorter than 10 or longer than 14 (valid E.164 + DDI is usually 12-13 digits)
+                // Examples to reject: 231675384586385 (15 digits), 1234 (too short)
+                if (!isGroup && (!isNumericPhone || phone.length < 10 || phone.length > 14)) {
                     console.warn(`[Webhook] Refusing to create conversation for invalid phone format: "${phone}" (JID: ${normalizedJid}). This looks like a technical ID.`);
                     return;
                 }
@@ -735,6 +738,14 @@ export const getConversations = async (req: Request, res: Response) => {
                 query += ` AND c.instance = 'integrai'`;
             }
         }
+
+        query += ` AND (
+            c.is_group = true 
+            OR (c.phone ~ '^[0-9]+$' AND LENGTH(c.phone) BETWEEN 10 AND 14)
+        )`;
+
+        // STRICT: Only show conversations that actually have messages
+        query += ` AND EXISTS (SELECT 1 FROM whatsapp_messages m WHERE m.conversation_id = c.id)`;
 
         query += ` ORDER BY c.last_message_at DESC NULLS LAST`;
 
