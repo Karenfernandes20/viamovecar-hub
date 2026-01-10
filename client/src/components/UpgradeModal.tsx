@@ -9,14 +9,14 @@ import { Badge } from "./ui/badge";
 
 const PLANS = [
     {
-        name: "Basic",
+        name: "Básico",
         description: "Ideal para quem está começando a organizar o atendimento.",
-        monthly: 97,
-        annual: 97 * 12 * 0.8, // 20% off
+        monthly: 497,
+        annual: 497 * 12 * 0.8, // 20% off
         stripeLinkMonthly: "https://buy.stripe.com/test_basic_monthly",
         stripeLinkAnnual: "https://buy.stripe.com/test_basic_annual",
         features: [
-            "1 Usuário",
+            "Até 3 Usuários",
             "1 Conexão WhatsApp",
             "CRM Básico",
             "Agendamentos",
@@ -25,14 +25,14 @@ const PLANS = [
         highlight: false
     },
     {
-        name: "Professional",
+        name: "Avançado",
         description: "Para empresas que buscam escalar vendas com automação.",
-        monthly: 147,
-        annual: 147 * 12 * 0.8,
+        monthly: 597,
+        annual: 597 * 12 * 0.8,
         stripeLinkMonthly: "https://buy.stripe.com/test_pro_monthly",
         stripeLinkAnnual: "https://buy.stripe.com/test_pro_annual",
         features: [
-            "Até 5 Usuários",
+            "Até 10 Usuários",
             "3 Conexões WhatsApp",
             "CRM Avançado",
             "Automações de Mensagens",

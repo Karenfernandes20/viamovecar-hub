@@ -201,6 +201,18 @@ export const deleteUser = async (req: Request, res: Response) => {
       // Unlink Follow Ups
       await client.query('UPDATE crm_follow_ups SET user_id = NULL WHERE user_id = $1', [id]);
 
+      // Unlink Admin Tasks
+      await client.query('UPDATE admin_tasks SET responsible_id = NULL WHERE responsible_id = $1', [id]);
+      await client.query('UPDATE admin_tasks SET created_by = NULL WHERE created_by = $1', [id]);
+      await client.query('UPDATE admin_task_history SET user_id = NULL WHERE user_id = $1', [id]);
+
+      // Unlink Roadmap & Comments
+      await client.query('UPDATE roadmap_items SET created_by = NULL WHERE created_by = $1', [id]);
+      await client.query('UPDATE roadmap_comments SET user_id = NULL WHERE user_id = $1', [id]);
+
+      // Unlink Entity Links
+      await client.query('UPDATE entity_links SET created_by = NULL WHERE created_by = $1', [id]);
+
       // 2. Delete the user
       const result = await client.query('DELETE FROM app_users WHERE id = $1 RETURNING *', [id]);
 
@@ -236,6 +248,7 @@ export const deleteUser = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to delete user' });
   }
 };
+
 
 export const clearUsers = async (_req: Request, res: Response) => {
   try {
