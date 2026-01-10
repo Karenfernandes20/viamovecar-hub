@@ -119,8 +119,80 @@ export const checkResourceLimitsLead = async () => {
     }
 };
 
+// 4. Cleanup Invalid Tasks (Self-healing)
+// Fixes: "User logged in but task remains pending"
+const cleanupInvalidTasks = async () => {
+    if (!pool) return;
+    try {
+        // Fetch pending engagement tasks
+        const tasks = await pool.query(`
+            SELECT id, title, description, company_id 
+            FROM admin_tasks 
+            WHERE status = 'pending' 
+            AND (title LIKE 'Reativar Lead%' OR title LIKE 'Churn Risk%')
+        `);
+
+        for (const task of tasks.rows) {
+            // Extract email from description
+            // Description formats:
+            // "O usuário [email] criou conta há 3 dias..."
+            // "O usuário [email] não acessa o sistema..."
+            const emailMatch = task.description.match(/O usuário ([^ ]+) /);
+            if (!emailMatch || !emailMatch[1]) continue;
+
+            const email = emailMatch[1];
+
+            // Check current user status
+            const userRes = await pool.query(`
+                SELECT last_login FROM app_users WHERE email = $1
+            `, [email]);
+
+            if (userRes.rows.length === 0) continue; // User deleted? Keep task or investigate manually.
+
+            const user = userRes.rows[0];
+
+            let shouldClose = false;
+
+            if (task.title.startsWith('Reativar Lead')) {
+                // Invalid if: User HAS logged in
+                if (user.last_login !== null) {
+                    shouldClose = true;
+                }
+            } else if (task.title.startsWith('Churn Risk')) {
+                // Invalid if: User logged in recently (within last 30 days)
+                // If last_login > NOW - 30 days
+                if (user.last_login && new Date(user.last_login) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)) {
+                    shouldClose = true;
+                }
+            }
+
+            if (shouldClose) {
+                await pool.query(`
+                    UPDATE admin_tasks 
+                    SET status = 'completed', 
+                        completed_at = NOW()
+                    WHERE id = $1
+                `, [task.id]);
+
+                // Also auto-read pending alerts for this user to avoid confusion
+                await pool.query(`
+                    UPDATE admin_alerts 
+                    SET is_read = true 
+                    WHERE description LIKE $1 AND is_read = false
+                `, [`%${email}%`]);
+
+                console.log(`[Engagement] Auto-resolved task ${task.id} (${task.title}) because condition is no longer met.`);
+            }
+        }
+
+    } catch (e) {
+        console.error("Error cleaning up invalid tasks:", e);
+    }
+};
+
 export const runEngagementChecks = async () => {
     console.log("[Engagement] Running periodic checks...");
+    await cleanupInvalidTasks(); // Cleanup first
     await checkAccountActivation();
     await checkUserInactivity();
     await checkResourceLimitsLead();
